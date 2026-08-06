@@ -3046,14 +3046,27 @@ function Set-EmployeeWhatsApp {
 
     $script:LastEmployeePhone = $phone
 
+    $linked = $false
     if ((Test-ObjectHasProperty $result 'alreadyPaired') -and $result.alreadyPaired) {
         Write-Good "$Name is on $phone."
-    } else {
+        $linked = $true
+    }
+
+    # Codes expire, so this loops rather than saying it once.
+    #
+    # It used to end with "nothing expires", which is not true: a WhatsApp
+    # pairing code is short-lived, and a bridge left unpaired long enough loses
+    # its connection in a way that only a fresh one clears. Somebody who went
+    # looking for Linked Devices and came back to a dead code was told to run
+    # the setup again, which landed them on the same dead bridge.
+    $attempt = 0
+    while (-not $linked -and $attempt -lt 4) {
+        $attempt++
         $pairCode = if (Test-ObjectHasProperty $result 'pairCode') { [string]$result.pairCode } else { '' }
         if (-not $pairCode) {
             Write-Host ''
-            Write-Bad 'That number was set up, but WhatsApp did not send a code.'
-            Write-Info 'Run the setup again in a moment and it will ask for one.'
+            Write-Bad 'WhatsApp did not send a code just now.'
+            Write-Info 'Try this step again in a moment.'
             return $true
         }
 
@@ -3065,16 +3078,46 @@ function Set-EmployeeWhatsApp {
         Write-NumberedStep 3 'Tap' 'Link with phone number instead'
         Write-NumberedStep 4 'Type this code:'
         Show-PairingCode -Code $pairCode
-        Write-Info 'Take your time. This waits for you.'
+        Write-Info 'Type it soon - codes only last a few minutes.'
         Write-Host ''
 
-        if (-not (Wait-ForEmployeeNumber -Name $Name)) {
-            Write-Info "$Name's number is set up and still waiting for that code."
-            Write-Info 'Nothing expires. Run the setup again when you have typed'
-            Write-Info 'it in and it will carry straight on.'
+        if (Wait-ForEmployeeNumber -Name $Name) {
+            Write-Good "$Name is on $phone."
+            $linked = $true
+            break
+        }
+
+        Write-Host ''
+        Write-Warn 'That code has run out.'
+        Write-Host ''
+        if (-not (Read-YesNo -Question 'Send a new one?' -YesLabel 'Yes, send a new code' -NoLabel 'Later')) {
+            Write-Host ''
+            Write-Info "$Name is saved. Run the setup again when the phone is in"
+            Write-Info 'front of you and it will offer a new code.'
             return $true
         }
-        Write-Good "$Name is on $phone."
+
+        # The same call again. It knows the number is half-made, so it issues a
+        # fresh code - and rebuilds the bridge first if that is what it takes.
+        $result = Invoke-ZoHelper -Arguments @('--employee-number', $Name, $phone) `
+            -Waiting 'getting a new code...'
+        if (-not $result -or -not $result.ok) {
+            Write-Host ''
+            Write-Bad 'Could not get a new code just now.'
+            Write-Info 'Run the setup again in a moment and it will offer one.'
+            return $true
+        }
+        if ((Test-ObjectHasProperty $result 'alreadyPaired') -and $result.alreadyPaired) {
+            Write-Good "$Name is on $phone."
+            $linked = $true
+        }
+    }
+
+    if (-not $linked) {
+        Write-Host ''
+        Write-Info "$Name is saved, and their number is waiting for a code."
+        Write-Info 'Run the setup again whenever the phone is in front of you.'
+        return $true
     }
 
     # The responder, so the number answers as this employee rather than as the

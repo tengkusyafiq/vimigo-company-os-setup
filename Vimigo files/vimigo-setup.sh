@@ -2865,14 +2865,27 @@ set_employee_whatsapp() {
 
     LAST_EMPLOYEE_PHONE="$phone"
 
+    local linked=no
     if [ "$(json_field "$result" 'data.alreadyPaired === true')" = 'true' ]; then
         good "$name is on $phone."
-    else
-        local pair_code; pair_code="$(json_field "$result" 'data.pairCode || ""')"
+        linked=yes
+    fi
+
+    # Codes expire, so this loops rather than saying it once.
+    #
+    # It used to end with "nothing expires", which is not true: a WhatsApp
+    # pairing code is short-lived, and a bridge left unpaired long enough loses
+    # its connection in a way that only a fresh one clears. Somebody who went
+    # looking for Linked Devices and came back to a dead code was told to run
+    # the setup again, which landed them on the same dead bridge.
+    local attempt=0 pair_code
+    while [ "$linked" = 'no' ] && [ "$attempt" -lt 4 ]; do
+        attempt=$((attempt + 1))
+        pair_code="$(json_field "$result" 'data.pairCode || ""')"
         if [ -z "$pair_code" ]; then
             printf '\n'
-            bad 'That number was set up, but WhatsApp did not send a code.'
-            info 'Run the setup again in a moment and it will ask for one.'
+            bad 'WhatsApp did not send a code just now.'
+            info 'Try this step again in a moment.'
             return 0
         fi
 
@@ -2884,16 +2897,46 @@ set_employee_whatsapp() {
         numbered 3 'Tap' 'Link with phone number instead'
         numbered 4 'Type this code:'
         show_pairing_code "$pair_code"
-        info 'Take your time. This waits for you.'
+        info 'Type it soon - codes only last a few minutes.'
         printf '\n'
 
-        if ! wait_for_employee_number "$name"; then
-            info "$name's number is set up and still waiting for that code."
-            info 'Nothing expires. Run the setup again when you have typed'
-            info 'it in and it will carry straight on.'
+        if wait_for_employee_number "$name"; then
+            good "$name is on $phone."
+            linked=yes
+            break
+        fi
+
+        printf '\n'
+        warn 'That code has run out.'
+        printf '\n'
+        if ! ask_yes_no 'Send a new one?'; then
+            printf '\n'
+            info "$name is saved. Run the setup again when the phone is in"
+            info 'front of you and it will offer a new code.'
             return 0
         fi
-        good "$name is on $phone."
+
+        # The same call again. It knows the number is half-made, so it issues a
+        # fresh code - and rebuilds the bridge first if that is what it takes.
+        info 'Getting a new code...'
+        result="$(zo_helper --employee-number "$name" "$phone")"
+        if [ -z "$result" ] || [ "$(json_field "$result" 'data.ok === true')" != 'true' ]; then
+            printf '\n'
+            bad 'Could not get a new code just now.'
+            info 'Run the setup again in a moment and it will offer one.'
+            return 0
+        fi
+        if [ "$(json_field "$result" 'data.alreadyPaired === true')" = 'true' ]; then
+            good "$name is on $phone."
+            linked=yes
+        fi
+    done
+
+    if [ "$linked" = 'no' ]; then
+        printf '\n'
+        info "$name is saved, and their number is waiting for a code."
+        info 'Run the setup again whenever the phone is in front of you.'
+        return 0
     fi
 
     # The responder, so the number answers as this employee rather than as the

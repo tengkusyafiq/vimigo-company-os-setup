@@ -231,6 +231,29 @@ cmd_state() {
         "$name" "${port:-}" "$running" "$paired"
 }
 
+wait_connected() {
+    # $1 = name, $2 = seconds to wait. True once the bridge's websocket to
+    # WhatsApp is actually up.
+    #
+    # Asking for a pairing code before it is up returns "websocket not
+    # connected" and burns the attempt. Twelve seconds was the old guess and it
+    # is not enough on a cold start.
+    local name="$1" limit="${2:-60}" waited=0 port state
+    port="$(instance_port "$name")"
+    [ -n "$port" ] || return 1
+    while [ "$waited" -lt "$limit" ]; do
+        state="$(curl -s --max-time 6 "http://127.0.0.1:$port/api/auth/status" \
+            -H "Authorization: Bearer $(bridge_token "$name")" 2>/dev/null)"
+        case "$state" in
+            *'"connected":true'*) return 0 ;;
+            *'"logged_in":true'*) return 0 ;;
+        esac
+        sleep 4
+        waited=$((waited + 4))
+    done
+    return 1
+}
+
 cmd_pair() {
     local name="${1:-}" phone="${2:-}"
     [ -n "$name" ] || { bad 'Which number? Use the name you gave it.'; return 1; }
@@ -242,7 +265,7 @@ cmd_pair() {
     local port token response
     port="$(instance_port "$name")"
     token="$(bridge_token "$name")"
-    [ -n "$token" ] || { bad "'$name' is not running."; return 1; }
+    [ -n "$token" ] || { bad "'$name' is not running."; printf 'VIMIGO_WA_STALE %s\n' "$name"; return 1; }
 
     request_code() {
         curl -s --max-time 30 -X POST "http://127.0.0.1:$port/api/auth/pair-phone" \
@@ -250,20 +273,22 @@ cmd_pair() {
             -d "{\"phone\":\"$2\"}"
     }
 
+    wait_connected "$name" 12 || true
     response="$(request_code "$token" "$phone")"
-    # An empty answer means the WhatsApp socket has dropped, usually after an
-    # unattended QR session timed out. Restart once and ask again.
+
+    # No restart-and-retry here any more, and that is from evidence rather than
+    # taste. A bridge left unpaired long enough answers "websocket not
+    # connected" and does not come back: restarted, it reconnects the process
+    # and never the socket - watched for sixty seconds, reporting
+    # connected:false the whole way. The only thing that clears it is a fresh
+    # instance.
+    #
+    # So this says so, quickly, and lets the caller rebuild. Spending a minute
+    # first on a reconnection that has never once worked just makes the owner
+    # wait longer for the same answer.
     case "$response" in
         *'"code"'*|*already*paired*) ;;
-        *)
-            say 'The connection to WhatsApp had dropped. Reconnecting...'
-            pkill -f "$(instance_dir "$name")/run.sh" 2>/dev/null
-            sleep 3
-            nohup "$(instance_dir "$name")/run.sh" >> "$(instance_dir "$name")/logs/bridge.log" 2>&1 &
-            sleep 12
-            token="$(bridge_token "$name")"
-            response="$(request_code "$token" "$phone")"
-            ;;
+        *) printf 'VIMIGO_WA_STALE %s\n' "$name" ;;
     esac
 
     case "$response" in

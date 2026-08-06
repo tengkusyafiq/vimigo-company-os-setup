@@ -38,7 +38,17 @@ const WHATSAPP_STATUS = '/home/workspace/Services/vimigo-setup/zo-whatsapp-setup
 const AI_SIGNIN = '/home/workspace/Services/vimigo-setup/zo-ai-signin.sh';
 const RESPONDER = '/home/workspace/Services/vimigo-setup/zo-whatsapp-responder.sh';
 
-const TIMEOUT_MS = 30000;
+// Sixty, not thirty.
+//
+// Giving an employee a WhatsApp number builds a bridge, waits for its websocket
+// and asks WhatsApp for a pairing code, and that is comfortably more than
+// thirty seconds on a cold start. At thirty it aborted mid-way and reported
+// "This operation was aborted" for an operation that was working.
+//
+// A longer ceiling costs nothing when things are quick - it is when to give up,
+// not how long to wait. Anything genuinely slower than this (building the
+// bridge from source) reports progress instead of holding the connection open.
+const TIMEOUT_MS = 60000;
 
 function fail(code, error) {
   process.stdout.write(JSON.stringify({ ok: false, code, error }) + '\n');
@@ -423,11 +433,32 @@ async function addEmployeeNumber(options, session, token) {
   }
 
   const dir = `${WHATSAPP_INSTANCES}/${slug}`;
-  const text = await runOnZo(
-    `if [ -x ${shellQuote(WHATSAPP_MULTI)} ]; then ` +
-    `${shellQuote(WHATSAPP_MULTI)} add ${shellQuote(slug)} ${shellQuote(phone)} 2>&1; ` +
-    `else echo VIMIGO_NOT_INSTALLED; fi`,
-    `Give ${name} a WhatsApp number`, session, token);
+  const multi = shellQuote(WHATSAPP_MULTI);
+  const q = shellQuote(slug);
+  const p = shellQuote(phone);
+
+  // Idempotent, and self-healing, because this is run more than once.
+  //
+  // Somebody who walks away mid-pairing comes back to a number that already
+  // exists and is not linked. Refusing them ("there is already a number for
+  // Joe, let them go first") is a dead end for the exact person who most needs
+  // it to just work. So: linked already, say so; half-made, issue a fresh
+  // code; and if the bridge has gone stale past reconnecting, rebuild it,
+  // because that is the only thing that clears it.
+  const script =
+    `if [ ! -x ${multi} ]; then echo VIMIGO_NOT_INSTALLED; else ` +
+    `state=$(${multi} state ${q} 2>/dev/null); ` +
+    `case "$state" in ` +
+    `  *paired=yes*) echo VIMIGO_WA_ALREADY ;; ` +
+    `  *port=[0-9]*) ` +
+    `    out=$(${multi} pair ${q} ${p} 2>&1); echo "$out"; ` +
+    `    case "$out" in *VIMIGO_WA_STALE*) ` +
+    `      echo VIMIGO_WA_REBUILDING; ${multi} remove ${q} >/dev/null 2>&1; ` +
+    `      ${multi} add ${q} ${p} 2>&1 ;; esac ;; ` +
+    `  *) ${multi} add ${q} ${p} 2>&1 ;; ` +
+    `esac; fi`;
+
+  const text = await runOnZo(script, `Give ${name} a WhatsApp number`, session, token);
 
   if (text.includes('VIMIGO_NOT_INSTALLED')) {
     fail('multi_missing', 'The setup files are not on Zo yet. Run the setup again.');
@@ -436,16 +467,26 @@ async function addEmployeeNumber(options, session, token) {
     fail('bridge_missing',
       'Your own WhatsApp assistant has to be working before an employee can have a number.');
   }
-  if (/already a number called/i.test(text)) {
-    fail('name_taken',
-      `There is already a number set up for ${name}. Let them go first, or use another name.`);
-  }
   if (/No free port/i.test(text)) {
     fail('no_port', 'This Zo has no room for another number just now.');
   }
 
+  if (text.includes('VIMIGO_WA_ALREADY')) {
+    process.stdout.write(JSON.stringify({
+      ok: true, slug, port: null, pairCode: null, alreadyPaired: true, rebuilt: false,
+    }) + '\n');
+    return;
+  }
+
+  const pairCodeEarly = (/VIMIGO_WA_CODE\s+(\S+)/.exec(text) || [])[1] || null;
   const port = (/VIMIGO_WA_PORT\s+(\d+)/.exec(text) || [])[1] || null;
-  if (!port || !text.includes('VIMIGO_WA_READY')) {
+
+  // A code and no port is the re-pair path: the bridge was already there, so
+  // nothing was created and nothing needs registering again.
+  if (!pairCodeEarly && !port) {
+    fail('bridge_failed', `${name}'s number could not be started just now.`);
+  }
+  if (port && !text.includes('VIMIGO_WA_READY')) {
     fail('bridge_failed', `${name}'s number could not be started just now.`);
   }
 
@@ -468,11 +509,27 @@ async function addEmployeeNumber(options, session, token) {
     // Already registered under that label.
   }
 
-  const pairCode = (/VIMIGO_WA_CODE\s+(\S+)/.exec(text) || [])[1] || null;
+  // The last code in the output, not the first. On a rebuild the stale
+  // attempt's line comes first and is worthless; the one from the fresh
+  // instance is the one the owner has to type.
+  const codes = text.match(/VIMIGO_WA_CODE\s+(\S+)/g) || [];
+  const pairCode = codes.length
+    ? codes[codes.length - 1].split(/\s+/)[1]
+    : null;
   const alreadyPaired = text.includes('VIMIGO_WA_PAIRED');
 
+  if (!pairCode && !alreadyPaired) {
+    fail('no_code',
+      `WhatsApp did not send a code for ${name}. Try this step again in a moment.`);
+  }
+
   process.stdout.write(JSON.stringify({
-    ok: true, slug, port: Number(port), pairCode, alreadyPaired,
+    ok: true,
+    slug,
+    port: port ? Number(port) : null,
+    pairCode,
+    alreadyPaired,
+    rebuilt: text.includes('VIMIGO_WA_REBUILDING'),
   }) + '\n');
 }
 
