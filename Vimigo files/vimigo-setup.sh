@@ -913,19 +913,12 @@ show_all_done() {
     # Finishing the checklist is not the end of the job. The next real step is
     # building the team, and a screen that says "all done" and stops is a screen
     # the owner closes without ever finding it.
-    info '  What next:'
-    printf '\n'
-    printf '        %s E %s  %sHire an AI employee%s   %ssales, admin, accounts, and more%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-    # Named for what it does, not for what it is useful for. "To test it as a
-    # new customer would" reads like a harmless preview to someone who is not
-    # testing anything.
-    printf '        %s S %s  %sStart over%s          %sWARNING! Removes what this setup%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_YELLOW" "$C_RESET"
-    printf '                                %sinstalled, then sets it all up again%s\n' \
-        "$C_YELLOW" "$C_RESET"
-    printf '        %s Q %s  %sClose%s\n' "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET"
-    printf '\n'
+    #
+    # The same options as the unfinished screen, from one place. When this
+    # screen kept its own shorter copy, finishing the setup quietly took away
+    # "see your AI employees" and "set up your assistant again" - so the only
+    # route back into a finished setup was Start over, which deletes things.
+    show_main_options finished
 }
 
 show_checks() {
@@ -1978,11 +1971,21 @@ enable_whatsapp_replies() {
     zo_helper --install-zo-scripts >/dev/null 2>&1 || true
 
     info 'Switching on replies...'
+    # The brief goes with it, the same one an AI employee is hired on.
+    #
+    # set_active_persona binds to whichever channel called it, so the responder
+    # has to carry the identity itself. Without this the owner's assistant
+    # answered on WhatsApp as plain Zo - correct, but not theirs. It is the one
+    # entry in the list that is never hireable, precisely because it belongs
+    # here instead.
+    local brief; brief="$(employee_prompt assistant)"
     local answer
     if [ "$self_chat" = "yes" ]; then
-        answer="$(zo_helper --responder main --pa --owner "$allowed" --self)"
+        answer="$(zo_helper --responder main --pa --owner "$allowed" \
+            --assistant-name 'your assistant' --brief "$brief" --self)"
     else
-        answer="$(zo_helper --responder main --pa --owner "$allowed")"
+        answer="$(zo_helper --responder main --pa --owner "$allowed" \
+            --assistant-name 'your assistant' --brief "$brief")"
     fi
 
     case "$answer" in
@@ -2265,18 +2268,32 @@ show_hired_team() {
     # The team so far, from this Mac's own note. Zo stays the authority on who
     # exists, but keeping the names locally is what lets the hire screen open on
     # the team rather than on a blank list the owner has to remember.
+    #
+    # $1 = 'quiet' to leave off the heading, for a screen that has already said
+    # who these people are. Without it the team screen read "1 working for you:"
+    # and then "Working for you already:" directly underneath.
     local stored; stored="$(profile_get employees)"
     [ -n "$stored" ] || return 0
 
-    info 'Working for you already:'
+    [ "${1:-}" = 'quiet' ] || info 'Working for you already:'
     local IFS_SAVE="$IFS"; IFS=';'
-    local member name role_title
+    local member name role_title channel where
     for member in $stored; do
         IFS="$IFS_SAVE"
         [ -n "$member" ] || { IFS=';'; continue; }
-        name="${member%%|*}"; role_title="${member#*|}"
-        printf '         %s• %s%s%s  %s%s%s\n' \
-            "$C_GREY" "$C_RESET" "$C_WHITE" "$name" "$C_GREY" "$role_title" "$C_RESET"
+        # Four fields now: name, job title, channel, number. Cut rather than
+        # ${member#*|}, which used to take everything after the first bar and
+        # would print "Sales|telegram|" as the job title.
+        name="$(printf '%s' "$member" | cut -d'|' -f1)"
+        role_title="$(printf '%s' "$member" | cut -d'|' -f2)"
+        channel="$(printf '%s' "$member" | cut -d'|' -f3)"
+        case "$channel" in
+            ''|none) where='no way to reach them yet' ;;
+            *) where="on $channel" ;;
+        esac
+        printf '         %s• %s%s%-16s%s %s%-24s%s %s%s%s\n' \
+            "$C_GREY" "$C_RESET" "$C_WHITE" "$name" "$C_RESET" \
+            "$C_GREY" "$role_title" "$C_RESET" "$C_GREY" "$where" "$C_RESET"
         IFS=';'
     done
     IFS="$IFS_SAVE"
@@ -2284,23 +2301,60 @@ show_hired_team() {
     return 0
 }
 
+employee_field() {
+    # $1 = the stored record, $2 = which field. Kept in one place so the layout
+    # of a record is described once rather than in five loops.
+    printf '%s' "$1" | cut -d'|' -f"$2"
+}
+
+update_hired_employee_channel() {
+    # $1 = name, $2 = channel, $3 = number.
+    #
+    # Written against the existing entry rather than as a list of its own, so
+    # that letting an employee go takes the number with them and there is never
+    # a spare number sitting against somebody who no longer works here.
+    local name="$1" channel="$2" phone="${3:-}"
+    local stored; stored="$(profile_get employees)"
+    local kept="" member record
+    local IFS_SAVE="$IFS"; IFS=';'
+    for member in $stored; do
+        IFS="$IFS_SAVE"
+        [ -n "$member" ] || { IFS=';'; continue; }
+        if [ "$(employee_field "$member" 1)" = "$name" ]; then
+            record="$name|$(employee_field "$member" 2)|$channel|$phone"
+        else
+            record="$member"
+        fi
+        if [ -n "$kept" ]; then kept="$kept;$record"; else kept="$record"; fi
+        IFS=';'
+    done
+    IFS="$IFS_SAVE"
+    profile_set employees "$kept"
+}
+
 add_hired_employee() {
     # $1 = name, $2 = job title. Kept so "the sales one" still means something
     # six months later when the only thing on Zo is a persona called Zoe.
-    local name="$1" role_title="$2"
+    # A bar or a semicolon in a name would split one employee into two records
+    # and the team list would show staff who do not exist. The name is typed by
+    # the owner, so it is not hostile - just possible.
+    local name; name="$(printf '%s' "$1" | tr '|;' '  ')"
+    local role_title; role_title="$(printf '%s' "$2" | tr '|;' '  ')"
     local stored; stored="$(profile_get employees)"
     local kept="" member
     local IFS_SAVE="$IFS"; IFS=';'
     for member in $stored; do
         IFS="$IFS_SAVE"
         [ -n "$member" ] || { IFS=';'; continue; }
-        if [ "${member%%|*}" != "$name" ]; then
+        if [ "$(employee_field "$member" 1)" != "$name" ]; then
             if [ -n "$kept" ]; then kept="$kept;$member"; else kept="$member"; fi
         fi
         IFS=';'
     done
     IFS="$IFS_SAVE"
-    if [ -n "$kept" ]; then kept="$kept;$name|$role_title"; else kept="$name|$role_title"; fi
+    # Channel and number are left empty here and filled in by the question that
+    # comes next, so the record has its full shape from the moment it exists.
+    if [ -n "$kept" ]; then kept="$kept;$name|$role_title||"; else kept="$name|$role_title||"; fi
     profile_set employees "$kept"
 }
 
@@ -2321,6 +2375,485 @@ remove_hired_employee() {
     done
     IFS="$IFS_SAVE"
     profile_set employees "$kept"
+}
+
+sync_hired_employees() {
+    # Reconciles this Mac's note against Zo, and leaves the note matching Zo.
+    #
+    # Zo decides who exists. The note only remembers what Zo does not keep -
+    # which job somebody was hired for - so it is a convenience and never the
+    # authority. Three things can have happened since it was written: somebody
+    # was deleted on the website, somebody was created there, or nothing
+    # changed. All three end with the note matching Zo.
+    #
+    # Left untouched when Zo cannot be reached, rather than emptying the team
+    # over a dropped connection. An AI employee nobody can account for is worse
+    # than none, and these are answering real people.
+    local listed; listed="$(zo_helper --employees)" || return 1
+    [ -n "$listed" ] || return 1
+    case "$(json_field "$listed" 'data.ok === true')" in true) ;; *) return 1 ;; esac
+
+    local names; names="$(json_field "$listed" '(data.employees || []).join("\n")')"
+
+    local stored; stored="$(profile_get employees)"
+    local rebuilt="" name member found record
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        # Keep the whole record already held for this name - job title, channel
+        # and number - rather than just the title. Rebuilding from the name
+        # alone would quietly forget which employees were on Telegram.
+        found=''
+        local IFS_SAVE="$IFS"; IFS=';'
+        for member in $stored; do
+            IFS="$IFS_SAVE"
+            [ -n "$member" ] || { IFS=';'; continue; }
+            if [ "$(employee_field "$member" 1)" = "$name" ]; then found="$member"; fi
+            IFS=';'
+        done
+        IFS="$IFS_SAVE"
+        # Made on the Zo website, or by asking Zo directly. It exists and it
+        # answers, so it belongs on the list even though the only thing known
+        # about it is the name.
+        record="${found:-$name|made on the Zo website||}"
+        if [ -n "$rebuilt" ]; then
+            rebuilt="$rebuilt;$record"
+        else
+            rebuilt="$record"
+        fi
+    done <<EOF
+$names
+EOF
+
+    profile_set employees "$rebuilt"
+    return 0
+}
+
+show_team_screen() {
+    # Who works for the business, read from Zo.
+    #
+    # Its own screen because "do I still have that sales one" is a question
+    # people actually ask, and hunting for it inside the hiring flow means
+    # risking hiring another one by mistake.
+    title 'Your AI employees'
+
+    sync_hired_employees || true
+
+    local stored; stored="$(profile_get employees)"
+    if [ -z "$stored" ]; then
+        info 'Nobody works for you yet.'
+        printf '\n'
+        info 'Press E on the main screen to hire your first one. They take'
+        info 'about a minute each.'
+        return 0
+    fi
+
+    local count=0 member
+    local IFS_SAVE="$IFS"; IFS=';'
+    for member in $stored; do
+        IFS="$IFS_SAVE"; [ -n "$member" ] && count=$((count + 1)); IFS=';'
+    done
+    IFS="$IFS_SAVE"
+
+    info "$count working for you:"
+    printf '\n'
+    show_hired_team quiet
+    info 'To change what one of them does, just tell your Zo. Say'
+    info '"Joe should also handle refunds" and it will sort it out.'
+    printf '\n'
+    info 'Their pages, to edit or remove them:'
+    printf '        %s%s%s\n' "$C_TEAL" "$(zo_personas_url '')" "$C_RESET"
+    return 0
+}
+
+setup_second_brain() {
+    # Sets up somewhere for the business to keep what it learns.
+    #
+    # Nothing is asked. It makes plain folders of Markdown - the kind that open
+    # on a phone, in Obsidian, or in anything else, now and in ten years - and
+    # an index over them so a phrase can be found across all of it at once.
+    # Empty and labelled, so that when the assistant is told to remember
+    # something there is somewhere for it to go.
+    #
+    # What it deliberately does not do is decide how this business works. Nine
+    # folders is a guess, and a good guess is still a guess: a workshop needs
+    # jobs and parts, a clinic needs patients and appointments. That part is a
+    # conversation with their Zo, not a question on a setup screen, and the
+    # screen says so rather than implying this is finished.
+    title 'Your company memory'
+    info 'This is where your Zo keeps what it learns about your business,'
+    info 'so it stops asking you the same things twice.'
+    printf '\n'
+
+    local result; result="$(zo_helper --second-brain)"
+    if [ -z "$result" ] || [ "$(json_field "$result" 'data.ok === true')" != 'true' ]; then
+        bad 'Could not set that up just now.'
+        info 'Run the setup again in a moment and it will pick this up.'
+        return 1
+    fi
+
+    local folders indexed
+    folders="$(json_field "$result" 'data.folders || 0')"
+    indexed="$(json_field "$result" 'data.indexed === true')"
+
+    good "Ready. $folders drawers, labelled and empty."
+    printf '\n'
+    printf '         %sPeople             who works here, and what they do%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sCustomers          who they are, what they bought, what they asked%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sSuppliers          what they supply, what it costs, who to call%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sProducts           what you sell, and what people ask about it%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sMoney              prices, terms, who pays late%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sDecisions          what was decided, and why%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sMeetings           what was said and what was agreed%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sHow we do things   hours, refunds, complaints, deliveries%s\n' "$C_GREY" "$C_RESET"
+    printf '         %sInbox              anything not sorted out yet%s\n' "$C_GREY" "$C_RESET"
+    printf '\n'
+    if [ "$indexed" = 'true' ]; then
+        info 'Everything in there can be searched instantly, however much'
+        info 'of it there is.'
+        printf '\n'
+    fi
+
+    # The honest part. Nine folders is a guess at what a business looks like,
+    # and saying "done" here would leave someone expecting it to be right for
+    # them out of the box.
+    warn 'This is a starting point, not a finished filing system.'
+    printf '\n'
+    info 'Every business keeps different things. A workshop wants jobs and'
+    info 'parts; a clinic wants patients and appointments; a shop wants'
+    info 'stock and suppliers.'
+    printf '\n'
+    info 'So tell your Zo about your business and let it shape this around'
+    info 'you. Just talk to it, the way you would tell a new employee how'
+    info 'things work here:'
+    printf '\n'
+    printf '         %s"We are a car workshop. Keep a file for every job."%s\n' "$C_WHITE" "$C_RESET"
+    printf '         %s"Remember that Ali Trading always pays late."%s\n' "$C_WHITE" "$C_RESET"
+    printf '         %s"Every time I send you a receipt, file it under Money."%s\n' "$C_WHITE" "$C_RESET"
+    printf '\n'
+    info 'The more you tell it, the more useful it gets.'
+    return 0
+}
+
+show_main_options() {
+    # Everything the owner can do, in one place. $1 = 'finished' to leave out
+    # the big Enter box.
+    #
+    # The same list whether the setup has finished or not, because "what can I
+    # do here" should not depend on how much is ticked - somebody who finished
+    # yesterday and came back to hire a second employee met a different,
+    # shorter menu than the one they used the first time.
+    info 'What you can do:'
+    printf '\n'
+
+    if [ "${1:-}" != 'finished' ]; then
+        printf '        %s┌──────────────────────────────────────┐%s\n' "$C_GREEN" "$C_RESET"
+        printf '        %s│%s   %sPress ENTER to set everything up%s   %s│%s\n' \
+            "$C_GREEN" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREEN" "$C_RESET"
+        printf '        %s└──────────────────────────────────────┘%s\n\n' "$C_GREEN" "$C_RESET"
+    fi
+
+    printf '        %s E %s  %sHire an AI employee         %s%ssales, admin, accounts, and more%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+    printf '        %s T %s  %sSee your AI employees       %s%swho works for you, and where they answer%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+    printf '        %s A %s  %sSet up your assistant again %s%schange the number, or how you reach it%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+    printf '        %s M %s  %sYour company memory         %s%swhat your Zo remembers about the business%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+    printf '        %s Z %s  %sOpen your Zo                %s%sthe website, for anything not here%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+    # Named for what it does, not for what it is useful for. "To test it as a
+    # new customer would" reads like a harmless preview to someone who is not
+    # testing anything.
+    printf '        %s S %s  %sStart over                  %s%sWARNING! Removes what this setup%s\n' \
+        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_YELLOW" "$C_RESET"
+    # Lined up under "WARNING!", which starts at column 41: eight spaces, the
+    # three-character key, two more, then the twenty-eight the label occupies.
+    printf '                                         %sinstalled, then sets it up again%s\n' \
+        "$C_YELLOW" "$C_RESET"
+    printf '        %s Q %s  %sClose%s\n' "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET"
+    printf '\n'
+}
+
+handle_main_choice() {
+    # Runs the action for a main-menu key. $1 = the key already lowercased.
+    #
+    # Shared by both menus - the finished one and the unfinished one - because
+    # when they each had their own copy the finished one quietly offered fewer
+    # options, and the way back from a finished setup was the destructive one.
+    #
+    # Prints nothing and returns 1 for a key it does not know, so the caller can
+    # treat that as "do the whole checklist".
+    case "$1" in
+        e*)
+            clear_screen; show_banner
+            hire_employee || true
+            printf '      Press Enter to go back '; read -r _ || true
+            return 0 ;;
+        t*)
+            clear_screen; show_banner
+            show_team_screen || true
+            printf '\n      Press Enter to go back '; read -r _ || true
+            return 0 ;;
+        a*)
+            clear_screen; show_banner
+            reset_whatsapp_assistant || true
+            printf '      Press Enter to go back '; read -r _ || true
+            return 0 ;;
+        m*)
+            clear_screen; show_banner
+            setup_second_brain || true
+            printf '\n      Press Enter to go back '; read -r _ || true
+            return 0 ;;
+        z*)
+            clear_screen; show_banner
+            local home; home="${ZO_WORKSPACE_URL:-https://zo.computer}"
+            [ -n "$home" ] || home='https://zo.computer'
+            info 'Your Zo:'
+            printf '        %s%s%s\n\n' "$C_TEAL" "$home" "$C_RESET"
+            if ask_yes_no 'Open it now?'; then open "$home" 2>/dev/null || true; fi
+            printf '      Press Enter to go back '; read -r _ || true
+            return 0 ;;
+        s*)
+            clear_screen; show_banner
+            reset_vimigo_setup || true
+            printf '      Press Enter to check again '; read -r _ || true
+            return 0 ;;
+    esac
+    return 1
+}
+
+wait_for_employee_telegram() {
+    # $1 = name, $2 = bot username. Waits for the owner to say hello to their
+    # new employee, so the setup can say it worked rather than asking whether
+    # it did.
+    local name="$1" username="$2"
+    local waited=0 state paired
+
+    while [ "$waited" -lt 300 ]; do
+        printf '\r      %s...waiting for you to say hello to %s%s   ' \
+            "$C_GREY" "$name" "$C_RESET"
+        sleep 8
+        waited=$((waited + 8))
+
+        state="$(zo_helper --telegram-employee-status "$name")"
+        paired="$(json_field "$state" 'data.paired === true')"
+        if [ "$paired" = 'true' ]; then
+            printf '\r%*s\r' 72 ''
+            good "$name has said hello. They are yours to teach."
+            printf '\n'
+            info 'When you are happy they know the job, tell your Zo to let'
+            info "$name answer your customers - or come back here and hire"
+            info 'the next one.'
+            return 0
+        fi
+    done
+
+    printf '\r%*s\r' 72 ''
+    info "$name is set up and waiting for you in Telegram."
+    info "Say hello to @$username whenever you like - nothing expires."
+    return 0
+}
+
+set_employee_telegram() {
+    # $1 = name, $2 = the job description Zo was given for them.
+    #
+    # Gives one employee its own Telegram, and proves it answers.
+    #
+    # Zo's own Telegram connects the owner's account, so an employee sitting on
+    # it answers as the boss. A bot is a separate identity - and it needs no SIM
+    # card, which is why this is the practical choice for employees where
+    # WhatsApp wants a spare number each.
+    #
+    # The owner makes the bot themselves, in Telegram, by messaging @BotFather.
+    # That is five taps on a phone, which is squarely inside what they already
+    # do, and it means the bot belongs to them rather than to us.
+    local name="$1" brief="$2"
+
+    printf '\n'
+    info "$name needs their own Telegram. It is free, it takes a minute,"
+    info 'and you do not need another phone number.'
+    printf '\n'
+    info 'On your phone, in Telegram:'
+    printf '\n'
+    numbered 1 'Search for' '@BotFather'
+    numbered 2 'Send it' '/newbot'
+    numbered 3 "Give it a name -" "$name works well"
+    numbered 4 'Give it a username ending in' 'bot'
+    numbered 5 'It replies with a long line. Copy it.'
+    printf '\n'
+    info 'That long line is what tells your Zo it may answer as this bot.'
+    info 'It looks like 8123456789:AAH-abc123...'
+    printf '\n'
+
+    printf '      %sPaste it here (or Enter to skip) > %s' "$C_PURPLE" "$C_RESET"
+    local bot_token; read -r bot_token || bot_token=''
+    bot_token="$(printf '%s' "$bot_token" | tr -d '[:space:]')"
+    if [ -z "$bot_token" ]; then
+        printf '\n'
+        info "No problem. $name is saved, and you can do this any time."
+        return 1
+    fi
+
+    # Sent every time, so a Zo set up before this existed gets the new files.
+    zo_helper --install-zo-scripts >/dev/null 2>&1 || true
+
+    local result
+    result="$(zo_helper --telegram-employee "$name" --bot-token "$bot_token" --brief "$brief")"
+
+    if [ -z "$result" ] || [ "$(json_field "$result" 'data.ok === true')" != 'true' ]; then
+        printf '\n'
+        # A bot already wired to something else is the common mistake, not a
+        # fault, so it gets its own answer rather than "something went wrong".
+        if [ "$(json_field "$result" 'data.code || ""')" = 'bot_in_use' ]; then
+            bad 'That one is already doing another job.'
+            printf '\n'
+            info 'A Telegram bot can only work for one thing at a time, and'
+            info 'that one is already connected to something else. Taking it'
+            info 'over would stop whatever is using it.'
+            printf '\n'
+            info "Make a new one for $name - send /newbot to @BotFather"
+            info 'again. It is free, and you can have as many as you like.'
+            printf '\n'
+            if ask_yes_no 'Try again with a new bot?'; then
+                set_employee_telegram "$name" "$brief"
+                return $?
+            fi
+            return 1
+        fi
+
+        bad "Could not set $name up on Telegram just now."
+        local why; why="$(json_field "$result" 'data.error || ""')"
+        [ -n "$why" ] && info "  $why"
+        info 'Nothing was lost. Try this step again in a moment.'
+        return 1
+    fi
+
+    local username pair_code join_url
+    username="$(json_field "$result" 'data.username || ""')"
+    pair_code="$(json_field "$result" 'data.pairCode || ""')"
+
+    printf '\n'
+    good "$name is live on Telegram."
+    printf '        %s@%s%s\n' "$C_TEAL" "$username" "$C_RESET"
+    printf '\n'
+    info "Right now $name answers only you, nobody else. That is on"
+    info 'purpose: they know their job title and nothing about your'
+    info 'business yet, and a customer would believe whatever they say.'
+    printf '\n'
+
+    # A deep link, and a QR of it, rather than a code to copy out. The code has
+    # to be long enough to be unguessable - whoever says it first owns this
+    # employee - and nobody types thirty-two characters into a phone by hand.
+    # The screen is on a laptop and the thing that must act on it is a phone, so
+    # a camera is the shortest path between them.
+    join_url="https://t.me/$username?start=$pair_code"
+
+    info 'So teach them first. Point your phone camera at this and it'
+    info 'says hello for you - nothing to type:'
+    printf '\n'
+    local picture; picture="$(zo_helper --qr "$join_url")"
+    local rows; rows="$(json_field "$picture" '(data.qr || []).join("\n")')"
+    if [ -n "$rows" ]; then
+        while IFS= read -r line; do
+            printf '     %s%s%s\n' "$C_TEAL" "$line" "$C_RESET"
+        done <<EOF
+$rows
+EOF
+        printf '\n'
+        info 'Or open this on your phone:'
+    fi
+    printf '        %s%s%s\n' "$C_TEAL" "$join_url" "$C_RESET"
+    printf '\n'
+    info 'Then just talk to them. Tell them what you sell, your prices,'
+    info 'your hours, anything. They will remember it.'
+    printf '\n'
+
+    wait_for_employee_telegram "$name" "$username"
+    return 0
+}
+
+set_employee_channel() {
+    # $1 = name, $2 = the job description Zo was given for them.
+    #
+    # Asks how staff and customers are meant to reach one employee, and writes
+    # the answer down.
+    #
+    # Two ways offered, not four. The web chat and the owner's own number belong
+    # to the owner's own assistant: the owner's number is the one they type into
+    # themselves, so an employee sitting on it would be answering the boss
+    # instead of the customer. Saying so in one line is cheaper than letting
+    # them pick it and find out.
+    #
+    # Nothing here half-connects anything. A second WhatsApp number is its own
+    # job - its own bridge, its own linked device - so this records what they
+    # want and says plainly that nobody can reach the employee yet. An employee
+    # that looks reachable is a customer messaging a number nobody is on.
+    local name="$1" brief="$2"
+
+    printf '\n'
+    info "How will people reach $name?"
+    printf '\n'
+    info 'An employee talks to your staff and your customers, so they need'
+    info 'somewhere to be messaged.'
+    printf '\n'
+    numbered 1 'WhatsApp -' 'needs its own number, not the one you use'
+    numbered 2 'Telegram -' 'free, and no extra phone number needed'
+    numbered 3 'Not yet  -' 'I will sort this out later'
+    printf '\n'
+    info 'The web chat and your own number are not on this list. Those two'
+    info 'are yours, for the assistant you talk to yourself.'
+    printf '\n'
+
+    printf '      %sChoose 1, 2 or 3 > %s' "$C_PURPLE" "$C_RESET"
+    local pick; read -r pick || pick=''
+    pick="$(menu_number "$pick")"
+
+    # What gets written down. Only WhatsApp is ever recorded as a channel:
+    # writing "telegram" against an employee before it exists would be recording
+    # a wish as a setting, and a later run would try to honour it.
+    local channel='none' phone=''
+
+    case "$pick" in
+        1)
+            printf '\n'
+            info "WhatsApp gives $name a number of their own to be reached"
+            info 'on. It has to be a spare number, not the one you use, and'
+            info 'a different one again for each employee you hire. A number'
+            info 'can only be joined to one of these at a time.'
+            channel='whatsapp'
+            if ask_yes_no "Do you have a spare number for $name?"; then
+                printf '\n'
+                info 'What is the number? With the 60 in front, like 60123456789.'
+                printf '\n'
+                printf '      %sNumber > %s' "$C_PURPLE" "$C_RESET"
+                read -r phone || phone=''
+                phone="$(printf '%s' "$phone" | tr -cd '0-9')"
+            fi
+            printf '\n'
+            if [ -n "$phone" ]; then
+                good "Written down: WhatsApp on $phone for $name."
+            else
+                good "Written down: WhatsApp for $name, number to come."
+            fi
+            info 'Joining that number up is a job on its own and is not done'
+            info 'here yet. Nothing is lost - it is written down, and it is'
+            info 'waiting for you.'
+            ;;
+        2)
+            if set_employee_telegram "$name" "$brief"; then channel='telegram'; fi
+            ;;
+        *)
+            printf '\n'
+            good 'That is a perfectly good answer.'
+            info "$name is saved either way, and you can give them a way to"
+            info 'be reached whenever you want. There is no rush: they have'
+            info 'plenty to learn from you first.'
+            ;;
+    esac
+
+    update_hired_employee_channel "$name" "$channel" "$phone"
+    return 0
 }
 
 hire_employee() {
@@ -2451,6 +2984,12 @@ hire_employee() {
     persona_url="$(zo_personas_url "$persona_id")"
 
     add_hired_employee "$name" "$role_title"
+
+    # Where they can be reached, asked now rather than left for later. Hiring
+    # somebody and never being asked how to contact them is how a Mac owner
+    # reached the end of this screen, went looking for the Telegram step, and
+    # found the setup had gone back to the beginning.
+    set_employee_channel "$name" "$prompt"
 
     # The part that saves building a settings screen for any of this: the owner
     # already has four ways to talk to Zo, and Zo can edit its own employees.
@@ -3134,31 +3673,23 @@ while true; do
         show_all_done
         printf '      %s> %s' "$C_PURPLE" "$C_RESET"
         read -r done_choice || break
-        case "$(printf '%s' "$done_choice" | tr '[:upper:]' '[:lower:]')" in
-            e*)
-                clear_screen; show_banner
-                hire_employee || true
-                printf '      Press Enter to go back '; read -r _ || true
-                clear_screen; show_banner
-                info '  Checking again...'; printf '\n'
-                continue ;;
-            s*)
-                clear_screen; show_banner
-                reset_vimigo_setup || true
-                printf '      Press Enter to check again '; read -r _ || true
-                clear_screen; show_banner
-                info '  Checking again...'; printf '\n'
-                continue ;;
+        done_choice="$(printf '%s' "$done_choice" | tr '[:upper:]' '[:lower:]')"
+        case "$done_choice" in
+            q|quit|'') break ;;
         esac
-        break
+        if handle_main_choice "$done_choice"; then
+            clear_screen; show_banner
+            info '  Checking again...'; printf '\n'
+            continue
+        fi
+        # Anything else on a finished setup is not a request to redo the lot -
+        # it is a mistyped key, and quietly reinstalling everything is not what
+        # somebody who pressed the wrong letter meant.
+        continue
     fi
 
     printf '      %s%d thing(s) left. This setup can do them for you.%s\n\n' \
         "$C_GREY" "$remaining" "$C_RESET"
-    printf '        %s┌──────────────────────────────────────┐%s\n' "$C_GREEN" "$C_RESET"
-    printf '        %s│%s   %sPress ENTER to set everything up%s   %s│%s\n' \
-        "$C_GREEN" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREEN" "$C_RESET"
-    printf '        %s└──────────────────────────────────────┘%s\n\n' "$C_GREEN" "$C_RESET"
     # Picking single rows out of order used to be offered and is not any more.
     # The list is in the order it is for a reason - skills, then access, then
     # where you talk to it, then hiring - and someone choosing row 14 first gets
@@ -3167,37 +3698,21 @@ while true; do
     #
     # The letters are for afterwards: changing something already set up, not
     # building it in a different sequence.
-    printf '        %sA  set up your assistant again%s\n' "$C_GREY" "$C_RESET"
-    printf '        %sE  hire, or let go of, an AI employee%s\n' "$C_GREY" "$C_RESET"
-    printf '        %sS  start over        Q  quit%s\n\n' "$C_GREY" "$C_RESET"
+    show_main_options
 
-    printf '     '
+    printf '      %s> %s' "$C_PURPLE" "$C_RESET"
     read -r choice || break
+    choice="$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')"
 
-    case "$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')" in
+    case "$choice" in
         q|quit) printf '\n'; info 'Nothing was changed. Bye.'; printf '\n'; break ;;
-        a*)
-            clear_screen; show_banner
-            reset_whatsapp_assistant || true
-            printf '      Press Enter to check again '; read -r _ || true
-            clear_screen; show_banner
-            info '  Checking again...'; printf '\n'
-            continue ;;
-        e*)
-            clear_screen; show_banner
-            hire_employee || true
-            printf '      Press Enter to go back '; read -r _ || true
-            clear_screen; show_banner
-            info '  Checking again...'; printf '\n'
-            continue ;;
-        s*)
-            clear_screen; show_banner
-            reset_vimigo_setup || true
-            printf '      Press Enter to check again '; read -r _ || true
-            clear_screen; show_banner
-            info '  Checking again...'; printf '\n'
-            continue ;;
     esac
+
+    if handle_main_choice "$choice"; then
+        clear_screen; show_banner
+        info '  Checking again...'; printf '\n'
+        continue
+    fi
 
     clear_screen
     show_banner

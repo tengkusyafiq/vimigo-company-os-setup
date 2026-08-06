@@ -463,10 +463,31 @@ try {
     $chooser = Join-Path $PSScriptRoot 'zo-verify.js'
     function Get-ChosenModel {
         param([string]$Json)
-        $script = "const {chooseOwnPlanModel} = require(process.argv[1]);" +
-                  "const got = chooseOwnPlanModel(JSON.parse(process.argv[2]));" +
-                  "process.stdout.write(got ? got.label : 'NONE');"
-        return (& node -e $script $chooser $Json)
+        # The JSON goes via a file rather than the command line.
+        #
+        # Windows PowerShell 5.1 passes arguments to a native program without
+        # escaping the quotes inside them, so [{"id":"byok:a"}] arrived at node
+        # as [{id:byok:a}] and JSON.parse threw. PowerShell 7.3 escapes them,
+        # which is exactly why this passed everywhere it was run and failed on
+        # the version the customers have. The suite then stopped, taking the
+        # forty checks after it along with it.
+        #
+        # The product does not have this bug - everything it sends goes through
+        # ConvertTo-CommandLineArgument - but a suite that only runs on 7 is not
+        # checking the thing that ships.
+        $jsonFile = Join-Path ([IO.Path]::GetTempPath()) ("vimigo-model-" + [guid]::NewGuid().ToString('N') + '.json')
+        [IO.File]::WriteAllText($jsonFile, $Json, (New-Object Text.UTF8Encoding($false)))
+        try {
+            $script = "const fs = require('fs');" +
+                      "const {chooseOwnPlanModel} = require(process.argv[1]);" +
+                      "const got = chooseOwnPlanModel(JSON.parse(fs.readFileSync(process.argv[2], 'utf8')));" +
+                      "process.stdout.write(got ? got.label : 'NONE');"
+            # Joined, because node writing a stack trace would otherwise return
+            # an array and Assert-True would fail to bind rather than report.
+            return ((& node -e $script $chooser $jsonFile 2>&1) -join '')
+        } finally {
+            Remove-Item -LiteralPath $jsonFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     $both = '[{"id":"byok:a","label":"Claude Code - Opus -> opus"},{"id":"byok:b","label":"Codex - GPT 5.6 Luna -> gpt-5.6-luna"}]'
