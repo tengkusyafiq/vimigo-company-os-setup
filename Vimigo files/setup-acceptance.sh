@@ -84,8 +84,12 @@ assert $? "the owner's other MCP server survived"
 json_field 'data.someUnrelatedSetting === 42'
 assert $? 'an unrelated setting survived'
 
-json_field 'data.mcpServers.zo.command === "npx"'
-assert $? 'the entry launches npx'
+# An absolute path, or the bare word if npx could not be found. Asserting the
+# bare word is what this used to do, and it would have passed forever while
+# Claude Desktop on macOS - which launches MCP servers with a minimal PATH -
+# failed to find npx at all.
+json_field 'data.mcpServers.zo.command === "npx" || /(^|\/)npx$/.test(data.mcpServers.zo.command)'
+assert $? 'the entry launches npx, by a path Claude can actually find'
 
 json_field 'data.mcpServers.zo.args.includes("https://api.zo.computer/mcp")'
 assert $? 'the entry points at the Zo endpoint'
@@ -123,8 +127,8 @@ assert $? 'the existing model setting survived'
 grep -qF '[plugins."github@openai-curated"]' "$CODEX_CONFIG"
 assert $? "the owner's existing plugin section survived"
 
-grep -q 'command = "npx"' "$CODEX_CONFIG"
-assert $? 'the entry launches npx'
+grep -qE '^command = "([^"]*/)?npx"' "$CODEX_CONFIG"
+assert $? 'the entry launches npx, by a path ChatGPT can actually find'
 
 connect_zo_to_chatgpt >/dev/null 2>&1
 SECTIONS="$(grep -cE '^\[mcp_servers\.zo\]' "$CODEX_CONFIG")"

@@ -389,6 +389,145 @@ async function readSecondBrain(session, token) {
   };
 }
 
+const WHATSAPP_MULTI = `${'/home/workspace/Services/vimigo-setup'}/zo-whatsapp-multi.sh`;
+const WHATSAPP_INSTANCES = '/home/workspace/Services/whatsapp-instances';
+
+function employeeSlug(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// Gives one AI employee a WhatsApp number of their own.
+//
+// One bridge holds one linked device, so a second number means a second
+// bridge: its own store, its own port, its own secrets, its own Zo service.
+// zo-whatsapp-multi.sh has done that part since it was written; nothing ever
+// called it, so every employee who chose WhatsApp got their number written on
+// a note and nothing else.
+//
+// Returns the pairing code. It does not wait for the owner to type it in -
+// that is the setup's job, because only the setup can keep them company while
+// they do it.
+async function addEmployeeNumber(options, session, token) {
+  const name = String(options.name || '').trim();
+  const slug = employeeSlug(name);
+  const phone = String(options.phone || '').replace(/\D/g, '');
+
+  if (!slug) fail('employee_invalid', 'The employee needs a name.');
+  if (phone.length < 8) {
+    fail('phone_invalid',
+      'A full international phone number is required, digits only, e.g. 60123456789.');
+  }
+  if (slug === 'main') {
+    fail('name_reserved',
+      'That name belongs to your own assistant. Give this employee a different name.');
+  }
+
+  const dir = `${WHATSAPP_INSTANCES}/${slug}`;
+  const text = await runOnZo(
+    `if [ -x ${shellQuote(WHATSAPP_MULTI)} ]; then ` +
+    `${shellQuote(WHATSAPP_MULTI)} add ${shellQuote(slug)} ${shellQuote(phone)} 2>&1; ` +
+    `else echo VIMIGO_NOT_INSTALLED; fi`,
+    `Give ${name} a WhatsApp number`, session, token);
+
+  if (text.includes('VIMIGO_NOT_INSTALLED')) {
+    fail('multi_missing', 'The setup files are not on Zo yet. Run the setup again.');
+  }
+  if (/bridge is not built yet/i.test(text)) {
+    fail('bridge_missing',
+      'Your own WhatsApp assistant has to be working before an employee can have a number.');
+  }
+  if (/already a number called/i.test(text)) {
+    fail('name_taken',
+      `There is already a number set up for ${name}. Let them go first, or use another name.`);
+  }
+  if (/No free port/i.test(text)) {
+    fail('no_port', 'This Zo has no room for another number just now.');
+  }
+
+  const port = (/VIMIGO_WA_PORT\s+(\d+)/.exec(text) || [])[1] || null;
+  if (!port || !text.includes('VIMIGO_WA_READY')) {
+    fail('bridge_failed', `${name}'s number could not be started just now.`);
+  }
+
+  // Registered so Zo keeps it running. cmd_add only prints these instructions,
+  // which is fine for somebody at a terminal and useless here - without this
+  // the number works until the next restart and then quietly stops, which is
+  // the worst of both: it looked set up, and a customer messaging it gets
+  // nothing.
+  try {
+    await rpc('tools/call', {
+      name: 'register_user_service',
+      arguments: {
+        label: `whatsapp-${slug}`,
+        mode: 'process',
+        entrypoint: `${dir}/run.sh`,
+        workdir: dir,
+      },
+    }, session, token);
+  } catch {
+    // Already registered under that label.
+  }
+
+  const pairCode = (/VIMIGO_WA_CODE\s+(\S+)/.exec(text) || [])[1] || null;
+  const alreadyPaired = text.includes('VIMIGO_WA_PAIRED');
+
+  process.stdout.write(JSON.stringify({
+    ok: true, slug, port: Number(port), pairCode, alreadyPaired,
+  }) + '\n');
+}
+
+// Is that employee's number linked to a phone yet? Polled while the owner is
+// typing the code in, so the setup can say it worked rather than ask.
+async function readEmployeeNumber(name, session, token) {
+  const slug = employeeSlug(name);
+  const text = await runOnZo(
+    `if [ -x ${shellQuote(WHATSAPP_MULTI)} ]; then ` +
+    `${shellQuote(WHATSAPP_MULTI)} state ${shellQuote(slug)} 2>/dev/null; fi`,
+    'Check that number', session, token).catch(() => '');
+
+  const found = /VIMIGO_WA_STATE name=(\S*) port=(\S*) running=(\S+) paired=(\S+)/.exec(text);
+  process.stdout.write(JSON.stringify({
+    ok: true,
+    slug,
+    running: Boolean(found && found[3] === 'yes'),
+    paired: Boolean(found && found[4] === 'yes'),
+    port: found && found[2] ? Number(found[2]) : null,
+  }) + '\n');
+}
+
+// Takes the number away again when an employee is let go. Without this the
+// number stays linked to a bridge nobody owns and its port stays taken.
+async function removeEmployeeNumber(name, session, token) {
+  const slug = employeeSlug(name);
+  if (!slug || slug === 'main') {
+    process.stdout.write(JSON.stringify({ ok: false, error: 'not that one' }) + '\n');
+    return;
+  }
+
+  await runOnZo(
+    `if [ -x ${shellQuote(WHATSAPP_MULTI)} ]; then ` +
+    `${shellQuote(WHATSAPP_MULTI)} remove ${shellQuote(slug)} 2>&1; fi`,
+    'Take that number back', session, token).catch(() => '');
+
+  // The responder for that number goes too. It is harmless once the bridge is
+  // gone, but it would sit there answering nothing and holding a port.
+  await runOnZo(
+    `if [ -x ${shellQuote(RESPONDER)} ]; then ` +
+    `${shellQuote(RESPONDER)} remove ${shellQuote(slug)} 2>&1; fi`,
+    'Stop that number answering', session, token).catch(() => '');
+
+  try {
+    await rpc('tools/call', {
+      name: 'delete_user_service',
+      arguments: { label: `whatsapp-${slug}` },
+    }, session, token);
+  } catch {
+    // Never registered, or already gone.
+  }
+
+  process.stdout.write(JSON.stringify({ ok: true, slug }) + '\n');
+}
+
 const TELEGRAM_RESPONDER = `${'/home/workspace/Services/vimigo-setup'}/zo-telegram-responder.sh`;
 
 // Gives one AI employee its own Telegram bot.
@@ -854,6 +993,26 @@ async function main() {
     }
   }
 
+  // Same reason again, and again not theoretical: these three checks started
+  // life inside addEmployeeNumber, after the session was open. The refusal
+  // printed correctly and then the process died on
+  // "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)", so the setup saw
+  // a crash instead of "that is not a phone number".
+  const numberAt = rest.indexOf('--employee-number');
+  if (numberAt !== -1) {
+    if (!employeeSlug(rest[numberAt + 1])) {
+      fail('employee_invalid', 'The employee needs a name.');
+    }
+    if (employeeSlug(rest[numberAt + 1]) === 'main') {
+      fail('name_reserved',
+        'That name belongs to your own assistant. Give this employee a different name.');
+    }
+    if (normalisePhone(rest[numberAt + 2]).length < 8) {
+      fail('phone_invalid',
+        'A full international phone number is required, digits only, e.g. 60123456789.');
+    }
+  }
+
   // Checked here for the same reason, and it is not a theoretical concern:
   // done inside the responder step, after the session was open, this exact
   // refusal printed its answer and then crashed the process on a libuv
@@ -1020,6 +1179,28 @@ async function main() {
       notes: state ? state.notes : 0,
       indexed: Boolean(state && state.indexed),
     }) + '\n');
+    return;
+  }
+
+  // Gives one AI employee a WhatsApp number of their own.
+  const employeeNumberIndex = rest.indexOf('--employee-number');
+  if (employeeNumberIndex !== -1) {
+    await addEmployeeNumber({
+      name: rest[employeeNumberIndex + 1],
+      phone: rest[employeeNumberIndex + 2],
+    }, session, token);
+    return;
+  }
+
+  const employeeNumberStateIndex = rest.indexOf('--employee-number-status');
+  if (employeeNumberStateIndex !== -1) {
+    await readEmployeeNumber(rest[employeeNumberStateIndex + 1], session, token);
+    return;
+  }
+
+  const employeeNumberRemoveIndex = rest.indexOf('--employee-number-remove');
+  if (employeeNumberRemoveIndex !== -1) {
+    await removeEmployeeNumber(rest[employeeNumberRemoveIndex + 1], session, token);
     return;
   }
 

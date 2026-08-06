@@ -192,6 +192,11 @@ EOF
     fi
 
     good "'$name' is running on port $port."
+    # Machine-readable, for zo-verify.js. Everything else on this screen is for
+    # a person reading a terminal; these two lines are the contract, so the
+    # setup never has to parse an English sentence that might be reworded.
+    printf 'VIMIGO_WA_PORT %s\n' "$port"
+    printf 'VIMIGO_WA_READY %s\n' "$name"
     say ''
     say 'Register it as a Zo service so it stays running, with:'
     say "  label      whatsapp-$name"
@@ -201,6 +206,29 @@ EOF
 
     [ -n "$phone" ] && cmd_pair "$name" "$phone"
     return 0
+}
+
+cmd_state() {
+    # One line a machine can read: is this number's bridge up, and is a phone
+    # linked to it? Used to poll while the owner types the code in.
+    local name="${1:-}"
+    [ -n "$name" ] || { printf 'VIMIGO_WA_STATE name= running=no paired=no\n'; return 1; }
+    name="$(slugify "$name")"
+
+    local port state running=no paired=no
+    port="$(instance_port "$name")"
+    if [ -n "$port" ]; then
+        state="$(instance_status "$name" 2>/dev/null)"
+        case "$state" in
+            *'"logged_in":true'*) running=yes; paired=yes ;;
+            *'"pairing_required":true'*) running=yes ;;
+            '') ;;
+            'not running'|'no port assigned') ;;
+            *) running=yes ;;
+        esac
+    fi
+    printf 'VIMIGO_WA_STATE name=%s port=%s running=%s paired=%s\n' \
+        "$name" "${port:-}" "$running" "$paired"
 }
 
 cmd_pair() {
@@ -239,10 +267,16 @@ cmd_pair() {
     esac
 
     case "$response" in
-        *already*paired*) good "'$name' is already linked to a phone."; return 0 ;;
+        *already*paired*)
+            good "'$name' is already linked to a phone."
+            printf 'VIMIGO_WA_PAIRED %s\n' "$name"
+            return 0 ;;
         *'"code"'*)
             good 'Pairing code:'
-            printf '%s\n' "$response" | grep -oE '"code":"[^"]+"' | cut -d'"' -f4 | sed 's/^/      /'
+            local code
+            code="$(printf '%s\n' "$response" | grep -oE '"code":"[^"]+"' | cut -d'"' -f4)"
+            printf '%s\n' "$code" | sed 's/^/      /'
+            printf 'VIMIGO_WA_CODE %s\n' "$code"
             say ''
             say 'On the phone: WhatsApp, Settings, Linked Devices, Link a device,'
             say 'Link with phone number instead, then type the code.'
@@ -277,6 +311,7 @@ case "${1:-list}" in
     add)    cmd_add "${2:-}" "${3:-}" ;;
     pair)   cmd_pair "${2:-}" "${3:-}" ;;
     status) if [ -n "${2:-}" ]; then instance_status "$2"; echo; else cmd_list; fi ;;
+    state)  cmd_state "${2:-}" ;;
     remove) cmd_remove "${2:-}" ;;
-    *) say 'Use: list | add <name> [phone] | pair <name> <phone> | status [name] | remove <name>'; exit 2 ;;
+    *) say 'Use: list | add <name> [phone] | pair <name> <phone> | status [name] | state <name> | remove <name>'; exit 2 ;;
 esac

@@ -566,6 +566,26 @@ node_bin() {
     command -v node 2>/dev/null
 }
 
+npx_bin() {
+    # The full path to npx, never the bare word.
+    #
+    # Claude Desktop on macOS launches an MCP server with a minimal PATH -
+    # /usr/bin:/bin:/usr/sbin:/sbin - and ignores what the app's own settings
+    # say. Node from Homebrew lives in /opt/homebrew/bin on Apple Silicon and
+    # /usr/local/bin on Intel, and neither is on that list, so a config that
+    # just says "npx" produces an MCP server that never starts and a Zo that
+    # is silently absent from the app. Windows inherits a fuller PATH, which is
+    # why the same config works there and hid this.
+    local found
+    found="$(command -v npx 2>/dev/null)"
+    [ -n "$found" ] && { printf '%s' "$found"; return 0; }
+    # Fall back to npx sitting beside the node we found.
+    local node; node="$(node_bin)"
+    [ -n "$node" ] && [ -x "$(dirname "$node")/npx" ] && {
+        printf '%s' "$(dirname "$node")/npx"; return 0; }
+    printf 'npx'
+}
+
 brew_bin() {
     # Apple Silicon and Intel put Homebrew in different places.
     if [ -x /opt/homebrew/bin/brew ]; then printf '/opt/homebrew/bin/brew'
@@ -1415,7 +1435,7 @@ connect_zo_to_claude() {
     # Everything in this file that is not our own entry survives untouched.
     if ! "$(node_bin)" -e '
         const fs = require("fs");
-        const [path, entry, pkg, url, token] = process.argv.slice(1);
+        const [path, entry, pkg, url, token, npx] = process.argv.slice(1);
         let data = {};
         if (fs.existsSync(path)) {
             const raw = fs.readFileSync(path, "utf8").trim();
@@ -1427,12 +1447,12 @@ connect_zo_to_claude() {
         const servers = data.mcpServers ?? {};
         if (typeof servers !== "object" || servers === null || Array.isArray(servers)) process.exit(2);
         servers[entry] = {
-            command: "npx",
+            command: npx,
             args: [pkg, url, "--header", "Authorization: Bearer " + token],
         };
         data.mcpServers = servers;
         fs.writeFileSync(path, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
-    ' "$CLAUDE_CONFIG" "$ZO_MCP_ENTRY" "$MCP_REMOTE_PACKAGE" "$ZO_MCP_URL" "$token"
+    ' "$CLAUDE_CONFIG" "$ZO_MCP_ENTRY" "$MCP_REMOTE_PACKAGE" "$ZO_MCP_URL" "$token" "$(npx_bin)"
     then
         bad "Claude's settings file is not readable, so it was left alone."
         info 'Nothing was changed. Contact Vimigo support and they'
@@ -1476,7 +1496,7 @@ connect_zo_to_chatgpt() {
     # stacks. Every other section is left byte-identical.
     "$(node_bin)" -e '
         const fs = require("fs");
-        const [path, entry, pkg, url, token] = process.argv.slice(1);
+        const [path, entry, pkg, url, token, npx] = process.argv.slice(1);
         const header = "[mcp_servers." + entry + "]";
         const lines = fs.readFileSync(path, "utf8").split("\n");
 
@@ -1494,7 +1514,7 @@ connect_zo_to_chatgpt() {
             + "args = [\"" + pkg + "\", \"" + url + "\", \"--header\", "
             + "\"Authorization: Bearer " + token + "\"]\n";
         fs.writeFileSync(path, (body ? body + "\n\n" : "") + block, { mode: 0o600 });
-    ' "$CODEX_CONFIG" "$ZO_MCP_ENTRY" "$MCP_REMOTE_PACKAGE" "$ZO_MCP_URL" "$token"
+    ' "$CODEX_CONFIG" "$ZO_MCP_ENTRY" "$MCP_REMOTE_PACKAGE" "$ZO_MCP_URL" "$token" "$(npx_bin)"
 
     if ! codex_mcp_configured; then
         bad 'The connection did not save correctly. Restoring your previous settings.'
@@ -1775,6 +1795,14 @@ connect_whatsapp() {
     case "$answer" in
         *'"ok":false'*)
             bad "$(json_field "$answer" 'data.error || "Zo refused that."')"; return 1 ;;
+    esac
+
+    # Remembered so that hiring an employee can refuse this number later. Two
+    # bridges on one number both answer the same message, and the owner sees
+    # their assistant reply twice and concludes it is broken.
+    profile_set ownerPhone "$phone"
+
+    case "$answer" in
         *'"alreadyPaired":true'*)
             good 'That number is already connected.'
             # Not "nothing to do". A number linked before this setup could make
@@ -2705,6 +2733,176 @@ handle_main_choice() {
     return 1
 }
 
+LAST_EMPLOYEE_PHONE=''
+
+wait_for_employee_number() {
+    # $1 = employee name. Waits while the owner types the pairing code into
+    # their phone.
+    #
+    # It waits rather than asking whether they did it. The setup once marched
+    # past a step the owner was still working on and reported nine failures for
+    # a man who had not finished signing up; this is the same shape of step, on
+    # a phone, and gets the same treatment.
+    local name="$1" waited=0 state paired
+
+    while [ "$waited" -lt 300 ]; do
+        printf '\r      %s...waiting for %s'"'"'s number to link%s   ' \
+            "$C_GREY" "$name" "$C_RESET"
+        sleep 8
+        waited=$((waited + 8))
+
+        state="$(zo_helper --employee-number-status "$name")"
+        paired="$(json_field "$state" 'data.paired === true')"
+        if [ "$paired" = 'true' ]; then
+            printf '\r%*s\r' 72 ''
+            return 0
+        fi
+    done
+
+    printf '\r%*s\r' 72 ''
+    return 1
+}
+
+set_employee_whatsapp() {
+    # $1 = name, $2 = the job description Zo was given for them.
+    #
+    # Gives one AI employee a WhatsApp number of their own, and links it.
+    #
+    # A number used to be written on a note here and joined up never. That was
+    # honest about itself and still wrong: the owner picked WhatsApp, answered
+    # the question, and ended up with an employee nobody could message.
+    #
+    # One bridge holds one linked device, so this is a whole second WhatsApp
+    # connection on their Zo - its own store, its own port, its own service.
+    local name="$1" brief="$2"
+    LAST_EMPLOYEE_PHONE=''
+
+    printf '\n'
+    info "$name needs a WhatsApp number of their own."
+    printf '\n'
+    info 'It has to be a spare number - not the one you use yourself, and'
+    info 'a different one again for each employee. A number can only be'
+    info 'joined to one of these at a time.'
+    printf '\n'
+    info 'Have the phone with that SIM in front of you. You will type a'
+    info 'short code into it in a moment.'
+    printf '\n'
+
+    # Asked until it is answered or they back out. Required means required, but
+    # a required question with no way out is a trap - somebody without a spare
+    # SIM has to be able to leave without closing the window.
+    local phone='' typed digits own_number
+    while [ -z "$phone" ]; do
+        info 'What is the number? With the 60 in front, like 60123456789.'
+        printf '\n'
+        printf '      %sNumber, or Enter to go back > %s' "$C_PURPLE" "$C_RESET"
+        read -r typed || typed=''
+        if [ -z "$typed" ]; then
+            printf '\n'
+            info "No number, so $name has no WhatsApp yet."
+            info 'Telegram needs no SIM card at all, if that suits you better.'
+            return 1
+        fi
+
+        # Everything that is not a digit goes, so "+60 12-345 6789" is accepted
+        # from somebody reading it off the back of a SIM pack.
+        digits="$(printf '%s' "$typed" | tr -cd '0-9')"
+        if [ "${#digits}" -lt 8 ]; then
+            printf '\n'
+            bad 'That does not look like a full phone number.'
+            info 'It needs the country code in front, like 60123456789.'
+            printf '\n'
+            continue
+        fi
+        # Their own number, the one their assistant answers on. WhatsApp would
+        # allow it as a second linked device and then both would reply to the
+        # same message, which reads as the product being broken.
+        own_number="$(profile_get ownerPhone)"
+        if [ -n "$own_number" ] && [ "$digits" = "$own_number" ]; then
+            printf '\n'
+            bad 'That is your own number, the one your assistant uses.'
+            info 'An employee on it would be answering you instead of your'
+            info 'customers, and both would reply to the same message.'
+            printf '\n'
+            continue
+        fi
+        phone="$digits"
+    done
+
+    printf '\n'
+    info "Giving $name their own number..."
+    local result; result="$(zo_helper --employee-number "$name" "$phone")"
+
+    if [ -z "$result" ] || [ "$(json_field "$result" 'data.ok === true')" != 'true' ]; then
+        printf '\n'
+        case "$(json_field "$result" 'data.code || ""')" in
+            bridge_missing)
+                bad 'Your own WhatsApp assistant has to be working first.'
+                info 'Finish that step, then come back and hire again.' ;;
+            name_taken)
+                bad "$name already has a number set up."
+                info 'Let them go first if you want to give them a different one.' ;;
+            no_port)
+                bad 'This Zo has no room for another number just now.' ;;
+            *)
+                bad 'Could not set that number up just now.'
+                local why; why="$(json_field "$result" 'data.error || ""')"
+                [ -n "$why" ] && info "  $why"
+                info 'Nothing is lost. Try this step again in a moment.' ;;
+        esac
+        return 1
+    fi
+
+    LAST_EMPLOYEE_PHONE="$phone"
+
+    if [ "$(json_field "$result" 'data.alreadyPaired === true')" = 'true' ]; then
+        good "$name is on $phone."
+    else
+        local pair_code; pair_code="$(json_field "$result" 'data.pairCode || ""')"
+        if [ -z "$pair_code" ]; then
+            printf '\n'
+            bad 'That number was set up, but WhatsApp did not send a code.'
+            info 'Run the setup again in a moment and it will ask for one.'
+            return 0
+        fi
+
+        printf '\n'
+        info "On the phone with $phone in it, open WhatsApp and go to:"
+        printf '\n'
+        numbered 1 'Settings, then' 'Linked Devices'
+        numbered 2 'Tap' 'Link a device'
+        numbered 3 'Tap' 'Link with phone number instead'
+        numbered 4 'Type this code:'
+        show_pairing_code "$pair_code"
+        info 'Take your time. This waits for you.'
+        printf '\n'
+
+        if ! wait_for_employee_number "$name"; then
+            info "$name's number is set up and still waiting for that code."
+            info 'Nothing expires. Run the setup again when you have typed'
+            info 'it in and it will carry straight on.'
+            return 0
+        fi
+        good "$name is on $phone."
+    fi
+
+    # The responder, so the number answers as this employee rather than as the
+    # owner's assistant. Never enabled here: an employee knows a job title and
+    # nothing about the business yet, and this number is one customers can
+    # reach.
+    printf '\n'
+    info "Teaching $name who they are..."
+    zo_helper --responder "$name" --assistant-name "$name" --brief "$brief" >/dev/null 2>&1 || true
+
+    printf '\n'
+    warn "$name is not answering anybody yet, and that is deliberate."
+    printf '\n'
+    info 'They know their job title and nothing about your business. Teach'
+    info "them first - tell your Zo about $name, what you sell, your"
+    info 'prices, your hours. Then let them start answering.'
+    return 0
+}
+
 wait_for_employee_telegram() {
     # $1 = name, $2 = bot username. Waits for the owner to say hello to their
     # new employee, so the setup can say it worked rather than asking whether
@@ -2898,29 +3096,10 @@ set_employee_channel() {
 
     case "$pick" in
         1)
-            printf '\n'
-            info "WhatsApp gives $name a number of their own to be reached"
-            info 'on. It has to be a spare number, not the one you use, and'
-            info 'a different one again for each employee you hire. A number'
-            info 'can only be joined to one of these at a time.'
-            channel='whatsapp'
-            if ask_yes_no "Do you have a spare number for $name?"; then
-                printf '\n'
-                info 'What is the number? With the 60 in front, like 60123456789.'
-                printf '\n'
-                printf '      %sNumber > %s' "$C_PURPLE" "$C_RESET"
-                read -r phone || phone=''
-                phone="$(printf '%s' "$phone" | tr -cd '0-9')"
+            if set_employee_whatsapp "$name" "$brief"; then
+                channel='whatsapp'
+                phone="$LAST_EMPLOYEE_PHONE"
             fi
-            printf '\n'
-            if [ -n "$phone" ]; then
-                good "Written down: WhatsApp on $phone for $name."
-            else
-                good "Written down: WhatsApp for $name, number to come."
-            fi
-            info 'Joining that number up is a job on its own and is not done'
-            info 'here yet. Nothing is lost - it is written down, and it is'
-            info 'waiting for you.'
             ;;
         2)
             if set_employee_telegram "$name" "$brief"; then channel='telegram'; fi
@@ -3120,6 +3299,47 @@ hire_employee() {
     return 0
 }
 
+show_zo_model_step() {
+    # $1 = the friendly provider name, e.g. Claude or ChatGPT.
+    #
+    # Signing in is only half of it. Zo still needs the provider switched on in
+    # its own settings, its models ticked, and one chosen as the default, and
+    # none of that can be done from here: Zo's web settings live on its servers,
+    # and the API that would change them rejects the key this setup holds.
+    #
+    # So it is spelled out instead. Saying "connected" and stopping - which is
+    # what the Mac did - leaves the owner with a plan they pay for and an
+    # assistant that never uses it.
+    local friendly="$1"
+
+    printf '\n'
+    warn 'One more part, and it has to be done on the Zo website.'
+    printf '\n'
+    numbered 1 'Scroll down to' 'Providers'
+    numbered 2 "Click Connect next to" "$friendly"
+    numbered 3 'Click every model to' 'turn them all on'
+    numbered 4 'Scroll back up to' 'Models'
+    numbered 5 'Change the selected models to the ones below'
+    printf '\n'
+    info 'Signing in only tells Zo who you are. Until the provider is'
+    info 'switched on there, Zo will not actually use the plan you pay for.'
+    printf '\n'
+    info 'What we suggest setting as the default, in this order:'
+    printf '\n'
+    numbered 1 'Opus 5 on' 'low'
+    numbered 2 'ChatGPT Luna on' 'xhigh'
+    printf '\n'
+    info 'Opus 5 on low is quick and covered by a Claude plan, so it suits'
+    info 'everyday work. Luna on xhigh thinks harder and is the one to fall'
+    info 'back to. You can change either whenever you like, on this page:'
+    printf '        %s%s%s\n' "$C_TEAL" "$(zo_ai_settings_url)" "$C_RESET"
+
+    if ask_yes_no 'Open that page now?'; then
+        open "$(zo_ai_settings_url)" 2>/dev/null || true
+    fi
+    return 0
+}
+
 connect_zo_ai_provider() {
     # Signs the owner's Zo in to a Claude or ChatGPT plan they already pay for,
     # so Zo stops billing per use.
@@ -3141,7 +3361,9 @@ connect_zo_ai_provider() {
 
     case "$answer" in
         *'"alreadySignedIn":true'*)
-            good "Your $friendly plan is already connected."; return 0 ;;
+            good "Your $friendly plan is already connected."
+            show_zo_model_step "$friendly"
+            return 0 ;;
         *'"ok":false'*)
             bad "$(json_field "$answer" 'data.error || "Zo refused that."')"; return 1 ;;
     esac
@@ -3171,7 +3393,10 @@ connect_zo_ai_provider() {
 
         local finish; finish="$(zo_helper --signin-code "$given")"
         case "$finish" in
-            *'"signedIn":true'*) good "Your $friendly plan is connected."; return 0 ;;
+            *'"signedIn":true'*)
+            good "Your $friendly plan is connected."
+            show_zo_model_step "$friendly"
+            return 0 ;;
         esac
         warn 'That did not go through. You can try this step again.'
         return 1
@@ -3584,6 +3809,25 @@ EOF
         info 'Kept.'
         return 0
     fi
+
+    # Their number goes back first, while the note still says they had one.
+    #
+    # Left behind, the bridge keeps a phone linked to an employee who no longer
+    # exists, holds its port, and restarts with the Zo forever. The number is
+    # archived rather than deleted, so a mistake here is recoverable.
+    local stored member
+    stored="$(profile_get employees)"
+    local IFS_SAVE="$IFS"; IFS=';'
+    for member in $stored; do
+        IFS="$IFS_SAVE"
+        if [ "$(employee_field "$member" 1)" = "$target" ] &&
+           [ "$(employee_field "$member" 3)" = 'whatsapp' ]; then
+            info "Taking back $target's number..."
+            zo_helper --employee-number-remove "$target" >/dev/null 2>&1 || true
+        fi
+        IFS=';'
+    done
+    IFS="$IFS_SAVE"
 
     info "Removing $target..."
     local answer; answer="$(zo_helper --fire "$target")"

@@ -2869,29 +2869,10 @@ function Set-EmployeeChannel {
 
     switch ($pick) {
         1 {
-            Write-Host ''
-            Write-Info "WhatsApp gives $Name a number of their own to be reached"
-            Write-Info 'on. It has to be a spare number, not the one you use, and'
-            Write-Info 'a different one again for each employee you hire. A number'
-            Write-Info 'can only be joined to one of these at a time.'
-            $channel = 'whatsapp'
-            if (Read-YesNo -Question "Do you have a spare number for ${Name}?" `
-                    -YesLabel 'Yes, I have one' -NoLabel 'Not yet') {
-                Write-Host ''
-                Write-Info 'What is the number? With the 60 in front, like 60123456789.'
-                Write-Host ''
-                Write-Brand -Text '      Number > ' -Colour Purple -NoNewline
-                $phone = ([string](Read-Host)).Trim()
+            if (Set-EmployeeWhatsApp -Name $Name -Brief $Brief) {
+                $channel = 'whatsapp'
+                $phone = $script:LastEmployeePhone
             }
-            Write-Host ''
-            if ($phone) {
-                Write-Good "Written down: WhatsApp on $phone for $Name."
-            } else {
-                Write-Good "Written down: WhatsApp for $Name, number to come."
-            }
-            Write-Info 'Joining that number up is a job on its own and is not done'
-            Write-Info 'here yet. Nothing is lost - it is written down, and it is'
-            Write-Info 'waiting for you.'
         }
         2 {
             if (Set-EmployeeTelegram -Name $Name -Brief $Brief) { $channel = 'telegram' }
@@ -2906,6 +2887,200 @@ function Set-EmployeeChannel {
     }
 
     Update-HiredEmployeeChannel -Name $Name -Channel $channel -Phone $phone
+}
+
+$script:LastEmployeePhone = ''
+
+function Wait-ForEmployeeNumber {
+    <#
+        Waits while the owner types the pairing code into their phone.
+
+        It waits rather than asking whether they did it. The setup once marched
+        past a step the owner was still working on and reported nine failures
+        for a man who had not finished signing up; this is the same shape of
+        step, on a phone, and gets the same treatment.
+
+        Five minutes, then it stops waiting and says the code is still good -
+        because a code that expires while somebody hunts for Linked Devices is
+        not a fault they caused, and running the setup again picks it up.
+    #>
+    param([string]$Name)
+
+    $deadline = (Get-Date).AddMinutes(5)
+    $frames = @('◐', '◓', '◑', '◒')
+    $frame = 0
+    $lastAsked = [datetime]::MinValue
+
+    while ((Get-Date) -lt $deadline) {
+        Write-Host "`r      " -NoNewline
+        Write-Brand -Text $frames[$frame % $frames.Count] -Colour Teal -NoNewline
+        Write-Host ("  waiting for $Name's number to link...".PadRight(60)) `
+            -ForegroundColor $script:Ink.Muted -NoNewline
+        $frame++
+        Start-Sleep -Milliseconds 250
+
+        if (((Get-Date) - $lastAsked).TotalSeconds -lt 8) { continue }
+        $lastAsked = Get-Date
+
+        $state = Invoke-ZoHelper -Arguments @('--employee-number-status', $Name)
+        if ($state -and (Test-ObjectHasProperty $state 'paired') -and $state.paired) {
+            Write-Host ("`r" + (' ' * 72) + "`r") -NoNewline
+            return $true
+        }
+    }
+
+    Write-Host ("`r" + (' ' * 72) + "`r") -NoNewline
+    return $false
+}
+
+function Set-EmployeeWhatsApp {
+    <#
+        Gives one AI employee a WhatsApp number of their own, and links it.
+
+        A number used to be written on a note here and joined up never. That
+        was honest about itself and still wrong: the owner picked WhatsApp,
+        answered the question, and ended up with an employee nobody could
+        message.
+
+        One bridge holds one linked device, so this is a whole second WhatsApp
+        connection on their Zo - its own store, its own port, its own service.
+        That machinery already existed and had never been called.
+    #>
+    param([string]$Name, [string]$Brief)
+
+    $script:LastEmployeePhone = ''
+
+    Write-Host ''
+    Write-Info "$Name needs a WhatsApp number of their own."
+    Write-Host ''
+    Write-Info 'It has to be a spare number - not the one you use yourself, and'
+    Write-Info 'a different one again for each employee. A number can only be'
+    Write-Info 'joined to one of these at a time.'
+    Write-Host ''
+    Write-Info 'Have the phone with that SIM in front of you. You will type a'
+    Write-Info 'short code into it in a moment.'
+    Write-Host ''
+
+    # Asked until it is answered or they back out. Required means required, but
+    # a required question with no way out is a trap - somebody without a spare
+    # SIM has to be able to leave without closing the window.
+    $phone = ''
+    while (-not $phone) {
+        Write-Info 'What is the number? With the 60 in front, like 60123456789.'
+        Write-Host ''
+        Write-Brand -Text '      Number, or Enter to go back > ' -Colour Purple -NoNewline
+        $typed = ([string](Read-Host)).Trim()
+        if (-not $typed) {
+            Write-Host ''
+            Write-Info "No number, so $Name has no WhatsApp yet."
+            Write-Info 'Telegram needs no SIM card at all, if that suits you better.'
+            return $false
+        }
+
+        # Everything that is not a digit goes, so "+60 12-345 6789" is accepted
+        # from somebody reading it off the back of a SIM pack.
+        $digits = ($typed -replace '\D', '')
+        if ($digits.Length -lt 8) {
+            Write-Host ''
+            Write-Bad 'That does not look like a full phone number.'
+            Write-Info 'It needs the country code in front, like 60123456789.'
+            Write-Host ''
+            continue
+        }
+        # Their own number, the one their assistant answers on. WhatsApp would
+        # allow it as a second linked device and then both would reply to the
+        # same message, which reads as the product being broken.
+        $ownNumber = [string](Get-Profile)['ownerPhone']
+        if ($ownNumber -and $digits -eq $ownNumber) {
+            Write-Host ''
+            Write-Bad 'That is your own number, the one your assistant uses.'
+            Write-Info 'An employee on it would be answering you instead of your'
+            Write-Info 'customers, and both would reply to the same message.'
+            Write-Host ''
+            continue
+        }
+        $phone = $digits
+    }
+
+    Write-Host ''
+    $result = Invoke-ZoHelper -Arguments @('--employee-number', $Name, $phone) `
+        -Waiting "giving $Name their own number..."
+
+    if (-not $result -or -not $result.ok) {
+        Write-Host ''
+        $code = if ($result -and (Test-ObjectHasProperty $result 'code')) { [string]$result.code } else { '' }
+        switch ($code) {
+            'bridge_missing' {
+                Write-Bad 'Your own WhatsApp assistant has to be working first.'
+                Write-Info 'Finish that step, then come back and hire again.'
+            }
+            'name_taken' {
+                Write-Bad "$Name already has a number set up."
+                Write-Info 'Let them go first if you want to give them a different one.'
+            }
+            'no_port' {
+                Write-Bad 'This Zo has no room for another number just now.'
+            }
+            default {
+                Write-Bad "Could not set that number up just now."
+                if ($result -and (Test-ObjectHasProperty $result 'error') -and $result.error) {
+                    Write-Info "  $($result.error)"
+                }
+                Write-Info 'Nothing is lost. Try this step again in a moment.'
+            }
+        }
+        return $false
+    }
+
+    $script:LastEmployeePhone = $phone
+
+    if ((Test-ObjectHasProperty $result 'alreadyPaired') -and $result.alreadyPaired) {
+        Write-Good "$Name is on $phone."
+    } else {
+        $pairCode = if (Test-ObjectHasProperty $result 'pairCode') { [string]$result.pairCode } else { '' }
+        if (-not $pairCode) {
+            Write-Host ''
+            Write-Bad 'That number was set up, but WhatsApp did not send a code.'
+            Write-Info 'Run the setup again in a moment and it will ask for one.'
+            return $true
+        }
+
+        Write-Host ''
+        Write-Info "On the phone with $phone in it, open WhatsApp and go to:"
+        Write-Host ''
+        Write-NumberedStep 1 'Settings, then' 'Linked Devices'
+        Write-NumberedStep 2 'Tap' 'Link a device'
+        Write-NumberedStep 3 'Tap' 'Link with phone number instead'
+        Write-NumberedStep 4 'Type this code:'
+        Show-PairingCode -Code $pairCode
+        Write-Info 'Take your time. This waits for you.'
+        Write-Host ''
+
+        if (-not (Wait-ForEmployeeNumber -Name $Name)) {
+            Write-Info "$Name's number is set up and still waiting for that code."
+            Write-Info 'Nothing expires. Run the setup again when you have typed'
+            Write-Info 'it in and it will carry straight on.'
+            return $true
+        }
+        Write-Good "$Name is on $phone."
+    }
+
+    # The responder, so the number answers as this employee rather than as the
+    # owner's assistant. Never enabled here: an employee knows a job title and
+    # nothing about the business yet, and this number is one customers can
+    # reach.
+    Write-Host ''
+    $null = Invoke-ZoHelper -Arguments @(
+        '--responder', $Name, '--assistant-name', $Name, '--brief', $Brief
+    ) -Waiting "teaching $Name who they are..."
+
+    Write-Host ''
+    Write-Warn "$Name is not answering anybody yet, and that is deliberate."
+    Write-Host ''
+    Write-Info 'They know their job title and nothing about your business. Teach'
+    Write-Info "them first - tell your Zo about $Name, what you sell, your"
+    Write-Info 'prices, your hours. Then let them start answering.'
+    return $true
 }
 
 function Set-EmployeeTelegram {
@@ -3625,6 +3800,12 @@ function Connect-WhatsApp {
         Write-Bad $result.error
         return $false
     }
+
+    # Remembered so that hiring an employee can refuse this number later. Two
+    # bridges on one number both answer the same message, and the owner sees
+    # their assistant reply twice and concludes it is broken.
+    Set-ProfileValue -Name 'ownerPhone' -Value $phone
+
     if ($result.alreadyPaired) {
         Write-Good 'That number is already connected.'
         # Not "nothing to do". A number linked before this setup could make one
@@ -4377,6 +4558,17 @@ function Reset-AiEmployees {
     if (-not (Read-YesNo -Question "Let $target go?" -YesLabel 'Yes, remove them' -NoLabel 'No, keep them')) {
         Write-Info 'Kept.'
         return
+    }
+
+    # Their number goes back first, while the note still says they had one.
+    #
+    # Left behind, the bridge keeps a phone linked to an employee who no longer
+    # exists, holds its port, and restarts with the Zo forever. The number is
+    # archived rather than deleted, so a mistake here is recoverable.
+    $note = @(Get-HiredEmployees | Where-Object { $_.name -eq $target }) | Select-Object -First 1
+    if ($note -and (Test-ObjectHasProperty $note 'channel') -and $note.channel -eq 'whatsapp') {
+        $null = Invoke-ZoHelper -Arguments @('--employee-number-remove', $target) `
+            -Waiting "taking back $target's number..."
     }
 
     $result = Invoke-ZoHelper -Arguments @('--fire', $target) -Waiting "removing $target..."
