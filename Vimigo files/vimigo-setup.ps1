@@ -2646,16 +2646,34 @@ function Invoke-HireEmployee {
     Write-Brand -Text " $($number + 1) " -Colour Yellow -NoNewline
     Write-Host "  $('Someone else'.PadRight(24))" -ForegroundColor $script:Ink.Strong -NoNewline
     Write-Host 'describe the job in your own words' -ForegroundColor $script:Ink.Muted
+
+    # Skipping is a numbered choice like any other.
+    #
+    # It used to be a grey line saying "Enter - go back, hiring nobody", which
+    # reads as what happens when you get it wrong rather than as something you
+    # are allowed to pick. Somebody who does not want an employee yet should not
+    # have to work out that pressing nothing is the way to say so.
+    Write-Host '     ' -NoNewline
+    Write-Brand -Text " $($number + 2) " -Colour Yellow -NoNewline
+    Write-Host "  $('Not now'.PadRight(24))" -ForegroundColor $script:Ink.Strong -NoNewline
+    Write-Host 'skip this - you can hire any time later' -ForegroundColor $script:Ink.Muted
     Write-Host ''
 
-    Write-Host '        Enter  go back, hiring nobody' -ForegroundColor $script:Ink.Muted
-    Write-Host ''
-    Write-Brand -Text "      Choose 1 to $($number + 1), or Enter to go back > " -Colour Purple -NoNewline
+    Write-Brand -Text "      Choose 1 to $($number + 2) > " -Colour Purple -NoNewline
     $choice = 0
     if (-not [int]::TryParse(([string](Read-Host)).Trim(), [ref]$choice)) { $choice = 0 }
-    if ($choice -lt 1 -or $choice -gt ($number + 1)) {
+    # Enter still works, and so does anything unexpected. Both mean the same
+    # thing as the skip row, so neither can strand somebody on this screen.
+    if ($choice -lt 1 -or $choice -gt ($number + 2)) {
         Write-Host ''
-        Write-Info 'Nothing chosen, so nobody was hired.'
+        Write-Info 'Nobody hired. You can do this whenever you like.'
+        return $false
+    }
+    if ($choice -eq ($number + 2)) {
+        Write-Host ''
+        Write-Good 'No problem - that is a perfectly good answer.'
+        Write-Info 'Your assistant is already working. Hire your first employee'
+        Write-Info 'whenever you are ready: press E on the main screen.'
         return $false
     }
 

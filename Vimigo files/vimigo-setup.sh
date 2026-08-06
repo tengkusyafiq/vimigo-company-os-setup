@@ -2903,26 +2903,60 @@ hire_employee() {
     info 'Who do you need? Think of it like hiring someone for a job.'
     printf '\n'
 
-    local count="${#EMPLOYEE_KEYS[@]}" index=0
+    # The owner's own assistant is not on this list.
+    #
+    # It is the required one, set up earlier on the checklist, and it already
+    # has this same brief. Offering it here invites hiring a second assistant
+    # that nobody can reach - it would have no channel, because the ways of
+    # reaching an assistant belong to the first. Windows has excluded it since
+    # the list existed; the Mac was offering it as row 1, the likeliest thing
+    # for somebody to pick.
+    local hire_keys=() hire_titles=() hire_for=()
+    local index=0
+    while [ "$index" -lt "${#EMPLOYEE_KEYS[@]}" ]; do
+        if [ "${EMPLOYEE_KEYS[$index]}" != 'assistant' ]; then
+            hire_keys+=("${EMPLOYEE_KEYS[$index]}")
+            hire_titles+=("${EMPLOYEE_TITLES[$index]}")
+            hire_for+=("${EMPLOYEE_FOR[$index]}")
+        fi
+        index=$((index + 1))
+    done
+
+    local count="${#hire_keys[@]}"
+    index=0
     while [ "$index" -lt "$count" ]; do
         printf '     %s %d %s  %s%-24s%s%s%s%s\n' \
             "$C_YELLOW" "$((index + 1))" "$C_RESET" \
-            "$C_WHITE" "${EMPLOYEE_TITLES[$index]}" "$C_RESET" \
-            "$C_GREY" "${EMPLOYEE_FOR[$index]}" "$C_RESET"
+            "$C_WHITE" "${hire_titles[$index]}" "$C_RESET" \
+            "$C_GREY" "${hire_for[$index]}" "$C_RESET"
         index=$((index + 1))
     done
     printf '     %s %d %s  %s%-24s%s%s%s%s\n' \
         "$C_YELLOW" "$((count + 1))" "$C_RESET" \
         "$C_WHITE" 'Someone else' "$C_RESET" \
         "$C_GREY" 'describe the job yourself' "$C_RESET"
+    # Skipping is a numbered choice like any other, rather than something the
+    # owner has to work out by pressing nothing. See the Windows note.
+    printf '     %s %d %s  %s%-24s%s%s%s%s\n' \
+        "$C_YELLOW" "$((count + 2))" "$C_RESET" \
+        "$C_WHITE" 'Not now' "$C_RESET" \
+        "$C_GREY" 'skip this - you can hire any time later' "$C_RESET"
     printf '\n'
 
-    printf '      %sChoose 1 to %d > %s' "$C_PURPLE" "$((count + 1))" "$C_RESET"
+    printf '      %sChoose 1 to %d > %s' "$C_PURPLE" "$((count + 2))" "$C_RESET"
     local choice; read -r choice || return 1
     choice="$(menu_number "$choice")"
-    if [ -z "$choice" ] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$((count + 1))" ]; then
+    # Enter, and anything unexpected, mean the same as the skip row.
+    if [ -z "$choice" ] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$((count + 2))" ]; then
         printf '\n'
-        info 'Nothing chosen, so nobody was hired.'
+        info 'Nobody hired. You can do this whenever you like.'
+        return 1
+    fi
+    if [ "$choice" -eq "$((count + 2))" ]; then
+        printf '\n'
+        good 'No problem - that is a perfectly good answer.'
+        info 'Your assistant is already working. Hire your first employee'
+        info 'whenever you are ready: press E on the main screen.'
         return 1
     fi
 
@@ -2939,8 +2973,8 @@ hire_employee() {
             return 1
         fi
     else
-        role="${EMPLOYEE_KEYS[$((choice - 1))]}"
-        role_title="${EMPLOYEE_TITLES[$((choice - 1))]}"
+        role="${hire_keys[$((choice - 1))]}"
+        role_title="${hire_titles[$((choice - 1))]}"
         prompt="$(employee_prompt "$role")"
     fi
 
