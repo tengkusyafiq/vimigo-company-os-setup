@@ -1,0 +1,54 @@
+VIMIGO AI SETUP - FOR WINDOWS
+=============================
+
+This sets up your computer to work with your Zo, Claude and ChatGPT.
+
+You do not need to know anything technical.
+
+
+HOW TO START
+------------
+
+  Double-click:  Setup-Windows.bat
+
+  Windows may say "Windows protected your PC". That is because this came
+  from the internet, not because anything is wrong.
+
+  Click "More info", then "Run anyway".
+
+
+BEFORE YOU START
+----------------
+
+  1. Copy this WHOLE folder somewhere you can find it, like your Desktop.
+     Do not run it from inside the zip file.
+
+  2. Have your phone nearby. You will need it once, to link WhatsApp.
+
+
+WHAT HAPPENS
+------------
+
+It checks what you already have, then does the rest for you. Anything
+already installed is left exactly as it is.
+
+Along the way it will ask you to:
+
+  - paste your Zo account key
+  - type a short code into WhatsApp on your phone
+  - click Allow on a few Google permission screens
+  - say yes when Windows asks permission to install something
+
+That is all. Everything else it does itself.
+
+You can close it at any time and run it again later. It picks up exactly
+where it left off, and it never does the same thing twice.
+
+
+IF SOMETHING GOES WRONG
+-----------------------
+
+Run it again. Most things fix themselves on a second run.
+
+If it happens twice, contact Vimigo support and tell them what the
+screen said.
