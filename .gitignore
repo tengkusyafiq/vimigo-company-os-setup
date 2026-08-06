@@ -1,6 +1,0 @@
-# Built artefacts, never committed. Releases carry the zip instead.
-dist/
-*.zip
-
-# Local answers the setup keeps. Never anyone else's business.
-*.bin

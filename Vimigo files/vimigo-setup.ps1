@@ -2649,7 +2649,7 @@ function Invoke-HireEmployee {
     Write-Host ''
     Write-Brand -Text "      Choose 1 to $($number + 1), or Enter to go back > " -Colour Purple -NoNewline
     $choice = 0
-    if (-not [int]::TryParse((Read-Host).Trim(), [ref]$choice)) { $choice = 0 }
+    if (-not [int]::TryParse(([string](Read-Host)).Trim(), [ref]$choice)) { $choice = 0 }
     if ($choice -lt 1 -or $choice -gt ($number + 1)) {
         Write-Host ''
         Write-Info 'Nothing chosen, so nobody was hired.'
@@ -2662,7 +2662,7 @@ function Invoke-HireEmployee {
         Write-Info 'What is the job? One or two sentences is plenty.'
         Write-Host ''
         Write-Brand -Text '      The job > ' -Colour Purple -NoNewline
-        $described = (Read-Host).Trim()
+        $described = ([string](Read-Host)).Trim()
         if (-not $described) { Write-Info 'Nothing described, so nobody was hired.'; return $false }
         # Their words, then the limits. An employee described in one sentence
         # talks to the same customers as the eight on the list, so it gets the
@@ -2685,7 +2685,7 @@ function Invoke-HireEmployee {
     Write-Info "What shall we call your ${roleTitle}? A first name works well."
     Write-Host ''
     Write-Brand -Text '      Name > ' -Colour Purple -NoNewline
-    $name = (Read-Host).Trim()
+    $name = ([string](Read-Host)).Trim()
     if (-not $name) { $name = $roleTitle }
 
     # Customers are on the other end of this one, and Zo starts an employee
@@ -2837,7 +2837,7 @@ function Set-EmployeeChannel {
 
     Write-Brand -Text '      Choose 1, 2 or 3 > ' -Colour Purple -NoNewline
     $pick = 0
-    if (-not [int]::TryParse((Read-Host).Trim(), [ref]$pick)) { $pick = 3 }
+    if (-not [int]::TryParse(([string](Read-Host)).Trim(), [ref]$pick)) { $pick = 3 }
 
     # What gets written down. Only WhatsApp is ever recorded as a channel:
     # writing "telegram" against an employee would be recording a wish as a
@@ -2860,7 +2860,7 @@ function Set-EmployeeChannel {
                 Write-Info 'What is the number? With the 60 in front, like 60123456789.'
                 Write-Host ''
                 Write-Brand -Text '      Number > ' -Colour Purple -NoNewline
-                $phone = (Read-Host).Trim()
+                $phone = ([string](Read-Host)).Trim()
             }
             Write-Host ''
             if ($phone) {
@@ -2919,7 +2919,7 @@ function Set-EmployeeTelegram {
     Write-Host ''
 
     Write-Brand -Text '      Paste it here (or Enter to skip) > ' -Colour Purple -NoNewline
-    $botToken = (Read-Host).Trim()
+    $botToken = ([string](Read-Host)).Trim()
     if (-not $botToken) {
         Write-Host ''
         Write-Info "No problem. $Name is saved, and you can do this any time."
@@ -3223,7 +3223,7 @@ function Set-TalkToZo {
         '      Choose 1, 2, 3 or 4, or Enter to go back > '
     }
     Write-Brand -Text $prompt -Colour Purple -NoNewline
-    $choice = (Read-Host).Trim()
+    $choice = ([string](Read-Host)).Trim()
 
     # Carrying on with what they had. Resumes at the right place rather than
     # starting the chosen channel from the beginning.
@@ -3563,7 +3563,7 @@ function Connect-WhatsApp {
     if (-not $phone) {
         Write-Host ''
         Write-Brand -Text '      Phone number (or Enter to go back) > ' -Colour Purple -NoNewline
-        $phone = (Read-Host).Trim()
+        $phone = ([string](Read-Host)).Trim()
     }
     if (-not $phone) { Write-Info 'Nothing entered, so nothing was changed.'; return $false }
 
@@ -3577,7 +3577,7 @@ function Connect-WhatsApp {
         Write-Info 'like Sales, Support, or My phone.'
         Write-Host ''
         Write-Brand -Text '      Name for this number > ' -Colour Purple -NoNewline
-        $label = (Read-Host).Trim()
+        $label = ([string](Read-Host)).Trim()
         if (-not $label) { $label = 'My phone' }
         Set-ProfileValue -Name 'whatsappLabel' -Value $label
     }
@@ -3682,7 +3682,7 @@ function Read-AllowedNumbers {
         Write-Host ''
         $label = if ($collected.Count -eq 0) { 'Your own number > ' } else { 'Another number (or Enter to finish) > ' }
         Write-Brand -Text "      $label" -Colour Purple -NoNewline
-        $entry = (Read-Host).Trim()
+        $entry = ([string](Read-Host)).Trim()
 
         if (-not $entry) {
             if ($collected.Count -gt 0) { break }
@@ -4114,7 +4114,7 @@ function Read-YesNo {
         Write-Host " $NoLabel" -ForegroundColor $script:Ink.Body
         Write-Brand -Text '      > ' -Colour Purple -NoNewline
 
-        $answer = (Read-Host).Trim().ToLowerInvariant()
+        $answer = ([string](Read-Host)).Trim().ToLowerInvariant()
         switch ($answer) {
             'y' { return $true }
             'yes' { return $true }
@@ -4340,7 +4340,7 @@ function Reset-AiEmployees {
     Write-Host ''
     Write-Brand -Text "      Which one? 1 to $($employees.Count), or Enter to keep them all > " -Colour Purple -NoNewline
     $choice = 0
-    if (-not [int]::TryParse((Read-Host).Trim(), [ref]$choice)) {
+    if (-not [int]::TryParse(([string](Read-Host)).Trim(), [ref]$choice)) {
         Write-Host ''
         Write-Info 'Nobody was let go.'
         return
@@ -4499,7 +4499,7 @@ function Reset-VimigoSetup {
     Write-Host '        Enter  go back, changing nothing' -ForegroundColor $script:Ink.Muted
     Write-Host ''
     Write-Brand -Text '      Choose 1, 2 or 3, or Enter to go back > ' -Colour Purple -NoNewline
-    $scope = (Read-Host).Trim()
+    $scope = ([string](Read-Host)).Trim()
 
     if ($scope -eq '1') { Reset-WhatsAppAssistant; return }
 
@@ -4827,7 +4827,7 @@ while ($true) {
     if ($finished) {
         Show-AllDone -RestartNeeded $false
         Write-Brand -Text '      > ' -Colour Purple -NoNewline
-        $choice = (Read-Host).Trim()
+        $choice = ([string](Read-Host)).Trim()
     } else {
         Write-Host ("      {0} thing(s) left. This setup can do them for you." -f $outstanding.Count) -ForegroundColor $script:Ink.Body
         Write-Host ''
