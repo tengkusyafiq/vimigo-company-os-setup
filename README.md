@@ -6,10 +6,15 @@ You do not need to know anything technical.
 
 ## Download
 
-**[Get the latest version here.](../../releases/latest)**
+**[Windows](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-windows-v1.0.zip)**
+&nbsp;&nbsp;·&nbsp;&nbsp;
+**[Mac](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-mac-v1.0.zip)**
 
 Save the zip, open it, and copy the whole folder somewhere you can find it —
 your Desktop is fine.
+
+(If you land on the releases page, ignore the two "Source code" files. GitHub
+adds those to everything; they are not what you want.)
 
 ## Run it
 
