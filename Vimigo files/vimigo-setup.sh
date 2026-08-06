@@ -3588,6 +3588,10 @@ wait_for_owner_step() {
                 info 'The app only reads its settings when it starts, so it has'
                 info 'to be closed completely and opened again.' ;;
         esac
+        # Said plainly, because it is true and because someone who thinks they
+        # are stuck will close the window rather than say no.
+        info 'These are recommendations, not requirements. Skipping is'
+        info 'fine and you can finish them whenever you like.'
         if ! ask_yes_no 'Try checking again?'; then
             info 'Left as it is. You can come back to it any time.'
             return 1
