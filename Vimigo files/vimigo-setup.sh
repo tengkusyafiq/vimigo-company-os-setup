@@ -693,6 +693,7 @@ collect_checks() {
         CHECKS+=("zo-claude-code|Claude plan on Zo|needs-you|$why|")
         CHECKS+=("zo-codex|ChatGPT plan on Zo|needs-you|$why|")
         CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$why|")
+        CHECKS+=("zo-brain|Your company memory|needs-you|$why|")
         CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$why|")
         CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|$why|")
         CHECKS+=("zo-employees|Hire AI employees|needs-you|$why|")
@@ -738,6 +739,23 @@ collect_checks() {
         # Counted, not ticked. "2 of 9" tells an owner something a single cross
         # does not, and it is the same reason Google is reported that way.
         CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$skills_have of $skills_wanted installed|briefings, PDFs, reading photos, and more")
+    fi
+
+    # Straight after skills, because it is the same kind of thing: something the
+    # Zo gains rather than something the owner has to do. Read from the same
+    # reply, so checking costs no extra round trip and - the part that matters -
+    # asking whether the company memory exists never creates it.
+    local brain_folders brain_notes
+    brain_folders="$(zo_field 'data.secondBrain ? data.secondBrain.folders : -1')"
+    brain_notes="$(zo_field 'data.secondBrain ? data.secondBrain.notes : 0')"
+    if [ "${brain_folders:--1}" -gt 0 ] 2>/dev/null; then
+        if [ "${brain_notes:-0}" -gt 0 ] 2>/dev/null; then
+            CHECKS+=("zo-brain|Your company memory|ok|$brain_notes notes kept|")
+        else
+            CHECKS+=("zo-brain|Your company memory|ok|ready and empty|")
+        fi
+    else
+        CHECKS+=("zo-brain|Your company memory|needs-you|not set up yet|somewhere to keep what your Zo learns")
     fi
 
     # Google is several apps, each authorised separately. They are listed one by
@@ -3158,6 +3176,7 @@ fix_one() {
         zo-claude-code) connect_zo_ai_provider claude ;;
         zo-codex)       connect_zo_ai_provider codex ;;
         zo-skills)   install_zo_skills ;;
+        zo-brain)    setup_second_brain ;;
         zo-google)   open_zo_google ;;
         talk-to-zo)
             # Somebody who already chose WhatsApp and stopped halfway wants to
@@ -3180,6 +3199,10 @@ UNFINISHED=""
 # the next one while they are still doing it is how a setup ends up reporting
 # that nothing worked.
 OWNER_COMPLETES="claude-mcp chatgpt-mcp zo-claude-code zo-codex zo-google"
+
+# The steps that cannot do anything without the owner's Zo key. Kept in step
+# with the Windows list of the same name.
+NEEDS_ZO_KEY="claude-mcp chatgpt-mcp zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo zo-employees"
 
 check_now() {
     # Re-detects a single step, so the owner gets an answer about the thing they
@@ -3241,7 +3264,7 @@ wait_for_owner_step() {
 
 fix_everything() {
     UNFINISHED=""
-    local total=0 number=0
+    local total=0 number=0 announced_no_key=no
 
     for entry in "${CHECKS[@]}"; do
         local status; status="$(printf '%s' "$entry" | cut -d'|' -f3)"
@@ -3257,6 +3280,35 @@ fix_everything() {
         case "$status" in ok|skipped) continue ;; esac
 
         number=$((number + 1))
+
+        # Everything on this list needs the Zo key. Without one they cannot
+        # work, and running them anyway produced what Tengku saw on Windows:
+        # step after step failing with "could not reach your Zo" while the setup
+        # marched on, for a man who had just been told to go and sign up.
+        #
+        # Said once, not ten times. Ten identical failures read as ten separate
+        # faults, and the owner concludes the product is broken rather than that
+        # it is waiting for them.
+        case " $NEEDS_ZO_KEY " in
+            *" $key "*)
+                case "$(get_zo_token)" in
+                    zo_sk_*) ;;
+                    *)
+                        if [ "$announced_no_key" = 'no' ]; then
+                            printf '\n'
+                            warn 'Everything from here needs your Zo account key, so the'
+                            warn 'rest is waiting for you.'
+                            printf '\n'
+                            info 'Run this setup again once you have signed up and it will'
+                            info 'carry straight on from here.'
+                            printf '\n'
+                            announced_no_key=yes
+                        fi
+                        UNFINISHED="$UNFINISHED$friendly"$'\n'
+                        continue ;;
+                esac ;;
+        esac
+
         show_step_header "$number" "$total" "$friendly"
 
         # One failure must not abandon the rest of the list.
