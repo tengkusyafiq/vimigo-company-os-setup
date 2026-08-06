@@ -1,0 +1,36 @@
+# Go tooling writes LF. Without this, core.autocrlf=true gives Windows checkouts
+# a CRLF working tree, which makes `gofmt -l` flag every file in the repository
+# even when nothing needs formatting.
+*.go text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+
+# Shell scripts must be LF. A CRLF checkout makes macOS and Linux refuse them
+# outright with "bad interpreter: /usr/bin/env bash^M", which looks like a
+# corrupt download to whoever is running the setup.
+*.sh text eol=lf
+*.command text eol=lf
+
+# zo-verify.js carries a #!/usr/bin/env node shebang, so it must be LF for the
+# same reason even though it is normally invoked through node.
+*.js text eol=lf
+
+# The Python that runs on a customer's Zo has a shebang too, and lands on a
+# Linux box either way.
+*.py text eol=lf
+
+# PowerShell and batch stay CRLF so they open cleanly in Windows editors and
+# cmd.exe parses them without surprises.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# The Zo skills are copied onto a Linux server byte for byte, exactly as they
+# came out of Zo's own catalogue. Git must not touch them at all: a Windows
+# checkout that rewrote them to CRLF would ship subtly different files to every
+# customer, and the Python inside two of them would arrive with \r on every
+# line. Marked binary, which is the only setting that turns off both the line
+# ending rewrite and any future filter.
+scripts/setup/skills/** -text -diff
