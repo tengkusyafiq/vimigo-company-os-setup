@@ -3625,7 +3625,44 @@ wait_for_owner_step() {
         esac
 
         printf '\n'
-        warn 'That does not look finished yet.'
+        # Which parts are done, not just that it is not.
+        #
+        # A step made of four separate sign-ins fails as one line - "that does
+        # not look finished yet" - and the owner has no idea which of the four
+        # they missed, so they redo all of them or give up. check_now has just
+        # refreshed the answer, so this costs nothing.
+        local breakdown
+        breakdown=''
+        case "$1" in
+            zo-google)
+                breakdown="$(zo_field '
+                    Object.entries(data.integrations)
+                        .map(([k, v]) => {
+                            const name = ({gmail:"Gmail", google_calendar:"Calendar",
+                                           google_drive:"Drive", google_sheets:"Sheets"})[k] || k;
+                            return (v.connected === true ? "ok|" : "no|") + name;
+                        }).join("\n")')" ;;
+        esac
+
+        if [ -n "$breakdown" ]; then
+            warn 'Not quite finished. Here is where it stands:'
+            printf '\n'
+            while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                case "$line" in
+                    ok\|*) printf '           %s✓%s  %s\n' \
+                        "$C_TEAL" "$C_RESET" "${line#ok|}" ;;
+                    no\|*) printf '           %s·%s  %-14s %sstill to connect%s\n' \
+                        "$C_GREY" "$C_RESET" "${line#no|}" "$C_YELLOW" "$C_RESET" ;;
+                esac
+            done <<EOF
+$breakdown
+EOF
+            printf '\n'
+        else
+            warn 'That does not look finished yet.'
+        fi
+
         case "$1" in
             claude-mcp|chatgpt-mcp)
                 info 'The app only reads its settings when it starts, so it has'
