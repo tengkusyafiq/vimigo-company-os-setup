@@ -277,7 +277,7 @@ EOF
 # ---------------------------------------------------------------------------
 
 cmd_install() {
-    step 'Setting up your company memory'
+    step 'Setting up your company second brain'
     make_folders
     make_obsidian
 

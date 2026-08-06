@@ -693,7 +693,7 @@ collect_checks() {
         CHECKS+=("zo-claude-code|Claude plan on Zo|needs-you|$why|")
         CHECKS+=("zo-codex|ChatGPT plan on Zo|needs-you|$why|")
         CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$why|")
-        CHECKS+=("zo-brain|Your company memory|needs-you|$why|")
+        CHECKS+=("zo-brain|Your company second brain|needs-you|$why|")
         CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$why|")
         CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|$why|")
         CHECKS+=("zo-employees|Hire AI employees|needs-you|$why|")
@@ -744,18 +744,18 @@ collect_checks() {
     # Straight after skills, because it is the same kind of thing: something the
     # Zo gains rather than something the owner has to do. Read from the same
     # reply, so checking costs no extra round trip and - the part that matters -
-    # asking whether the company memory exists never creates it.
+    # asking whether the company second brain exists never creates it.
     local brain_folders brain_notes
     brain_folders="$(zo_field 'data.secondBrain ? data.secondBrain.folders : -1')"
     brain_notes="$(zo_field 'data.secondBrain ? data.secondBrain.notes : 0')"
     if [ "${brain_folders:--1}" -gt 0 ] 2>/dev/null; then
         if [ "${brain_notes:-0}" -gt 0 ] 2>/dev/null; then
-            CHECKS+=("zo-brain|Your company memory|ok|$brain_notes notes kept|")
+            CHECKS+=("zo-brain|Your company second brain|ok|$brain_notes notes kept|")
         else
-            CHECKS+=("zo-brain|Your company memory|ok|ready and empty|")
+            CHECKS+=("zo-brain|Your company second brain|ok|ready and empty|")
         fi
     else
-        CHECKS+=("zo-brain|Your company memory|needs-you|not set up yet|somewhere to keep what your Zo learns")
+        CHECKS+=("zo-brain|Your company second brain|needs-you|not set up yet|somewhere to keep what your Zo learns")
     fi
 
     # Google is several apps, each authorised separately. They are listed one by
@@ -2497,7 +2497,7 @@ setup_second_brain() {
     # jobs and parts, a clinic needs patients and appointments. That part is a
     # conversation with their Zo, not a question on a setup screen, and the
     # screen says so rather than implying this is finished.
-    title 'Your company memory'
+    title 'Your company second brain'
     info 'This is where your Zo keeps what it learns about your business,'
     info 'so it stops asking you the same things twice.'
     printf '\n'
@@ -2576,7 +2576,7 @@ show_main_options() {
         "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
     printf '        %s A %s  %sSet up your assistant again %s%schange the number, or how you reach it%s\n' \
         "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-    printf '        %s M %s  %sYour company memory         %s%swhat your Zo remembers about the business%s\n' \
+    printf '        %s M %s  %sYour company second brain   %s%swhat your Zo remembers about the business%s\n' \
         "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
     printf '        %s Z %s  %sOpen your Zo                %s%sthe website, for anything not here%s\n' \
         "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"

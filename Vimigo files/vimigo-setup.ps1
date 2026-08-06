@@ -1461,13 +1461,13 @@ function Get-AllChecks {
     # Zo gains rather than something the owner has to do.
     $brain = if (Test-ObjectHasProperty $zo 'secondBrain') { $zo.secondBrain } else { $null }
     if ($null -eq $brain) {
-        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company memory' -Status 'needs-you' `
+        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'needs-you' `
             -Detail 'not set up yet' -Note 'somewhere to keep what your Zo learns'))
     } elseif ($brain.folders -gt 0) {
         $detail = if ($brain.notes -gt 0) { "$($brain.notes) notes kept" } else { 'ready and empty' }
-        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company memory' -Status 'ok' -Detail $detail))
+        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'ok' -Detail $detail))
     } else {
-        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company memory' -Status 'needs-you' `
+        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'needs-you' `
             -Detail 'not set up yet' -Note 'somewhere to keep what your Zo learns'))
     }
 
@@ -1777,7 +1777,7 @@ function Show-MainOptions {
         @{ Key = 'E'; What = 'Hire an AI employee'; Why = 'sales, admin, accounts, and more' },
         @{ Key = 'T'; What = 'See your AI employees'; Why = 'who works for you, and where they answer' },
         @{ Key = 'A'; What = 'Set up your assistant again'; Why = 'change the number, or how you reach it' },
-        @{ Key = 'M'; What = 'Your company memory'; Why = 'what your Zo remembers about the business' },
+        @{ Key = 'M'; What = 'Your company second brain'; Why = 'what your Zo remembers about the business' },
         @{ Key = 'Z'; What = 'Open your Zo'; Why = 'the website, for anything not here' }
     )
     foreach ($row in $rows) {
@@ -2427,7 +2427,7 @@ function Install-SecondBrain {
         part is a conversation with their Zo, not a question on a setup screen,
         and the screen says so rather than implying this is finished.
     #>
-    Write-Title 'Your company memory'
+    Write-Title 'Your company second brain'
     Write-Info 'This is where your Zo keeps what it learns about your business,'
     Write-Info 'so it stops asking you the same things twice.'
     Write-Host ''
@@ -4863,7 +4863,7 @@ while ($true) {
     if ($choice -match '^[Mm]') {
         Clear-Screen
         Show-Banner
-        $null = Invoke-Guarded -Whats 'your company memory' -Action { Install-SecondBrain }
+        $null = Invoke-Guarded -Whats 'your company second brain' -Action { Install-SecondBrain }
         Read-Host -Prompt '      Press Enter to go back' | Out-Null
         Clear-Screen
         Show-Banner

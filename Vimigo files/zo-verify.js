@@ -378,7 +378,7 @@ const SECOND_BRAIN = `${'/home/workspace/Services/vimigo-setup'}/zo-second-brain
 async function readSecondBrain(session, token) {
   const text = await runOnZo(
     `if [ -x ${SECOND_BRAIN} ]; then ${SECOND_BRAIN} status 2>/dev/null; fi`,
-    'Check the company memory', session, token).catch(() => '');
+    'Check the company second brain', session, token).catch(() => '');
 
   const found = /VIMIGO_BRAIN folders=(\d+) notes=(\d+) indexed=(\w+)/.exec(text);
   if (!found) return null;
@@ -1006,11 +1006,11 @@ async function main() {
     return;
   }
 
-  // Sets up the company memory: folders, an index, and Obsidian settings.
+  // Sets up the company second brain: folders, an index, and Obsidian settings.
   if (rest.includes('--second-brain')) {
     await runOnZo(
       `if [ -x ${SECOND_BRAIN} ]; then ${SECOND_BRAIN} install 2>&1; else echo VIMIGO_NOT_INSTALLED; fi`,
-      'Set up the company memory', session, token);
+      'Set up the company second brain', session, token);
 
     // Read back rather than trusted, as everywhere else.
     const state = await readSecondBrain(session, token);
