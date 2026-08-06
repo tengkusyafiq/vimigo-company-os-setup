@@ -1452,6 +1452,18 @@ connect_zo_to_chatgpt() {
 
     good 'Zo is connected to ChatGPT.'
     warn 'Quit ChatGPT completely and open it again for this to take effect.'
+    printf '\n'
+
+    # Where it actually appears. The Mac never said, and Windows said the wrong
+    # place - a customer who looks and finds nothing concludes the setup failed.
+    info 'If you open ChatGPT and cannot find Zo there:'
+    printf '\n'
+    numbered 1 'In ChatGPT open' 'Settings'
+    numbered 2 'Click' 'Plugins'
+    numbered 3 'Choose the tab called' 'MCPs'
+    printf '\n'
+    info 'Zo is in that list, already switched on. Nothing to set up -'
+    info 'it is only somewhere to look if you want to see it.'
     return 0
 }
 

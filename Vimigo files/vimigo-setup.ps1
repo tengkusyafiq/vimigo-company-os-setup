@@ -2300,19 +2300,22 @@ function Connect-ZoToChatGpt {
     Write-Warn 'Quit ChatGPT completely and open it again for this to take effect.'
     Write-Host ''
 
-    # This file is what ChatGPT's coding side reads, and it needs nothing
-    # switched on. Its chat side keeps a separate list that is hidden until
-    # Developer mode is turned on, and a customer who looks in the wrong place
-    # sees nothing and assumes the setup failed. Saying so here costs two lines
-    # and saves a support call.
+    # Where it actually appears, checked against the app rather than guessed.
+    #
+    # This said "Connectors, then Advanced, then turn on Developer mode" and all
+    # three were wrong: there is no Connectors page, nothing has to be switched
+    # on, and Developer mode is a different feature. Tengku's team hit it on the
+    # morning of the training and went hunting through settings that do not
+    # exist. A customer who looks in the wrong place sees nothing and concludes
+    # the setup failed, which is exactly what these lines are here to prevent.
     Write-Info 'If you open ChatGPT and cannot find Zo there:'
     Write-Host ''
     Write-NumberedStep 1 'In ChatGPT open' 'Settings'
-    Write-NumberedStep 2 'Go to' 'Connectors, then Advanced'
-    Write-NumberedStep 3 'Turn on' 'Developer mode'
+    Write-NumberedStep 2 'Click' 'Plugins'
+    Write-NumberedStep 3 'Choose the tab called' 'MCPs'
     Write-Host ''
-    Write-Info 'That is only needed for ChatGPT chat. The coding side works'
-    Write-Info 'straight away.'
+    Write-Info 'Zo is in that list, already switched on. Nothing to set up -'
+    Write-Info 'it is only somewhere to look if you want to see it.'
     return $true
 }
 
