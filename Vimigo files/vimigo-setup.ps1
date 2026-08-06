@@ -1761,8 +1761,10 @@ function Show-MainOptions {
     #>
     param([switch]$Finished)
 
-    Write-Host '      What you can do:' -ForegroundColor $script:Ink.Body
-    Write-Host ''
+    if ($Finished) {
+        Write-Host '      What you can do:' -ForegroundColor $script:Ink.Body
+        Write-Host ''
+    }
 
     if (-not $Finished) {
         Write-Host '        ┌──────────────────────────────────────┐' -ForegroundColor $script:Ink.Good
@@ -1773,13 +1775,21 @@ function Show-MainOptions {
         Write-Host ''
     }
 
-    $rows = @(
-        @{ Key = 'E'; What = 'Hire an AI employee'; Why = 'sales, admin, accounts, and more' },
-        @{ Key = 'T'; What = 'See your AI employees'; Why = 'who works for you, and where they answer' },
-        @{ Key = 'A'; What = 'Set up your assistant again'; Why = 'change the number, or how you reach it' },
-        @{ Key = 'M'; What = 'Your company second brain'; Why = 'what your Zo remembers about the business' },
-        @{ Key = 'Z'; What = 'Open your Zo'; Why = 'the website, for anything not here' }
-    )
+    # Until the setup has finished there is exactly one key: Enter.
+    #
+    # Everything else manages something that does not exist yet. "Set up your
+    # assistant again" before there is an assistant, or "your company second
+    # brain" before it has been made, is a menu of ways to be confused - and
+    # this screen already says six things are left. One instruction, one key,
+    # and the whole list comes back the moment it is done.
+    $rows = @()
+    if ($Finished) {
+        $rows += @{ Key = 'E'; What = 'Hire an AI employee'; Why = 'sales, admin, accounts, and more' }
+        $rows += @{ Key = 'T'; What = 'See your AI employees'; Why = 'who works for you, and where they answer' }
+        $rows += @{ Key = 'A'; What = 'Set up your assistant again'; Why = 'change the number, or how you reach it' }
+        $rows += @{ Key = 'M'; What = 'Your company second brain'; Why = 'what your Zo remembers about the business' }
+        $rows += @{ Key = 'Z'; What = 'Open your Zo'; Why = 'the website, for anything not here' }
+    }
     foreach ($row in $rows) {
         Write-Host '        ' -NoNewline
         Write-Brand -Text " $($row.Key) " -Colour Yellow -NoNewline
@@ -1787,11 +1797,13 @@ function Show-MainOptions {
         Write-Host $row.Why -ForegroundColor $script:Ink.Muted
     }
 
-    Write-Host '        ' -NoNewline
-    Write-Brand -Text ' S ' -Colour Yellow -NoNewline
-    Write-Host "  $('Start over'.PadRight(28))" -ForegroundColor $script:Ink.Strong -NoNewline
-    Write-Host 'WARNING! Removes what this setup' -ForegroundColor $script:Ink.Warn
-    Write-Host ('                                        installed, then sets it up again') -ForegroundColor $script:Ink.Warn
+    if ($Finished) {
+        Write-Host '        ' -NoNewline
+        Write-Brand -Text ' S ' -Colour Yellow -NoNewline
+        Write-Host "  $('Start over'.PadRight(28))" -ForegroundColor $script:Ink.Strong -NoNewline
+        Write-Host 'WARNING! Removes what this setup' -ForegroundColor $script:Ink.Warn
+        Write-Host ('                                        installed, then sets it up again') -ForegroundColor $script:Ink.Warn
+    }
 
     Write-Host '        ' -NoNewline
     Write-Brand -Text ' Q ' -Colour Yellow -NoNewline
@@ -5031,7 +5043,15 @@ while ($true) {
     Show-Checks -Checks $checks
 
     $outstanding = @($checks | Where-Object { $_.Status -ne 'ok' })
-    $finished = ($outstanding.Count -eq 0)
+
+    # Hiring is optional, so not hiring is not an unfinished setup.
+    #
+    # Counted as outstanding, "Hire AI employees" is a row that can only be
+    # cleared by hiring somebody - so an owner who wants an assistant and no
+    # employees never reaches the finished screen, and the menu they need in
+    # order to manage what they built never appears. The row stays on the
+    # checklist, because it is worth knowing it is there.
+    $finished = -not ($outstanding | Where-Object { $_.Key -ne 'zo-employees' })
 
     # One menu, whether the checklist is finished or not. It used to be two,
     # and the finished one was the shorter - so somebody who came back the next
@@ -5042,7 +5062,11 @@ while ($true) {
         Write-Brand -Text '      > ' -Colour Purple -NoNewline
         $choice = ([string](Read-Host)).Trim()
     } else {
-        Write-Host ("      {0} thing(s) left. This setup can do them for you." -f $outstanding.Count) -ForegroundColor $script:Ink.Body
+        # The optional row is not counted, or the number disagrees with the
+        # screen: it would say one thing is left on a setup that has already
+        # decided it is finished.
+        $needed = @($outstanding | Where-Object { $_.Key -ne 'zo-employees' }).Count
+        Write-Host ("      {0} thing(s) left. This setup can do them for you." -f $needed) -ForegroundColor $script:Ink.Body
         Write-Host ''
         $choice = Read-StartChoice -RowCount $checks.Count
     }

@@ -2652,7 +2652,9 @@ show_main_options() {
     # do here" should not depend on how much is ticked - somebody who finished
     # yesterday and came back to hire a second employee met a different,
     # shorter menu than the one they used the first time.
-    info 'What you can do:'
+    if [ "${1:-}" = 'finished' ]; then
+        info 'What you can do:'
+    fi
     printf '\n'
 
     if [ "${1:-}" != 'finished' ]; then
@@ -2662,25 +2664,33 @@ show_main_options() {
         printf '        %s└──────────────────────────────────────┘%s\n\n' "$C_GREEN" "$C_RESET"
     fi
 
-    printf '        %s E %s  %sHire an AI employee         %s%ssales, admin, accounts, and more%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-    printf '        %s T %s  %sSee your AI employees       %s%swho works for you, and where they answer%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-    printf '        %s A %s  %sSet up your assistant again %s%schange the number, or how you reach it%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-    printf '        %s M %s  %sYour company second brain   %s%swhat your Zo remembers about the business%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-    printf '        %s Z %s  %sOpen your Zo                %s%sthe website, for anything not here%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-    # Named for what it does, not for what it is useful for. "To test it as a
-    # new customer would" reads like a harmless preview to someone who is not
-    # testing anything.
-    printf '        %s S %s  %sStart over                  %s%sWARNING! Removes what this setup%s\n' \
-        "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_YELLOW" "$C_RESET"
-    # Lined up under "WARNING!", which starts at column 41: eight spaces, the
-    # three-character key, two more, then the twenty-eight the label occupies.
-    printf '                                         %sinstalled, then sets it up again%s\n' \
-        "$C_YELLOW" "$C_RESET"
+    # Until the setup has finished there is exactly one key: Enter.
+    #
+    # Everything else manages something that does not exist yet, on a screen
+    # that already says how much is left. The whole list comes back the moment
+    # it is done. See the Windows note for the reasoning.
+    if [ "${1:-}" = 'finished' ]; then
+        printf '        %s E %s  %sHire an AI employee         %s%ssales, admin, accounts, and more%s\n' \
+            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        printf '        %s T %s  %sSee your AI employees       %s%swho works for you, and where they answer%s\n' \
+            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        printf '        %s A %s  %sSet up your assistant again %s%schange the number, or how you reach it%s\n' \
+            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        printf '        %s M %s  %sYour company second brain   %s%swhat your Zo remembers about the business%s\n' \
+            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        printf '        %s Z %s  %sOpen your Zo                %s%sthe website, for anything not here%s\n' \
+            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        # Named for what it does, not for what it is useful for. "To test it as a
+        # new customer would" reads like a harmless preview to someone who is not
+        # testing anything.
+        printf '        %s S %s  %sStart over                  %s%sWARNING! Removes what this setup%s\n' \
+            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_YELLOW" "$C_RESET"
+        # Lined up under "WARNING!", which starts at column 41: eight spaces, the
+        # three-character key, two more, then the twenty-eight the label occupies.
+        printf '                                         %sinstalled, then sets it up again%s\n' \
+            "$C_YELLOW" "$C_RESET"
+    fi
+
     printf '        %s Q %s  %sClose%s\n' "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET"
     printf '\n'
 }
@@ -4055,8 +4065,16 @@ while true; do
     collect_checks
     show_checks
 
+    # Hiring is optional, so not hiring is not an unfinished setup.
+    #
+    # Counted here, "Hire AI employees" is a row that can only be cleared by
+    # hiring somebody - so an owner who wants an assistant and no employees
+    # never reaches the finished screen, and the menu they need in order to
+    # manage what they built never appears. The row stays on the checklist,
+    # because it is worth knowing it is there.
     remaining=0
     for entry in "${CHECKS[@]}"; do
+        [ "$(printf '%s' "$entry" | cut -d'|' -f1)" = 'zo-employees' ] && continue
         case "$(printf '%s' "$entry" | cut -d'|' -f3)" in
             ok|skipped) ;;
             *) remaining=$((remaining + 1)) ;;
