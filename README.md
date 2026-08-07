@@ -14,12 +14,14 @@ coming.
 
 ## Download
 
-**[Windows](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-windows-v1.0.zip)**
-&nbsp;&nbsp;·&nbsp;&nbsp;
-**[Mac](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-mac-v1.0.zip)**
+**Windows** —
+[download the zip](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-windows-v1.0.zip),
+open it, and copy the whole folder somewhere you can find it. Your Desktop is
+fine.
 
-Save the zip, open it, and copy the whole folder somewhere you can find it —
-your Desktop is fine.
+**Mac** — don't download anything. Use the one line in **[Run it](#run-it)**
+below; it fetches everything itself and avoids a block that is very hard to get
+past by hand.
 
 (If you land on the releases page, ignore the two "Source code" files. GitHub
 adds those to everything; they are not what you want.)
@@ -32,29 +34,49 @@ Windows may say "Windows protected your PC". Click **More info**, then **Run
 anyway**. That is because the file came from the internet, not because anything
 is wrong.
 
-### Mac — the first time only
+### Mac — do this instead of downloading
 
-Your Mac blocks anything downloaded from the internet until you allow it once.
-Four clicks, one time.
+**Do not download the zip on a Mac.** Your Mac blocks anything that arrives
+through a browser, and getting past that block takes four clicks buried in
+System Settings that almost nobody finds. One of the two buttons it offers
+deletes the setup.
 
-1. Double-click `Setup-Mac.command`. **Your Mac will refuse** and say it "could
-   not verify" the file. That is the block, and it is meant to happen. Click
-   **Done** — **not "Move to Trash"**, which is the blue button and deletes the
-   setup.
-2. Open **System Settings** → **Privacy & Security**, and scroll down to
-   **Security**.
-3. There is a line about `Setup-Mac.command` being blocked. Click **Open
-   Anyway**.
-4. Give your fingerprint or password, then click **Open**.
+This way skips all of it. **Copy this one line:**
 
-A black window appears. That window is meant to be there — just follow what it
-says. After this once, double-clicking works normally.
+```
+curl -fsSL https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-mac.sh | bash
+```
 
-> Older instructions said to right-click and choose Open. **That no longer
-> works.** Apple removed it in macOS Sequoia, which is why the warning now only
-> offers "Done" and "Move to Trash". If Step 2 shows no line about
-> `Setup-Mac.command`, you have not done Step 1 yet — the button only appears
-> after your Mac has blocked it once.
+1. Press **Command + Space**, type `Terminal`, press **Enter**.
+2. Paste the line above and press **Enter**.
+
+It downloads the setup, puts the folder on your Desktop, and starts it. From
+then on you can just double-click `Setup-Mac.command` in that folder — the
+block does not come back.
+
+<details>
+<summary>If you already downloaded the zip and your Mac is refusing to open it</summary>
+
+You will have seen **"Apple could not verify Setup-Mac.command is free of
+malware"**, offering only *Done* and *Move to Trash*.
+
+**Click Done.** Do not click *Move to Trash* — it is the blue button and it
+deletes the setup.
+
+Then either run the one-line command above, which is easier, or:
+
+1. Open **System Settings** → **Privacy & Security**, scroll to **Security**.
+2. Find the line about `Setup-Mac.command` and click **Open Anyway**.
+3. Give your fingerprint or password, then click **Open**.
+
+If step 1 shows no such line, you have not tried to open it yet — the button
+only appears after your Mac has blocked it once.
+
+Older instructions said to right-click and choose **Open**. That stopped
+working in macOS Sequoia; Apple removed it, which is why the warning now offers
+no way forward at all.
+
+</details>
 
 ## What happens
 

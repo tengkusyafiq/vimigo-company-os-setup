@@ -16,43 +16,45 @@ BEFORE YOU START
 HOW TO START
 ------------
 
-  Your Mac blocks anything downloaded from the internet until you allow
-  it once. That is normal and it happens to every program. It takes four
-  clicks, one time only.
+  Double-click Setup-Mac.command.
 
-  STEP 1  Double-click Setup-Mac.command.
-
-          Your Mac will refuse, and say it "could not verify" the file.
-          That is the block. It is meant to happen.
-
-          Click DONE.
-
-          *** Do NOT click "Move to Trash". ***
-          That is the blue button, and it deletes the setup.
-
-  STEP 2  Open System Settings.
-          (the grey gear icon, or the Apple menu at the top left)
-
-  STEP 3  Click Privacy & Security in the left-hand list, then scroll
-          down to the part called Security.
-
-          You will see a line about Setup-Mac.command being blocked,
-          with a button next to it.
-
-          Click OPEN ANYWAY.
-
-  STEP 4  Your Mac asks for your fingerprint or your password. Give it.
-          Then click Open.
-
-  The setup now starts, and a black window appears. That window is
+  If it opens, you are away. A black window appears - that window is
   meant to be there. Just follow what it says.
 
-  After this one time, double-clicking works normally.
+
+IF YOUR MAC REFUSES TO OPEN IT
+------------------------------
+
+  You will see: "Apple could not verify Setup-Mac.command is free of
+  malware", with two buttons.
+
+  *** Click DONE. Do NOT click "Move to Trash". ***
+  Move to Trash is the blue one, and it deletes the setup.
+
+  That block is your Mac being careful about anything that arrived
+  through a browser. There is an easier way past it than hunting
+  through settings, and it is two steps:
+
+  STEP 1  Hold down Command and press Space.
+          Type   Terminal   and press Enter.
+
+  STEP 2  Copy the whole line below, paste it into the window that
+          opened, and press Enter.
+
+curl -fsSL https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-mac.sh | bash
+
+  That fetches a fresh copy, puts it on your Desktop, and starts it.
+  Afterwards double-clicking works normally - the block does not come
+  back.
 
 
-  If Step 3 shows no line about Setup-Mac.command, you have not done
-  Step 1 yet. Your Mac only offers the button after it has blocked it
-  once.
+  If you would rather not use Terminal, the long way round is:
+
+    System Settings -> Privacy & Security -> scroll down to Security
+    -> find the line about Setup-Mac.command -> click Open Anyway
+
+  That button only appears after your Mac has already blocked it once,
+  so do the double-click first.
 
 
 WHAT HAPPENS
