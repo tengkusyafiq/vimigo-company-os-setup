@@ -42,6 +42,7 @@ set -o pipefail
 # offering different setups is worse than either answer on its own.
 FEATURE_AI_ASSISTANT='off'
 FEATURE_ZO_SKILLS='off'
+FEATURE_GOOGLE='off'
 FEATURE_SECOND_BRAIN='off'
 FEATURE_AI_EMPLOYEES='off'
 
@@ -53,6 +54,9 @@ if [ -n "${VIMIGO_FEATURE_AI_ASSISTANT:-}" ]; then
 fi
 if [ -n "${VIMIGO_FEATURE_ZO_SKILLS:-}" ]; then
     FEATURE_ZO_SKILLS="$VIMIGO_FEATURE_ZO_SKILLS"
+fi
+if [ -n "${VIMIGO_FEATURE_GOOGLE:-}" ]; then
+    FEATURE_GOOGLE="$VIMIGO_FEATURE_GOOGLE"
 fi
 if [ -n "${VIMIGO_FEATURE_SECOND_BRAIN:-}" ]; then
     FEATURE_SECOND_BRAIN="$VIMIGO_FEATURE_SECOND_BRAIN"
@@ -906,7 +910,9 @@ collect_checks() {
         if feature_on "$FEATURE_SECOND_BRAIN"; then
             CHECKS+=("zo-brain|Your company second brain|needs-you|$why|")
         fi
-        CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$why|")
+        if feature_on "$FEATURE_GOOGLE"; then
+            CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$why|")
+        fi
         if feature_on "$FEATURE_AI_ASSISTANT"; then
             CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|$why|")
         fi
@@ -1004,10 +1010,12 @@ collect_checks() {
                 return name + ":" + (v.connected === true ? "ok" : "no");
             }).join(",")')"
 
-    if [ -n "$total" ] && [ "$connected" = "$total" ]; then
-        CHECKS+=("zo-google|Basic integrations for your Zo|ok|$connected of $total connected||$children")
-    else
-        CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$connected of $total connected||$children")
+    if feature_on "$FEATURE_GOOGLE"; then
+        if [ -n "$total" ] && [ "$connected" = "$total" ]; then
+            CHECKS+=("zo-google|Basic integrations for your Zo|ok|$connected of $total connected||$children")
+        else
+            CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$connected of $total connected||$children")
+        fi
     fi
 
     # The row that decides whether any of the rest gets used. A fully set up Mac

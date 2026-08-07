@@ -115,6 +115,7 @@ function Reset-Theme {
 # offering different setups is worse than either answer on its own.
 $script:FeatureAiAssistant = 'off'
 $script:FeatureZoSkills    = 'off'
+$script:FeatureGoogle      = 'off'
 $script:FeatureSecondBrain = 'off'
 $script:FeatureAiEmployees = 'off'
 
@@ -123,6 +124,7 @@ $script:FeatureAiEmployees = 'off'
 # It overrides in both directions, so it can also turn one off.
 if ($env:VIMIGO_FEATURE_AI_ASSISTANT) { $script:FeatureAiAssistant = $env:VIMIGO_FEATURE_AI_ASSISTANT }
 if ($env:VIMIGO_FEATURE_ZO_SKILLS)    { $script:FeatureZoSkills    = $env:VIMIGO_FEATURE_ZO_SKILLS }
+if ($env:VIMIGO_FEATURE_GOOGLE)      { $script:FeatureGoogle      = $env:VIMIGO_FEATURE_GOOGLE }
 if ($env:VIMIGO_FEATURE_SECOND_BRAIN) { $script:FeatureSecondBrain = $env:VIMIGO_FEATURE_SECOND_BRAIN }
 if ($env:VIMIGO_FEATURE_AI_EMPLOYEES) { $script:FeatureAiEmployees = $env:VIMIGO_FEATURE_AI_EMPLOYEES }
 
@@ -1703,7 +1705,9 @@ function Get-AllChecks {
         if (Test-FeatureOn $script:FeatureSecondBrain) {
             $offline.Add(@{ Key = 'zo-brain';   Title = 'Your company second brain' })
         }
-        $offline.Add(@{ Key = 'zo-google';      Title = 'Basic integrations for your Zo' })
+        if (Test-FeatureOn $script:FeatureGoogle) {
+            $offline.Add(@{ Key = 'zo-google'; Title = 'Basic integrations for your Zo' })
+        }
         if (Test-FeatureOn $script:FeatureAiAssistant) {
             $offline.Add(@{ Key = 'talk-to-zo'; Title = 'Your AI Personal Assistant' })
         }
@@ -1796,6 +1800,7 @@ function Get-AllChecks {
     # really one decision.
     $connected = 0
     $children = New-Object System.Collections.Generic.List[object]
+    if (Test-FeatureOn $script:FeatureGoogle) {
     foreach ($slug in $script:GoogleApps.Keys) {
         $entry = $zo.integrations.PSObject.Properties |
             Where-Object { $_.Name -eq $slug } | Select-Object -First 1
@@ -1812,6 +1817,7 @@ function Get-AllChecks {
         -Status $(if ($connected -eq $total) { 'ok' } else { 'needs-you' }) `
         -Detail "$connected of $total connected" `
         -Children $children))
+    }
 
     # The row that decides whether any of the rest gets used. A fully set up
     # machine with no answer here is a customer who never opens it again. It

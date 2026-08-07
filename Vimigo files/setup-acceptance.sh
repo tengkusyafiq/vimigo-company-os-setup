@@ -193,12 +193,18 @@ zo_rows() {
     FEATURE_ZO_SKILLS="$2"
     FEATURE_SECOND_BRAIN="$3"
     FEATURE_AI_EMPLOYEES="$4"
+    # Google held on, because these checks are about the order of the rows
+    # around it. Its own switch is covered on its own, below.
+    FEATURE_GOOGLE='on'
     if [ "$5" = 'nokey' ]; then
         zo_verify() { ZO_ANSWER=''; }
     else
         zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
     fi
-    collect_checks >/dev/null 2>&1
+    # Only stdout is silenced. Sending stderr to /dev/null here hid a
+    # collect_checks that died mid-run, and the only symptom was two unrelated
+    # assertions failing with no explanation whatsoever.
+    collect_checks >/dev/null
     local entry keys=''
     for entry in "${CHECKS[@]}"; do
         case "${entry%%|*}" in
@@ -428,6 +434,7 @@ step_trail() {
     FEATURE_ZO_SKILLS="$1"
     FEATURE_SECOND_BRAIN="$1"
     FEATURE_AI_EMPLOYEES="$1"
+    FEATURE_GOOGLE="$1"
     zo_verify() { ZO_ANSWER="$ZO_UNDONE"; }
     collect_checks >/dev/null 2>&1
     fix_everything 2>&1 |
@@ -437,7 +444,13 @@ step_trail() {
 
 trail_is_whole() {
     # Passes when the numbers run 1..N with no gaps and N is the total claimed.
+    #
+    # No steps at all is whole, and on this build it is the point: with every
+    # feature switched off and one AI app already set up, there is genuinely
+    # nothing left to run. Calling that a gap failed the suite for doing
+    # exactly what it was asked to do.
     local trail="$1" want=1 total='' pair
+    [ -n "$trail" ] || return 0
     for pair in $trail; do
         [ "${pair%%/*}" = "$want" ] || return 1
         total="${pair##*/}"
@@ -459,11 +472,47 @@ assert $? 'switched on, the steps run 1..N with no gaps and end on the total'
 # features off must remove exactly two steps anywhere.
 steps_off="$(printf '%s' "$TRAIL_OFF" | wc -w | tr -d ' ')"
 steps_on="$(printf '%s' "$TRAIL_ON" | wc -w | tr -d ' ')"
-[ "$((steps_on - steps_off))" -eq 4 ]
-assert $? 'switching all four off removes exactly four steps, no more and no fewer'
+[ "$((steps_on - steps_off))" -eq 5 ]
+assert $? 'switching all five off removes exactly five steps, no more and no fewer'
 
 case "$TRAIL_OFF" in *WOULD_DO*) false ;; *) true ;; esac
 assert $? 'and nothing was actually run to find that out'
+
+printf '\n\033[36mGoogle is a switch like the rest\033[0m\n'
+
+# The last row that could hold a v1 setup open. Tengku believed it was already
+# off and it was not: the four switches were the assistant, skills, the second
+# brain and employees, and Google was never among them - so on a finished
+# setup it sat there as the one outstanding thing.
+google_row() {
+    FEATURE_AI_ASSISTANT='off'; FEATURE_ZO_SKILLS='off'
+    FEATURE_SECOND_BRAIN='off'; FEATURE_AI_EMPLOYEES='off'
+    FEATURE_GOOGLE="$1"
+    if [ "$2" = 'nokey' ]; then zo_verify() { ZO_ANSWER=''; }
+    else zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }; fi
+    collect_checks >/dev/null 2>&1
+    printf '%s\n' "${CHECKS[@]}" | grep -c '^zo-google|' | tr -d ' '
+}
+
+[ "$(google_row on key)" = '1' ]
+assert $? 'switched on, Google is on the list'
+[ "$(google_row off key)" = '0' ]
+assert $? 'switched off, Google is gone'
+[ "$(google_row on nokey)" = '1' ]
+assert $? 'and with no key it still appears when switched on'
+[ "$(google_row off nokey)" = '0' ]
+assert $? 'and still does not when switched off, so the list never rearranges'
+
+# The whole point of switching it off: nothing is left for the owner to do.
+FEATURE_AI_ASSISTANT='off'; FEATURE_ZO_SKILLS='off'
+FEATURE_SECOND_BRAIN='off'; FEATURE_AI_EMPLOYEES='off'; FEATURE_GOOGLE='off'
+app_installed() { [ "$1" = 'ChatGPT' ]; }
+claude_mcp_configured() { return 1; }
+codex_mcp_configured() { return 0; }
+zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
+collect_checks >/dev/null 2>&1
+settled_only
+assert $? 'with everything off, a ChatGPT-only machine has nothing left to do'
 
 printf '\n\033[36mA switched-off feature takes its key with it\033[0m\n'
 
