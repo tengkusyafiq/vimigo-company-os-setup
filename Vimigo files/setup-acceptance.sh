@@ -187,11 +187,13 @@ load_homebrew_env() { return 0; }
 find_local_whatsapp() { return 0; }
 
 zo_rows() {
-    # $1 = second brain switch, $2 = employees switch, $3 = 'key' or 'nokey'.
+    # $1 assistant, $2 skills, $3 brain, $4 employees, $5 = 'key' or 'nokey'.
     # Prints the rows that live on Zo, in the order the owner reads them.
-    FEATURE_SECOND_BRAIN="$1"
-    FEATURE_AI_EMPLOYEES="$2"
-    if [ "$3" = 'nokey' ]; then
+    FEATURE_AI_ASSISTANT="$1"
+    FEATURE_ZO_SKILLS="$2"
+    FEATURE_SECOND_BRAIN="$3"
+    FEATURE_AI_EMPLOYEES="$4"
+    if [ "$5" = 'nokey' ]; then
         zo_verify() { ZO_ANSWER=''; }
     else
         zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
@@ -207,32 +209,46 @@ zo_rows() {
     printf '%s' "$keys"
 }
 
-BOTH_ON='zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo zo-employees'
-BOTH_OFF='zo-claude-code zo-codex zo-skills zo-google talk-to-zo'
+ALL_ON='zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo zo-employees'
+ALL_OFF='zo-claude-code zo-codex zo-google'
 
-[ "$(zo_rows on on key)" = "$BOTH_ON" ]
-assert $? 'switched on, the checklist is in the order it always was'
-[ "$(zo_rows off off key)" = "$BOTH_OFF" ]
-assert $? 'switched off, both rows go and the rest keeps its order'
-[ "$(zo_rows on off key)" = 'zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo' ]
-assert $? 'one on and one off takes only the one that is off'
-[ "$(zo_rows off on key)" = 'zo-claude-code zo-codex zo-skills zo-google talk-to-zo zo-employees' ]
-assert $? 'and the other way round'
+[ "$(zo_rows on on on on key)" = "$ALL_ON" ]
+assert $? 'everything on, the checklist is in the order it always was'
+[ "$(zo_rows off off off off key)" = "$ALL_OFF" ]
+assert $? 'everything off, only the rows that always ship are left'
+[ "$(zo_rows on off off off key)" = 'zo-claude-code zo-codex zo-google talk-to-zo' ]
+assert $? 'the assistant alone brings back only its own row'
+[ "$(zo_rows off on off off key)" = 'zo-claude-code zo-codex zo-skills zo-google' ]
+assert $? 'skills alone bring back only skills, in their old place'
+[ "$(zo_rows off off on off key)" = 'zo-claude-code zo-codex zo-brain zo-google' ]
+assert $? 'the second brain alone sits where it always sat'
+[ "$(zo_rows off off off on key)" = 'zo-claude-code zo-codex zo-google zo-employees' ]
+assert $? 'employees alone stay last'
 
 # The fault this guards is a real one, shipped for weeks on Windows: the list
 # shown before the key is pasted was kept by hand and drifted out of step with
 # the list shown after, so pasting the key silently rearranged the screen.
-[ "$(zo_rows on on nokey)" = "$(zo_rows on on key)" ]
-assert $? 'switched on, pasting the key does not rearrange the list'
-[ "$(zo_rows off off nokey)" = "$(zo_rows off off key)" ]
-assert $? 'switched off, pasting the key does not rearrange the list either'
+[ "$(zo_rows on on on on nokey)" = "$(zo_rows on on on on key)" ]
+assert $? 'everything on, pasting the key does not rearrange the list'
+[ "$(zo_rows off off off off nokey)" = "$(zo_rows off off off off key)" ]
+assert $? 'everything off, pasting the key does not rearrange the list either'
 
-# The assistant is not switchable. Every other row can come and go; without
-# this one there is nowhere for the owner to type.
-case "$(zo_rows off off key)" in *talk-to-zo*) true ;; *) false ;; esac
-assert $? 'the AI Personal Assistant survives both switches being off'
-case "$(zo_rows off off nokey)" in *talk-to-zo*) true ;; *) false ;; esac
-assert $? 'and survives with no key either'
+# Whatever else is switched off, the owner must finish with a way to reach
+# their Zo. Claude Desktop and ChatGPT are that way and are never switchable.
+#
+# Read off CHECKS rather than off zo_rows, which by design only returns the
+# rows that live on Zo - the two app connections were never in it.
+all_rows() {
+    zo_rows "$1" "$2" "$3" "$4" "$5" >/dev/null
+    printf '%s\n' "${CHECKS[@]}"
+}
+
+all_rows off off off off key | grep -q '^claude-mcp|'
+assert $? 'Zo inside Claude Desktop survives every switch being off'
+all_rows off off off off key | grep -q '^chatgpt-mcp|'
+assert $? 'Zo inside ChatGPT survives every switch being off'
+all_rows off off off off nokey | grep -q '^chatgpt-mcp|'
+assert $? 'and survives with no key either, so there is always somewhere to type'
 
 printf '\n\033[36mTelegram: is a phone connected\033[0m\n'
 
@@ -269,6 +285,122 @@ assert $? 'nothing back is not proof either'
 [ "$(tg_accounts 'connected accounts: Heartsmith.')" = '["Heartsmith"]' ]
 assert $? 'the wording is matched whatever its case'
 
+printf '\n\033[36mOne AI app is enough\033[0m\n'
+
+# A customer who pays for ChatGPT and not Claude is a finished setup, not a
+# half-finished one. Counted as half-finished their Claude rows stayed red for
+# ever, the checklist never said done, and what they reported was "a problem
+# with the Zo connection".
+# Globals, not locals of app_rows. A stub that closes over a local keeps
+# referring to it after the call returns, and the next collect_checks then dies
+# on an unbound variable under set -u - silently, taking the whole suite with
+# it and reporting nothing but a non-zero exit.
+WANT_CLAUDE='no'
+WANT_GPT='yes'
+
+app_rows() {
+    # $1 = has Claude, $2 = has ChatGPT. Prints "key:status" for the four rows
+    # that the answer decides.
+    WANT_CLAUDE="$1"; WANT_GPT="$2"
+    app_installed() {
+        case "$1" in
+            Claude)  [ "$WANT_CLAUDE" = 'yes' ] ;;
+            ChatGPT) [ "$WANT_GPT" = 'yes' ] ;;
+        esac
+    }
+    claude_mcp_configured() { [ "$WANT_CLAUDE" = 'yes' ]; }
+    codex_mcp_configured() { [ "$WANT_GPT" = 'yes' ]; }
+    zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
+    collect_checks >/dev/null 2>&1
+    local entry out=''
+    for entry in "${CHECKS[@]}"; do
+        case "${entry%%|*}" in
+            claude-app|chatgpt-app|claude-mcp|chatgpt-mcp)
+                out="$out${out:+ }$(printf '%s' "$entry" | cut -d'|' -f1,3 | tr '|' ':')" ;;
+        esac
+    done
+    printf '%s' "$out"
+}
+
+[ "$(app_rows yes no)" = 'claude-app:ok chatgpt-app:skipped claude-mcp:ok chatgpt-mcp:skipped' ]
+assert $? 'with only Claude, the ChatGPT rows are settled and not chased'
+[ "$(app_rows no yes)" = 'claude-app:skipped chatgpt-app:ok claude-mcp:skipped chatgpt-mcp:ok' ]
+assert $? 'with only ChatGPT, the Claude rows are settled and not chased'
+[ "$(app_rows yes yes)" = 'claude-app:ok chatgpt-app:ok claude-mcp:ok chatgpt-mcp:ok' ]
+assert $? 'with both, both are used'
+# Nothing to prefer, so both are offered - a blank machine still gets set up.
+[ "$(app_rows no no)" = 'claude-app:missing chatgpt-app:missing claude-mcp:missing chatgpt-mcp:missing' ]
+assert $? 'with neither, both are still offered'
+
+# The part that decides whether they ever see "all done".
+settled_only() {
+    local entry
+    for entry in "${CHECKS[@]}"; do
+        case "$(printf '%s' "$entry" | cut -d'|' -f3)" in
+            ok|skipped) ;;
+            *) return 1 ;;
+        esac
+    done
+    return 0
+}
+app_rows no yes >/dev/null
+settled_only
+assert $? 'a ChatGPT-only machine can reach a finished setup'
+
+# The two plan rows need a paid subscription, so no amount of pressing Enter
+# clears them. Counted as outstanding they held the setup open for anyone
+# paying for neither, which is most people trying it.
+zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
+NO_PLANS='{"ok":true,"workspaceUrl":"https://example.zo.computer",
+"aiProviders":{"claude":{"loggedIn":false},"codex":{"loggedIn":false}},
+"whatsapp":{"connected":true,"answering":true},
+"integrations":{"gmail":{"connected":true}},
+"skills":{"installed":["morning-briefing"],"missing":[]},
+"secondBrain":{"folders":3,"notes":7},"employees":["Joe"]}'
+zo_verify() { ZO_ANSWER="$NO_PLANS"; }
+collect_checks >/dev/null 2>&1
+printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-claude-code|Claude plan on Zo|skipped|'
+assert $? 'an unsigned Claude plan is settled, not outstanding'
+printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-codex|ChatGPT plan on Zo|skipped|'
+assert $? 'an unsigned ChatGPT plan is settled too'
+settled_only
+assert $? 'so paying for neither plan still reaches a finished setup'
+
+printf '\n\033[36mNode has to be new enough to talk to Zo\033[0m\n'
+
+# zo-verify.js calls fetch, which is built into Node from 18 and simply does
+# not exist before it. On an older Node the row read "ok, version 16" in green,
+# every Zo row then said "could not reach Zo to check", and every Zo step
+# failed in turn with no reason given. That is what a customer saw.
+node_row() {
+    # $1 = what node --version reports, or empty for no node at all.
+    local want="$1"
+    if [ -z "$want" ]; then
+        node_bin() { printf ''; }
+        command_version() { printf ''; }
+    else
+        node_bin() { printf '/usr/local/bin/node'; }
+        command_version() {
+            case "$1" in node) printf '%s' "${want#v}" ;; *) printf '' ;; esac
+        }
+        node() { [ "$1" = '--version' ] && printf '%s\n' "$want"; }
+    fi
+    zo_verify() { ZO_ANSWER=''; }
+    collect_checks >/dev/null 2>&1
+    printf '%s\n' "${CHECKS[@]}" | grep '^node|' | head -1 | cut -d'|' -f3
+}
+
+[ "$(node_row v16.20.2)" = 'needs-you' ]
+assert $? 'Node 16 is reported as too old, not as a tick'
+[ "$(node_row v14.21.3)" = 'needs-you' ]
+assert $? 'and so is Node 14'
+[ "$(node_row v18.0.0)" = 'ok' ]
+assert $? 'Node 18 is the first that works'
+[ "$(node_row v24.18.0)" = 'ok' ]
+assert $? 'and anything newer is fine'
+[ "$(node_row '')" = 'missing' ]
+assert $? 'no node at all is missing, which is a different fix'
+
 printf '\n\033[36mNo step goes missing from the run\033[0m\n'
 
 # "Step 3 of 7" is worked out from what is still outstanding, so a switched-off
@@ -285,10 +417,12 @@ ZO_UNDONE='{"ok":true,"workspaceUrl":"https://example.zo.computer",
 fix_one() { printf 'WOULD_DO %s\n' "$1"; return 1; }
 
 step_trail() {
-    # $1 = second brain, $2 = employees. Prints "1/7 2/7 ..." as the owner sees
-    # it, driving the real fix_everything rather than counting rows by hand.
+    # $1 = every switch at once. Prints "1/7 2/7 ..." as the owner sees it,
+    # driving the real fix_everything rather than counting rows by hand.
+    FEATURE_AI_ASSISTANT="$1"
+    FEATURE_ZO_SKILLS="$1"
     FEATURE_SECOND_BRAIN="$1"
-    FEATURE_AI_EMPLOYEES="$2"
+    FEATURE_AI_EMPLOYEES="$1"
     zo_verify() { ZO_ANSWER="$ZO_UNDONE"; }
     collect_checks >/dev/null 2>&1
     fix_everything 2>&1 |
@@ -307,8 +441,8 @@ trail_is_whole() {
     [ -n "$total" ] && [ "$((want - 1))" = "$total" ]
 }
 
-TRAIL_OFF="$(step_trail off off)"
-TRAIL_ON="$(step_trail on on)"
+TRAIL_OFF="$(step_trail off)"
+TRAIL_ON="$(step_trail on)"
 
 trail_is_whole "$TRAIL_OFF"
 assert $? 'switched off, the steps run 1..N with no gaps and end on the total'
@@ -320,8 +454,8 @@ assert $? 'switched on, the steps run 1..N with no gaps and end on the total'
 # features off must remove exactly two steps anywhere.
 steps_off="$(printf '%s' "$TRAIL_OFF" | wc -w | tr -d ' ')"
 steps_on="$(printf '%s' "$TRAIL_ON" | wc -w | tr -d ' ')"
-[ "$((steps_on - steps_off))" -eq 2 ]
-assert $? 'switching both off removes exactly two steps, no more and no fewer'
+[ "$((steps_on - steps_off))" -eq 4 ]
+assert $? 'switching all four off removes exactly four steps, no more and no fewer'
 
 case "$TRAIL_OFF" in *WOULD_DO*) false ;; *) true ;; esac
 assert $? 'and nothing was actually run to find that out'
@@ -329,10 +463,11 @@ assert $? 'and nothing was actually run to find that out'
 printf '\n\033[36mA switched-off feature takes its key with it\033[0m\n'
 
 menu_keys() {
-    # $1 = second brain, $2 = employees. Prints the letters the finished menu
-    # offers, in order.
-    FEATURE_SECOND_BRAIN="$1"
-    FEATURE_AI_EMPLOYEES="$2"
+    # $1 assistant, $2 brain, $3 employees. Prints the letters the finished
+    # menu offers, in order.
+    FEATURE_AI_ASSISTANT="$1"
+    FEATURE_SECOND_BRAIN="$2"
+    FEATURE_AI_EMPLOYEES="$3"
     # Colours stripped first. They are empty until apply_theme runs, so a
     # pattern that looked for them found nothing and every row read as absent.
     show_main_options finished 2>&1 |
@@ -340,14 +475,16 @@ menu_keys() {
         awk '$1 ~ /^[A-Z]$/ && NF > 1 { printf "%s%s", sep, $1; sep = " " }'
 }
 
-[ "$(menu_keys on on)" = 'E T A M Z S Q' ]
-assert $? 'switched on, the finished menu offers every key it always did'
-[ "$(menu_keys off off)" = 'A Z S Q' ]
-assert $? 'switched off, E, T and M are gone and the rest is unmoved'
-[ "$(menu_keys on off)" = 'A M Z S Q' ]
-assert $? 'the second brain alone leaves M and takes E and T'
-[ "$(menu_keys off on)" = 'E T A Z S Q' ]
-assert $? 'employees alone leave E and T and take M'
+[ "$(menu_keys on on on)" = 'E T A M Z S Q' ]
+assert $? 'everything on, the finished menu offers every key it always did'
+[ "$(menu_keys off off off)" = 'Z S Q' ]
+assert $? 'everything off, only Zo, start over and close are left'
+[ "$(menu_keys on off off)" = 'A Z S Q' ]
+assert $? 'the assistant alone leaves A'
+[ "$(menu_keys off on off)" = 'M Z S Q' ]
+assert $? 'the second brain alone leaves M'
+[ "$(menu_keys off off on)" = 'E T Z S Q' ]
+assert $? 'employees alone leave E and T'
 
 # Hidden is not enough. A key that still fires while nothing on screen mentions
 # it is worse than a missing one: the owner presses E by accident and this
@@ -356,28 +493,35 @@ hire_employee() { printf 'RAN_HIRE\n'; }
 show_team_screen() { printf 'RAN_TEAM\n'; }
 setup_second_brain() { printf 'RAN_BRAIN\n'; }
 
+reset_whatsapp_assistant() { printf 'RAN_ASSISTANT_SETUP\n'; }
+
 pressed() {
-    # $1 = second brain, $2 = employees, $3 = the key. Prints what ran, or
+    # $1 assistant, $2 brain, $3 employees, $4 = the key. Prints what ran, or
     # NOTHING when the key was refused.
-    FEATURE_SECOND_BRAIN="$1"
-    FEATURE_AI_EMPLOYEES="$2"
+    FEATURE_AI_ASSISTANT="$1"
+    FEATURE_SECOND_BRAIN="$2"
+    FEATURE_AI_EMPLOYEES="$3"
     local out
-    out="$(printf '\n' | handle_main_choice "$3" 2>&1 | grep -E 'RAN_' | head -1)"
+    out="$(printf '\n' | handle_main_choice "$4" 2>&1 | grep -E 'RAN_' | head -1)"
     printf '%s' "${out:-NOTHING}"
 }
 
-[ "$(pressed off off e)" = 'NOTHING' ]
+[ "$(pressed off off off e)" = 'NOTHING' ]
 assert $? 'pressing E with employees switched off hires nobody'
-[ "$(pressed off off t)" = 'NOTHING' ]
+[ "$(pressed off off off t)" = 'NOTHING' ]
 assert $? 'pressing T with employees switched off shows no team'
-[ "$(pressed off off m)" = 'NOTHING' ]
+[ "$(pressed off off off m)" = 'NOTHING' ]
 assert $? 'pressing M with the second brain switched off builds nothing'
-[ "$(pressed on on e)" = 'RAN_HIRE' ]
+[ "$(pressed off off off a)" = 'NOTHING' ]
+assert $? 'pressing A with the assistant switched off sets up nothing'
+[ "$(pressed on on on e)" = 'RAN_HIRE' ]
 assert $? 'and switched on, E still hires'
-[ "$(pressed on on t)" = 'RAN_TEAM' ]
+[ "$(pressed on on on t)" = 'RAN_TEAM' ]
 assert $? 'switched on, T still shows the team'
-[ "$(pressed on on m)" = 'RAN_BRAIN' ]
+[ "$(pressed on on on m)" = 'RAN_BRAIN' ]
 assert $? 'switched on, M still builds the second brain'
+[ "$(pressed on on on a)" = 'RAN_ASSISTANT_SETUP' ]
+assert $? 'switched on, A still sets the assistant up again'
 
 printf '\n\033[36mStart over renumbers itself\033[0m\n'
 
@@ -387,41 +531,51 @@ get_installed_by_us() { printf ''; }
 ask_yes_no() { return 1; }
 
 reset_pick() {
-    # $1 = employees switch, $2 = what the owner types. Prints what ran.
-    FEATURE_AI_EMPLOYEES="$1"
+    # $1 assistant, $2 employees, $3 = what the owner types. Prints what ran.
+    FEATURE_AI_ASSISTANT="$1"
+    FEATURE_AI_EMPLOYEES="$2"
     local out
-    out="$(printf '%s\n' "$2" | reset_vimigo_setup 2>&1 |
+    out="$(printf '%s\n' "$3" | reset_vimigo_setup 2>&1 |
         grep -Eo 'RAN_ASSISTANT|RAN_EMPLOYEES|Nothing was changed' | head -1)"
     printf '%s' "${out:-NOTHING}"
 }
 
 reset_prompt() {
-    FEATURE_AI_EMPLOYEES="$1"
+    FEATURE_AI_ASSISTANT="$1"
+    FEATURE_AI_EMPLOYEES="$2"
     printf '\n' | reset_vimigo_setup 2>&1 | grep -o 'Choose [^>]*' | head -1
 }
 
-[ "$(reset_prompt on)" = 'Choose 1, 2 or 3, or Enter to go back ' ]
-assert $? 'switched on, start over still offers three'
-[ "$(reset_prompt off)" = 'Choose 1 or 2, or Enter to go back ' ]
-assert $? 'switched off, it offers two and says so'
+[ "$(reset_prompt on on)" = 'Choose 1, 2 or 3, or Enter to go back ' ]
+assert $? 'everything on, start over still offers three'
+[ "$(reset_prompt on off)" = 'Choose 1 or 2, or Enter to go back ' ]
+assert $? 'employees off, it offers two and says so'
+# One option left is not hypothetical: switch both off and "Everything" is all
+# there is. Counting backwards from one would print "Choose  or 1".
+[ "$(reset_prompt off off)" = 'Choose 1, or Enter to go back ' ]
+assert $? 'both off, it offers one and still reads as a sentence'
 
-[ "$(reset_pick on 1)" = 'RAN_ASSISTANT' ]
-assert $? 'switched on, 1 is the assistant'
-[ "$(reset_pick on 2)" = 'RAN_EMPLOYEES' ]
-assert $? 'switched on, 2 lets an employee go'
-[ "$(reset_pick off 1)" = 'RAN_ASSISTANT' ]
-assert $? 'switched off, 1 is still the assistant'
-# The one that bites. Hiding the middle option without renumbering leaves 2
-# wired to the employee reset - a key nothing on screen mentions, quietly
-# letting an AI employee go.
-[ "$(reset_pick off 2)" != 'RAN_EMPLOYEES' ]
-assert $? 'switched off, 2 never reaches the employee reset'
-[ "$(reset_pick off 3)" = 'Nothing was changed' ]
-assert $? 'switched off, the old number 3 does nothing at all'
-[ "$(reset_pick on '')" = 'Nothing was changed' ]
-assert $? 'Enter goes back without changing anything'
-[ "$(reset_pick on 08)" = 'Nothing was changed' ]
+[ "$(reset_pick on on 1)" = 'RAN_ASSISTANT' ]
+assert $? 'everything on, 1 is the assistant'
+[ "$(reset_pick on on 2)" = 'RAN_EMPLOYEES' ]
+assert $? 'everything on, 2 lets an employee go'
+[ "$(reset_pick on off 1)" = 'RAN_ASSISTANT' ]
+assert $? 'employees off, 1 is still the assistant'
+# The one that bites. Hiding an option without renumbering leaves its old
+# number wired to it - a key nothing on screen mentions, quietly letting an AI
+# employee go, or wiping the assistant.
+[ "$(reset_pick on off 2)" != 'RAN_EMPLOYEES' ]
+assert $? 'employees off, 2 never reaches the employee reset'
+[ "$(reset_pick off on 1)" != 'RAN_ASSISTANT' ]
+assert $? 'assistant off, 1 never reaches the assistant reset'
+[ "$(reset_pick off on 1)" = 'RAN_EMPLOYEES' ]
+assert $? 'assistant off, 1 is the employee reset instead, as the screen says'
+[ "$(reset_pick off off 1)" = 'Nothing was changed' ]
+assert $? 'both off, 1 is Everything and reaches neither of the other two'
+[ "$(reset_pick on on 08)" = 'Nothing was changed' ]
 assert $? 'a leading zero is read as text, not as octal'
+[ "$(reset_pick on on '')" = 'Nothing was changed' ]
+assert $? 'Enter goes back without changing anything'
 
 printf '\n\033[36mThe two setups agree on what they offer\033[0m\n'
 
@@ -429,9 +583,13 @@ printf '\n\033[36mThe two setups agree on what they offer\033[0m\n'
 # answer on its own, and nothing else would notice: the two scripts share no
 # code, only a promise to stay in step.
 WIN="$SCRIPT_DIR/vimigo-setup.ps1"
-win_default() { grep -oE "\\\$script:Feature$1 = '[a-z]+'" "$WIN" | head -1 | grep -oE "'[a-z]+'" | tr -d "'"; }
+win_default() { grep -oE "\\\$script:Feature$1 +\\= '[a-z]+'" "$WIN" | head -1 | grep -oE "'[a-z]+'" | tr -d "'"; }
 mac_default() { grep -oE "^FEATURE_$1='[a-z]+'" "$SCRIPT_DIR/vimigo-setup.sh" | head -1 | grep -oE "'[a-z]+'" | tr -d "'"; }
 
+[ -n "$(win_default AiAssistant)" ] && [ "$(win_default AiAssistant)" = "$(mac_default AI_ASSISTANT)" ]
+assert $? 'both scripts ship the same answer for the AI Personal Assistant'
+[ -n "$(win_default ZoSkills)" ] && [ "$(win_default ZoSkills)" = "$(mac_default ZO_SKILLS)" ]
+assert $? 'both scripts ship the same answer for the Zo skills'
 [ -n "$(win_default SecondBrain)" ] && [ "$(win_default SecondBrain)" = "$(mac_default SECOND_BRAIN)" ]
 assert $? 'both scripts ship the same answer for the second brain'
 [ -n "$(win_default AiEmployees)" ] && [ "$(win_default AiEmployees)" = "$(mac_default AI_EMPLOYEES)" ]

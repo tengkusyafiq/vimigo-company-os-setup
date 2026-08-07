@@ -31,19 +31,29 @@ set -o pipefail
 # still works; only the ways in are closed. Turning one back on restores the
 # same screens it always had, and needs no other change.
 #
-# The AI Personal Assistant is deliberately NOT a switch. Without it there is
-# nowhere for the owner to type, and a setup that finishes with no way to reach
-# the thing it just built is not a setup.
+# One rule holds however these are set: the owner must finish with a way to
+# reach their Zo. Claude Desktop and ChatGPT are that way, and they are not
+# switchable - so switching the WhatsApp assistant off leaves a setup whose
+# point is "your laptop's AI can now read and act on your business", which is a
+# smaller promise but a whole one.
 #
-# vimigo-setup.ps1 carries the same two names with the same defaults, and the
+# vimigo-setup.ps1 carries the same four names with the same defaults, and the
 # acceptance suite fails if they ever disagree - a Mac and a Windows machine
 # offering different setups is worse than either answer on its own.
+FEATURE_AI_ASSISTANT='off'
+FEATURE_ZO_SKILLS='off'
 FEATURE_SECOND_BRAIN='off'
 FEATURE_AI_EMPLOYEES='off'
 
 # One run, without editing the file - for support, or a demo:
 #     VIMIGO_FEATURE_AI_EMPLOYEES=on ./vimigo-setup.sh
 # It overrides in both directions, so it can also turn one off.
+if [ -n "${VIMIGO_FEATURE_AI_ASSISTANT:-}" ]; then
+    FEATURE_AI_ASSISTANT="$VIMIGO_FEATURE_AI_ASSISTANT"
+fi
+if [ -n "${VIMIGO_FEATURE_ZO_SKILLS:-}" ]; then
+    FEATURE_ZO_SKILLS="$VIMIGO_FEATURE_ZO_SKILLS"
+fi
 if [ -n "${VIMIGO_FEATURE_SECOND_BRAIN:-}" ]; then
     FEATURE_SECOND_BRAIN="$VIMIGO_FEATURE_SECOND_BRAIN"
 fi
@@ -603,11 +613,31 @@ command_version() {
 
 have_homebrew() { command -v brew >/dev/null 2>&1; }
 
+# Everything this setup does with Zo goes through zo-verify.js, and that calls
+# fetch. fetch is built into Node from 18 and simply does not exist before it,
+# so an older Node fails every single Zo action while looking perfectly
+# installed.
+NODE_MIN_MAJOR=18
+
 node_bin() {
     # Prints the path to node, or nothing. Config editing needs it, and so does
     # the Zo connection itself, so it is never an extra dependency: the setup
     # installs Node before it ever reaches a step that edits a config file.
     command -v node 2>/dev/null
+}
+
+node_too_old() {
+    # True when node is here but older than Zo needs. False when it is fine,
+    # and false when there is no node at all - that is "missing", a different
+    # row with a different fix.
+    local raw major
+    raw="$(node_bin)"
+    [ -n "$raw" ] || return 1
+    major="$(node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1)"
+    case "$major" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$major" -lt "$NODE_MIN_MAJOR" ]
 }
 
 npx_bin() {
@@ -732,10 +762,17 @@ collect_checks() {
 
     checking 'Node.js'
     version="$(command_version node --version)"
-    if [ -n "$version" ]; then
-        CHECKS+=("node|Node.js|ok|version $version|")
-    else
+    if [ -z "$version" ]; then
         CHECKS+=("node|Node.js|missing|not installed|runs the Zo connection for both AI apps")
+    elif node_too_old; then
+        # Present and useless is worse than absent. Everything this setup does
+        # with Zo runs through zo-verify.js, which calls fetch - built in from
+        # Node 18 and missing before it. On an older Node the row said "ok,
+        # version 16" in green, every Zo row then read "could not reach Zo to
+        # check", and every Zo step failed in turn with no reason given.
+        CHECKS+=("node|Node.js|needs-you|version $version is too old|Zo needs $NODE_MIN_MAJOR or newer")
+    else
+        CHECKS+=("node|Node.js|ok|version $version|")
     fi
 
     checking 'Git'
@@ -754,16 +791,37 @@ collect_checks() {
         CHECKS+=("python|Python|missing|not installed|runs data and automation tools")
     fi
 
+    # One of the two is enough.
+    #
+    # A customer who pays for ChatGPT and not Claude is a finished setup, not a
+    # half-finished one - and treated as half-finished, their Claude rows stay
+    # red for ever, the checklist never says done, and what they report is "a
+    # problem with the Zo connection". So whichever they already have decides
+    # it: the other is shown, and never chased.
+    #
+    # Only when neither is here does the setup offer both, because then there
+    # is nothing to prefer.
+    HAS_CLAUDE='no'; HAS_CHATGPT='no'; HAS_EITHER_APP='no'
+    app_installed "Claude" && HAS_CLAUDE='yes'
+    app_installed "ChatGPT" && HAS_CHATGPT='yes'
+    if [ "$HAS_CLAUDE" = 'yes' ] || [ "$HAS_CHATGPT" = 'yes' ]; then
+        HAS_EITHER_APP='yes'
+    fi
+
     checking 'Claude Desktop'
-    if app_installed "Claude"; then
+    if [ "$HAS_CLAUDE" = 'yes' ]; then
         CHECKS+=("claude-app|Claude Desktop|ok|installed|")
+    elif [ "$HAS_EITHER_APP" = 'yes' ]; then
+        CHECKS+=("claude-app|Claude Desktop|skipped|not needed - you have ChatGPT|")
     else
         CHECKS+=("claude-app|Claude Desktop|missing|not installed|")
     fi
 
     checking 'ChatGPT Desktop'
-    if app_installed "ChatGPT"; then
+    if [ "$HAS_CHATGPT" = 'yes' ]; then
         CHECKS+=("chatgpt-app|ChatGPT Desktop|ok|installed|")
+    elif [ "$HAS_EITHER_APP" = 'yes' ]; then
+        CHECKS+=("chatgpt-app|ChatGPT Desktop|skipped|not needed - you have Claude|")
     else
         CHECKS+=("chatgpt-app|ChatGPT Desktop|missing|not installed|")
     fi
@@ -774,22 +832,32 @@ collect_checks() {
         CHECKS+=("zo-token|Zo account key|needs-you|not entered yet|everything below needs this first")
     fi
 
+    # Connecting Zo to an app that is not installed is work nobody can finish.
+    # These follow the same rule as the apps above them.
     checking 'the Zo connection inside each app'
     if claude_mcp_configured; then
         CHECKS+=("claude-mcp|Zo inside Claude Desktop|ok|connected|")
+    elif [ "$HAS_CLAUDE" = 'no' ] && [ "$HAS_EITHER_APP" = 'yes' ]; then
+        CHECKS+=("claude-mcp|Zo inside Claude Desktop|skipped|not needed - you have ChatGPT|")
     else
         CHECKS+=("claude-mcp|Zo inside Claude Desktop|missing|not connected|")
     fi
 
     if codex_mcp_configured; then
         CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|ok|connected|")
+    elif [ "$HAS_CHATGPT" = 'no' ] && [ "$HAS_EITHER_APP" = 'yes' ]; then
+        CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|skipped|not needed - you have Claude|")
     else
         CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|missing|not connected|")
     fi
 
     # Only shown on a machine that has one. On a clean Mac this is not a task
     # the owner should have to read past.
-    if [ -n "$(find_local_whatsapp)" ]; then
+    #
+    # It also goes with the assistant. The whole row says "put WhatsApp on Zo
+    # instead of here" - advice that is simply wrong on a build that does not
+    # put WhatsApp on Zo, and it would be the only mention of WhatsApp left.
+    if feature_on "$FEATURE_AI_ASSISTANT" && [ -n "$(find_local_whatsapp)" ]; then
         CHECKS+=("local-whatsapp|WhatsApp on this Mac|needs-you|should be on Zo instead|set it up on Zo first, then remove the copy here")
     fi
 
@@ -806,14 +874,18 @@ collect_checks() {
         # Same order, and the same names, as when a key is present. A list that
         # rearranges itself once the key is pasted looks like a different
         # program.
-        CHECKS+=("zo-claude-code|Claude plan on Zo|needs-you|$why|")
-        CHECKS+=("zo-codex|ChatGPT plan on Zo|needs-you|$why|")
-        CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$why|")
+        CHECKS+=("zo-claude-code|Claude plan on Zo|skipped|$why|")
+        CHECKS+=("zo-codex|ChatGPT plan on Zo|skipped|$why|")
+        if feature_on "$FEATURE_ZO_SKILLS"; then
+            CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$why|")
+        fi
         if feature_on "$FEATURE_SECOND_BRAIN"; then
             CHECKS+=("zo-brain|Your company second brain|needs-you|$why|")
         fi
         CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$why|")
-        CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|$why|")
+        if feature_on "$FEATURE_AI_ASSISTANT"; then
+            CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|$why|")
+        fi
         if feature_on "$FEATURE_AI_EMPLOYEES"; then
             CHECKS+=("zo-employees|Hire AI employees|needs-you|$why|")
         fi
@@ -829,15 +901,21 @@ collect_checks() {
     local claude_state codex_state
     claude_state="$(zo_field 'data.aiProviders?.claude?.loggedIn === true')"
     codex_state="$(zo_field 'data.aiProviders?.codex?.loggedIn === true')"
+    #
+    # Optional in the note and compulsory in the arithmetic, until now. These
+    # two rows are the only ones an owner cannot clear by doing anything on
+    # this computer - they need a paid plan - so counting them as outstanding
+    # meant anyone paying for neither, or for only one, never saw the setup
+    # finish. Skipped, they are still on the list saying what they would save.
     if [ "$claude_state" = "true" ]; then
         CHECKS+=("zo-claude-code|Claude plan on Zo|ok|signed in|")
     else
-        CHECKS+=("zo-claude-code|Claude plan on Zo|needs-you|not signed in|optional, but saves paying per use")
+        CHECKS+=("zo-claude-code|Claude plan on Zo|skipped|not signed in|optional, but saves paying per use")
     fi
     if [ "$codex_state" = "true" ]; then
         CHECKS+=("zo-codex|ChatGPT plan on Zo|ok|signed in|")
     else
-        CHECKS+=("zo-codex|ChatGPT plan on Zo|needs-you|not signed in|optional, but saves paying per use")
+        CHECKS+=("zo-codex|ChatGPT plan on Zo|skipped|not signed in|optional, but saves paying per use")
     fi
 
     # Order from here on follows how a business actually gets going: teach it
@@ -847,18 +925,21 @@ collect_checks() {
     # Read off Zo's own folders, never from a note of what the owner said. An
     # owner who removed a skill last week has to show as not having it.
     local skills_known skills_missing skills_have skills_wanted
-    skills_wanted="${#ZO_SKILL_KEYS[@]}"
-    skills_known="$(zo_field 'data.skills ? "yes" : "no"')"
-    skills_missing="$(zo_field 'data.skills ? data.skills.missing.length : 0')"
-    skills_have="$(zo_field 'data.skills ? data.skills.installed.length : 0')"
-    if [ "$skills_known" != "yes" ]; then
-        CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|could not tell|briefings, PDFs, reading photos, and more")
-    elif [ "$skills_missing" = "0" ]; then
-        CHECKS+=("zo-skills|Basic skills for your Zo|ok|all $skills_wanted installed|")
-    else
-        # Counted, not ticked. "2 of 9" tells an owner something a single cross
-        # does not, and it is the same reason Google is reported that way.
-        CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$skills_have of $skills_wanted installed|briefings, PDFs, reading photos, and more")
+    if feature_on "$FEATURE_ZO_SKILLS"; then
+        skills_wanted="${#ZO_SKILL_KEYS[@]}"
+        skills_known="$(zo_field 'data.skills ? "yes" : "no"')"
+        skills_missing="$(zo_field 'data.skills ? data.skills.missing.length : 0')"
+        skills_have="$(zo_field 'data.skills ? data.skills.installed.length : 0')"
+        if [ "$skills_known" != "yes" ]; then
+            CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|could not tell|briefings, PDFs, reading photos, and more")
+        elif [ "$skills_missing" = "0" ]; then
+            CHECKS+=("zo-skills|Basic skills for your Zo|ok|all $skills_wanted installed|")
+        else
+            # Counted, not ticked. "2 of 9" tells an owner something a single
+            # cross does not, and it is the same reason Google is reported that
+            # way.
+            CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$skills_have of $skills_wanted installed|briefings, PDFs, reading photos, and more")
+        fi
     fi
 
     # Straight after skills, because it is the same kind of thing: something the
@@ -914,7 +995,17 @@ collect_checks() {
     # twice: for anyone on WhatsApp - nearly everyone - their assistant IS the
     # WhatsApp number, so a linked number and a set-up assistant were the same
     # fact reported in two places, able to disagree with each other.
+    #
+    # Switched off, the owner reaches their Zo through Claude Desktop and
+    # ChatGPT instead. Those are connected earlier on this same list and are not
+    # switchable, so the setup still finishes with somewhere to type - which is
+    # the one thing that must stay true whatever else is turned off.
+    #
+    # Wrapped rather than returned from: the employees row is built below this
+    # one, and returning here would take that with it, so switching the
+    # assistant off would silently switch employees off too.
     local talk_channel channel_label wa_connected wa_detail wa_answering
+    if feature_on "$FEATURE_AI_ASSISTANT"; then
     talk_channel="$(profile_get talkChannel)"
     case "$talk_channel" in
         whatsapp)      channel_label='WhatsApp' ;;
@@ -945,6 +1036,7 @@ collect_checks() {
         CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|could not tell|")
     else
         CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|$wa_detail|without this there is nowhere to type")
+    fi
     fi
 
     # Last, because an employee is only worth hiring once the Zo they work for
@@ -1608,7 +1700,42 @@ zo_helper() {
     local helper="$SCRIPT_DIR/zo-verify.js"
     [ -f "$helper" ] || return 1
     node_bin >/dev/null || return 1
-    "$(node_bin)" "$helper" "$token" "$@" 2>/dev/null
+
+    # The reason is kept, not thrown away.
+    #
+    # This sent stderr to /dev/null, so a Mac with a Node too old for fetch
+    # failed three steps in a row and told nobody anything beyond "could not
+    # start the sign-in". The owner sees the same short sentence as before -
+    # they cannot act on a stack trace - but the setup now knows why, and
+    # zo_helper_reason prints one plain line when there is something worth
+    # saying.
+    ZO_HELPER_REASON=''
+    local errors; errors="$(mktemp 2>/dev/null || printf '/tmp/vimigo-zo-err')"
+    "$(node_bin)" "$helper" "$token" "$@" 2>"$errors"
+    local status=$?
+    if [ "$status" -ne 0 ]; then
+        ZO_HELPER_REASON="$(head -n 3 "$errors" | tr '\n' ' ' | cut -c1-200)"
+    fi
+    rm -f "$errors" 2>/dev/null
+    return "$status"
+}
+
+ZO_HELPER_REASON=''
+
+zo_helper_reason() {
+    # One plain line about the last failure, when there is one worth printing.
+    # Written for somebody who has to read it out to support down a phone.
+    [ -n "$ZO_HELPER_REASON" ] || return 0
+    case "$ZO_HELPER_REASON" in
+        *'fetch is not defined'*|*'ReferenceError'*)
+            info 'Your Node.js is too old for this. Run the setup again and it'
+            info 'will offer to update it.' ;;
+        *ENOTFOUND*|*ETIMEDOUT*|*ECONNREFUSED*|*ENETUNREACH*|*EAI_AGAIN*)
+            info 'This Mac could not reach Zo. Check the wifi and try again.' ;;
+        *)
+            info "Zo said: $ZO_HELPER_REASON" ;;
+    esac
+    ZO_HELPER_REASON=''
 }
 
 json_field() {
@@ -2762,8 +2889,10 @@ show_main_options() {
             printf '        %s T %s  %sSee your AI employees       %s%swho works for you, and where they answer%s\n' \
                 "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
         fi
-        printf '        %s A %s  %sSet up your assistant again %s%schange the number, or how you reach it%s\n' \
-            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        if feature_on "$FEATURE_AI_ASSISTANT"; then
+            printf '        %s A %s  %sSet up your assistant again %s%schange the number, or how you reach it%s\n' \
+                "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        fi
         if feature_on "$FEATURE_SECOND_BRAIN"; then
             printf '        %s M %s  %sYour company second brain   %s%swhat your Zo remembers about the business%s\n' \
                 "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
@@ -2813,6 +2942,7 @@ handle_main_choice() {
             printf '\n      Press Enter to go back '; read -r _ || true
             return 0 ;;
         a*)
+            feature_on "$FEATURE_AI_ASSISTANT" || return 1
             clear_screen; show_banner
             reset_whatsapp_assistant || true
             printf '      Press Enter to go back '; read -r _ || true
@@ -3508,7 +3638,7 @@ connect_zo_ai_provider() {
 
     info 'Starting the sign-in. This takes a moment.'
     local answer; answer="$(zo_helper --signin "$which")" || {
-        bad 'Could not start the sign-in.'; return 1; }
+        bad 'Could not start the sign-in.'; zo_helper_reason; return 1; }
 
     case "$answer" in
         *'"alreadySignedIn":true'*)
@@ -4062,31 +4192,57 @@ reset_vimigo_setup() {
     info 'This undoes what the setup did, so you can run it again from'
     info 'the beginning. Useful for testing what a new customer sees.'
     printf '\n'
-    info 'You can undo just one part, or the whole thing:'
-    printf '\n'
     # Three, not four. "Forget the channel" and "set the WhatsApp assistant up
     # again" were separate options that did the same thing to anyone on
     # WhatsApp, which is nearly everyone - choosing the channel now runs the
     # linking itself, so undoing one is undoing the other.
-    # The numbers are worked out, not written down, because one of these options
-    # is switchable. A hard-coded list with the middle one hidden offers "1" and
+    #
+    # The numbers are worked out, not written down, because two of these options
+    # are switchable. A hard-coded list with the middle one hidden offers "1" and
     # "3" and no 2, and - the part that actually bites - leaves 2 still wired to
     # the employee reset, so a key nothing on screen mentions quietly lets an AI
     # employee go.
+    #
+    # Built before anything is printed, so the sentence above the list can tell
+    # the truth about how long the list is.
+    #
     # Declared apart from the scalars. macOS ships bash 3.2 and nothing here has
-    # ever run on it, so the array gets the form that is unambiguous everywhere
+    # ever run on it, so the arrays get the form that is unambiguous everywhere
     # rather than the tidy one-liner.
     local n=0 spoken i
-    local actions
-    actions=()
-    numbered $((n += 1)) 'How you talk to Zo -' 'your AI Personal Assistant, from the top'
-    actions+=('assistant')
-    if feature_on "$FEATURE_AI_EMPLOYEES"; then
-        numbered $((n += 1)) 'Your AI employees  -' 'let one go, so you can hire again'
-        actions+=('employees')
+    local actions labels whys
+    actions=(); labels=(); whys=()
+    if feature_on "$FEATURE_AI_ASSISTANT"; then
+        n=$((n + 1))
+        actions+=('assistant')
+        labels+=('How you talk to Zo -')
+        whys+=('your AI Personal Assistant, from the top')
     fi
-    numbered $((n += 1)) 'Everything         -' 'the above, plus the programs this setup'
+    if feature_on "$FEATURE_AI_EMPLOYEES"; then
+        n=$((n + 1))
+        actions+=('employees')
+        labels+=('Your AI employees  -')
+        whys+=('let one go, so you can hire again')
+    fi
+    n=$((n + 1))
     actions+=('everything')
+    labels+=('Everything         -')
+    whys+=('the above, plus the programs this setup')
+
+    # "You can undo just one part, or the whole thing" is a lie on a build where
+    # the whole thing is the only part left.
+    if [ "$n" -gt 1 ]; then
+        info 'You can undo just one part, or the whole thing:'
+    else
+        info 'There is one thing to undo:'
+    fi
+    printf '\n'
+
+    i=0
+    while [ "$i" -lt "$n" ]; do
+        numbered $((i + 1)) "${labels[$i]}" "${whys[$i]}"
+        i=$((i + 1))
+    done
     printf '                                %sinstalled and your saved Zo key%s\n' "$C_GREY" "$C_RESET"
     printf '\n'
     # The way out, written down.
@@ -4097,15 +4253,23 @@ reset_vimigo_setup() {
     # which loses the whole run.
     printf '        %sEnter  go back, changing nothing%s\n\n' "$C_GREY" "$C_RESET"
     # Read off the list, so the prompt can never name a number the screen above
-    # does not show. Three options give "1, 2 or 3", two give "1 or 2".
-    spoken=''
-    i=1
-    while [ "$i" -lt "$n" ]; do
-        [ -z "$spoken" ] || spoken="$spoken, "
-        spoken="$spoken$i"
-        i=$((i + 1))
-    done
-    spoken="$spoken or $n"
+    # does not show. Three give "1, 2 or 3", two give "1 or 2", one gives "1".
+    #
+    # The single case is not hypothetical: switch the assistant and employees
+    # both off and "Everything" is all that is left. Without it the prompt would
+    # read "Choose  or 1".
+    if [ "$n" -le 1 ]; then
+        spoken='1'
+    else
+        spoken=''
+        i=1
+        while [ "$i" -lt "$n" ]; do
+            [ -z "$spoken" ] || spoken="$spoken, "
+            spoken="$spoken$i"
+            i=$((i + 1))
+        done
+        spoken="$spoken or $n"
+    fi
     printf '      %sChoose %s, or Enter to go back > %s' "$C_PURPLE" "$spoken" "$C_RESET"
 
     local scope chosen

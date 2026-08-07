@@ -104,19 +104,25 @@ function Reset-Theme {
 # still works; only the ways in are closed. Turning one back on restores the
 # same screens it always had, and needs no other change.
 #
-# The AI Personal Assistant is deliberately NOT a switch. Without it there is
-# nowhere for the owner to type, and a setup that finishes with no way to reach
-# the thing it just built is not a setup.
+# One rule holds however these are set: the owner must finish with a way to
+# reach their Zo. Claude Desktop and ChatGPT are that way, and they are not
+# switchable - so switching the WhatsApp assistant off leaves a setup whose
+# point is "your laptop's AI can now read and act on your business", which is a
+# smaller promise but a whole one.
 #
-# vimigo-setup.sh carries the same two names with the same defaults, and the
+# vimigo-setup.sh carries the same four names with the same defaults, and the
 # acceptance suite fails if they ever disagree - a Mac and a Windows machine
 # offering different setups is worse than either answer on its own.
+$script:FeatureAiAssistant = 'off'
+$script:FeatureZoSkills    = 'off'
 $script:FeatureSecondBrain = 'off'
 $script:FeatureAiEmployees = 'off'
 
 # One run, without editing the file - for support, or a demo:
 #     $env:VIMIGO_FEATURE_AI_EMPLOYEES = 'on'
 # It overrides in both directions, so it can also turn one off.
+if ($env:VIMIGO_FEATURE_AI_ASSISTANT) { $script:FeatureAiAssistant = $env:VIMIGO_FEATURE_AI_ASSISTANT }
+if ($env:VIMIGO_FEATURE_ZO_SKILLS)    { $script:FeatureZoSkills    = $env:VIMIGO_FEATURE_ZO_SKILLS }
 if ($env:VIMIGO_FEATURE_SECOND_BRAIN) { $script:FeatureSecondBrain = $env:VIMIGO_FEATURE_SECOND_BRAIN }
 if ($env:VIMIGO_FEATURE_AI_EMPLOYEES) { $script:FeatureAiEmployees = $env:VIMIGO_FEATURE_AI_EMPLOYEES }
 
@@ -932,6 +938,24 @@ function Test-ZoTokenShape {
 # Detection
 # ---------------------------------------------------------------------------
 
+# Everything this setup does with Zo goes through zo-verify.js, and that calls
+# fetch. fetch is built into Node from 18 and simply does not exist before it,
+# so an older Node fails every single Zo action while looking perfectly
+# installed.
+$script:NodeMinMajor = 18
+
+function Test-NodeTooOld {
+    # True when node is here but older than Zo needs. False when it is fine,
+    # and false when there is no node at all - that is "missing", a different
+    # row with a different fix.
+    $raw = ''
+    try { $raw = (& node --version 2>$null | Select-Object -First 1) } catch { return $false }
+    if (-not $raw) { return $false }
+    $major = 0
+    if (-not [int]::TryParse((([string]$raw).TrimStart('v').Split('.')[0]), [ref]$major)) { return $false }
+    return ($major -lt $script:NodeMinMajor)
+}
+
 function Get-CommandVersion {
     param([string]$Command, [string[]]$VersionArgs)
 
@@ -1195,7 +1219,10 @@ function New-Check {
     param(
         [string]$Key,
         [string]$Title,
-        [ValidateSet('ok', 'missing', 'needs-you')][string]$Status,
+        # 'skipped' is a settled row that nobody has to act on: an AI app they
+        # do not want, or a plan they do not pay for. It is shown, so the owner
+        # can see it exists, and it never holds the setup open.
+        [ValidateSet('ok', 'missing', 'needs-you', 'skipped')][string]$Status,
         [string]$Detail,
         [string]$Note,
         # Sub-items shown indented beneath the row, for a step that is really
@@ -1355,10 +1382,19 @@ function Get-AllChecks {
     foreach ($tool in $script:ManagedTools) {
         Write-Checking $tool.Title
         $version = Get-CommandVersion -Command $tool.Command -VersionArgs $tool.VersionArgs
-        if ($version) {
-            $checks.Add((New-Check -Key $tool.Key -Title $tool.Title -Status 'ok' -Detail "version $version"))
-        } else {
+        if (-not $version) {
             $checks.Add((New-Check -Key $tool.Key -Title $tool.Title -Status 'missing' -Detail 'not installed' -Note $tool.Why))
+        } elseif ($tool.Key -eq 'node' -and (Test-NodeTooOld)) {
+            # Present and useless is worse than absent. Everything this setup
+            # does with Zo runs through zo-verify.js, which calls fetch - built
+            # in from Node 18 and missing before it. On an older Node this row
+            # said "ok, version 16" in green, every Zo row then read "could not
+            # reach Zo to check", and every Zo step failed in turn with no
+            # reason given.
+            $checks.Add((New-Check -Key $tool.Key -Title $tool.Title -Status 'needs-you' `
+                -Detail "version $version is too old" -Note "Zo needs $script:NodeMinMajor or newer"))
+        } else {
+            $checks.Add((New-Check -Key $tool.Key -Title $tool.Title -Status 'ok' -Detail "version $version"))
         }
     }
 
@@ -1366,9 +1402,28 @@ function Get-AllChecks {
     # any use: the Zo connection goes into a config the app reads for a
     # signed-in user, so an app nobody has opened looks perfectly installed and
     # has no Zo in it.
+    # One of the two is enough.
+    #
+    # A customer who pays for ChatGPT and not Claude is a finished setup, not a
+    # half-finished one - and treated as half-finished, their Claude rows stay
+    # red for ever, the checklist never says done, and what they report is "a
+    # problem with the Zo connection". So whichever they already have decides
+    # it: the other is shown, and never chased.
+    #
+    # Only when neither is here does the setup offer both, because then there
+    # is nothing to prefer.
+    $script:HasClaude = [bool](Test-ClaudeDesktopInstalled)
+    $script:HasChatGpt = [bool](Test-ChatGptDesktopInstalled)
+    $script:HasEitherApp = $script:HasClaude -or $script:HasChatGpt
+
     Write-Checking 'Claude Desktop'
-    if (-not (Test-ClaudeDesktopInstalled)) {
-        $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'missing' -Detail 'not installed'))
+    if (-not $script:HasClaude) {
+        if ($script:HasEitherApp) {
+            $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'skipped' `
+                -Detail 'not needed - you have ChatGPT'))
+        } else {
+            $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'missing' -Detail 'not installed'))
+        }
     } elseif (Test-ClaudeDesktopOpened) {
         $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'ok' -Detail 'installed'))
     } else {
@@ -1377,8 +1432,13 @@ function Get-AllChecks {
     }
 
     Write-Checking 'ChatGPT Desktop'
-    if (-not (Test-ChatGptDesktopInstalled)) {
-        $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'missing' -Detail 'not installed'))
+    if (-not $script:HasChatGpt) {
+        if ($script:HasEitherApp) {
+            $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'skipped' `
+                -Detail 'not needed - you have Claude'))
+        } else {
+            $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'missing' -Detail 'not installed'))
+        }
     } elseif (Test-ChatGptSignedIn) {
         $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'ok' -Detail 'signed in'))
     } else {
@@ -1402,24 +1462,36 @@ function Get-AllChecks {
         $checks.Add((New-Check -Key 'zo-token' -Title 'Zo account key' -Status 'needs-you' -Detail 'not entered yet' -Note 'everything below needs this first'))
     }
 
+    # Connecting Zo to an app that is not installed is work nobody can finish.
+    # These follow the same rule as the apps above them.
     Write-Checking 'the Zo connection inside each app'
     if (Test-ClaudeMcpConfigured) {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'ok' -Detail 'connected'))
+    } elseif (-not $script:HasClaude -and $script:HasEitherApp) {
+        $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'skipped' `
+            -Detail 'not needed - you have ChatGPT'))
     } else {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'missing' -Detail 'not connected'))
     }
 
     if (Test-CodexMcpConfigured) {
         $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'ok' -Detail 'connected'))
+    } elseif (-not $script:HasChatGpt -and $script:HasEitherApp) {
+        $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'skipped' `
+            -Detail 'not needed - you have Claude'))
     } else {
         $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'missing' -Detail 'not connected'))
     }
 
     # Only shown on a machine that has one. On a clean machine this is not a
     # task the owner should have to read past.
+    #
+    # It also goes with the assistant. The whole row says "put WhatsApp on Zo
+    # instead of here" - advice that is simply wrong on a build that does not
+    # put WhatsApp on Zo, and it would be the only mention of WhatsApp left.
     # @() is load-bearing: PowerShell unrolls an empty collection returned from
     # a function into $null, and .Count on $null throws under StrictMode.
-    $strayWhatsApp = @(Find-LocalWhatsAppInstall)
+    $strayWhatsApp = @(if (Test-FeatureOn $script:FeatureAiAssistant) { Find-LocalWhatsAppInstall })
     if ($strayWhatsApp.Count -gt 0) {
         $checks.Add((New-Check -Key 'local-whatsapp' -Title 'WhatsApp on this computer' -Status 'needs-you' `
             -Detail 'should be on Zo instead' `
@@ -1447,12 +1519,16 @@ function Get-AllChecks {
         $offline = New-Object System.Collections.Generic.List[object]
         $offline.Add(@{ Key = 'zo-claude-code'; Title = 'Claude plan on Zo' })
         $offline.Add(@{ Key = 'zo-codex';       Title = 'ChatGPT plan on Zo' })
-        $offline.Add(@{ Key = 'zo-skills';      Title = 'Basic skills for your Zo' })
+        if (Test-FeatureOn $script:FeatureZoSkills) {
+            $offline.Add(@{ Key = 'zo-skills';  Title = 'Basic skills for your Zo' })
+        }
         if (Test-FeatureOn $script:FeatureSecondBrain) {
             $offline.Add(@{ Key = 'zo-brain';   Title = 'Your company second brain' })
         }
         $offline.Add(@{ Key = 'zo-google';      Title = 'Basic integrations for your Zo' })
-        $offline.Add(@{ Key = 'talk-to-zo';     Title = 'Your AI Personal Assistant' })
+        if (Test-FeatureOn $script:FeatureAiAssistant) {
+            $offline.Add(@{ Key = 'talk-to-zo'; Title = 'Your AI Personal Assistant' })
+        }
         if (Test-FeatureOn $script:FeatureAiEmployees) {
             $offline.Add(@{ Key = 'zo-employees'; Title = 'Hire AI employees' })
         }
@@ -1478,7 +1554,13 @@ function Get-AllChecks {
             $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'ok' `
                 -Detail 'signed in - finish on the Zo website'))
         } else {
-            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'needs-you' `
+            # Optional in the note and compulsory in the arithmetic, until now.
+            # These two rows are the only ones an owner cannot clear by doing
+            # anything on this computer - they need a paid plan - so counting
+            # them as outstanding meant anyone paying for neither, or for only
+            # one, never saw the setup finish. Skipped, they are still on the
+            # list saying what they would save.
+            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'skipped' `
                 -Detail 'not signed in' -Note 'optional, but saves paying per use'))
         }
     }
@@ -1489,20 +1571,23 @@ function Get-AllChecks {
 
     # Read off Zo's own folders, never from a note of what the owner said. An
     # owner who removed a skill last week has to show as not having it.
-    $skills = if (Test-ObjectHasProperty $zo 'skills') { $zo.skills } else { $null }
-    $wanted = $script:ZoSkills.Keys.Count
-    if ($null -eq $skills) {
-        $checks.Add((New-Check -Key 'zo-skills' -Title 'Basic skills for your Zo' -Status 'needs-you' `
-            -Detail 'could not tell' -Note 'briefings, PDFs, reading photos, and more'))
-    } elseif (@($skills.missing).Count -eq 0) {
-        $checks.Add((New-Check -Key 'zo-skills' -Title 'Basic skills for your Zo' -Status 'ok' `
-            -Detail "all $wanted installed"))
-    } else {
-        # Counted, not ticked. "2 of 9" tells an owner something a single cross
-        # does not, and it is the same reason Google is reported that way.
-        $have = @($skills.installed).Count
-        $checks.Add((New-Check -Key 'zo-skills' -Title 'Basic skills for your Zo' -Status 'needs-you' `
-            -Detail "$have of $wanted installed" -Note 'briefings, PDFs, reading photos, and more'))
+    if (Test-FeatureOn $script:FeatureZoSkills) {
+        $skills = if (Test-ObjectHasProperty $zo 'skills') { $zo.skills } else { $null }
+        $wanted = $script:ZoSkills.Keys.Count
+        if ($null -eq $skills) {
+            $checks.Add((New-Check -Key 'zo-skills' -Title 'Basic skills for your Zo' -Status 'needs-you' `
+                -Detail 'could not tell' -Note 'briefings, PDFs, reading photos, and more'))
+        } elseif (@($skills.missing).Count -eq 0) {
+            $checks.Add((New-Check -Key 'zo-skills' -Title 'Basic skills for your Zo' -Status 'ok' `
+                -Detail "all $wanted installed"))
+        } else {
+            # Counted, not ticked. "2 of 9" tells an owner something a single
+            # cross does not, and it is the same reason Google is reported that
+            # way.
+            $have = @($skills.installed).Count
+            $checks.Add((New-Check -Key 'zo-skills' -Title 'Basic skills for your Zo' -Status 'needs-you' `
+                -Detail "$have of $wanted installed" -Note 'briefings, PDFs, reading photos, and more'))
+        }
     }
 
     $script:WhatsAppLinked = ($zo.whatsapp.connected -eq $true)
@@ -1554,6 +1639,16 @@ function Get-AllChecks {
     # machine with no answer here is a customer who never opens it again. It
     # comes after skills and access on purpose: the first thing they do is talk
     # to it, and by then it should already be able to do something.
+    #
+    # Switched off, the owner reaches their Zo through Claude Desktop and
+    # ChatGPT instead. Those are connected earlier on this same list and are not
+    # switchable, so the setup still finishes with somewhere to type - which is
+    # the one thing that must stay true whatever else is turned off.
+    # Wrapped, not returned early: the employees row is built below this one and
+    # an early return here would take that with it, so switching the assistant
+    # off would silently switch employees off too.
+    if (Test-FeatureOn $script:FeatureAiAssistant) {
+
     $talkChannel = (Get-Profile)['talkChannel']
     $channelLabel = switch ($talkChannel) {
         'whatsapp'      { 'WhatsApp' }
@@ -1598,6 +1693,8 @@ function Get-AllChecks {
         $detail = if ($zo.whatsapp.detail) { $zo.whatsapp.detail } else { 'not linked yet' }
         $checks.Add((New-Check -Key 'talk-to-zo' -Title 'Your AI Personal Assistant' -Status 'needs-you' `
             -Detail $detail -Note 'without this there is nowhere to type'))
+    }
+
     }
 
     # Last, because an employee is only worth hiring once the Zo they work for
@@ -1751,6 +1848,10 @@ function Show-Checks {
     foreach ($check in $Checks) {
         switch ($check.Status) {
             'ok'        { $mark = '✓'; $colour = 'Green' }
+            # Settled, not outstanding. A dot in grey, the same as a Google app
+            # that is not connected, so it reads as "nothing to do here" rather
+            # than as one more thing standing between them and the end.
+            'skipped'   { $mark = '·'; $colour = 'DarkGray' }
             'needs-you' { $mark = '●'; $colour = 'Yellow' }
             default     { $mark = '●'; $colour = 'Yellow' }
         }
@@ -1759,7 +1860,7 @@ function Show-Checks {
         # for your Zo" is 30 characters, and at 28 the detail was welded onto
         # the end of it: "...for your Zo4 of 4 connected".
         Write-Host "      $mark  " -ForegroundColor $colour -NoNewline
-        Write-Host ($check.Title.PadRight(32) + ' ') -ForegroundColor $(if ($check.Status -eq 'ok') { 'Gray' } else { 'White' }) -NoNewline
+        Write-Host ($check.Title.PadRight(32) + ' ') -ForegroundColor $(if ($check.Status -eq 'ok' -or $check.Status -eq 'skipped') { 'Gray' } else { 'White' }) -NoNewline
         Write-Host $check.Detail -ForegroundColor $script:Ink.Muted
 
         foreach ($child in @($check.Children)) {
@@ -1771,7 +1872,10 @@ function Show-Checks {
         }
     }
 
-    $done = @($Checks | Where-Object { $_.Status -eq 'ok' }).Count
+    # Skipped counts as done. It is finished business - asked and answered - and
+    # a bar that never fills because the owner does not pay for a second AI plan
+    # reads as a setup that failed.
+    $done = @($Checks | Where-Object { $_.Status -eq 'ok' -or $_.Status -eq 'skipped' }).Count
     Write-Host ''
     Show-ProgressBar -Done $done -Total $Checks.Count
     Write-Host ''
@@ -1856,7 +1960,9 @@ function Show-MainOptions {
             $rows += @{ Key = 'E'; What = 'Hire an AI employee'; Why = 'sales, admin, accounts, and more' }
             $rows += @{ Key = 'T'; What = 'See your AI employees'; Why = 'who works for you, and where they answer' }
         }
-        $rows += @{ Key = 'A'; What = 'Set up your assistant again'; Why = 'change the number, or how you reach it' }
+        if (Test-FeatureOn $script:FeatureAiAssistant) {
+            $rows += @{ Key = 'A'; What = 'Set up your assistant again'; Why = 'change the number, or how you reach it' }
+        }
         if (Test-FeatureOn $script:FeatureSecondBrain) {
             $rows += @{ Key = 'M'; What = 'Your company second brain'; Why = 'what your Zo remembers about the business' }
         }
@@ -4849,7 +4955,6 @@ function Reset-VimigoSetup {
     Write-Info 'This undoes what the setup did, so you can run it again from'
     Write-Info 'the beginning. Useful for testing what a new customer sees.'
     Write-Host ''
-    Write-Info 'You can undo just one part, or the whole thing:'
     Write-Host ''
     # Three, not four. "Forget the channel" and "set the WhatsApp assistant up
     # again" were separate options that did the same thing to anyone on
@@ -4861,9 +4966,11 @@ function Reset-VimigoSetup {
     # the employee reset, so a key nothing on screen mentions quietly lets an AI
     # employee go.
     $options = New-Object System.Collections.Generic.List[object]
-    $options.Add(@{ Action = 'assistant'
-                    Label  = 'How you talk to Zo -'
-                    Why    = 'your AI Personal Assistant, from the top' })
+    if (Test-FeatureOn $script:FeatureAiAssistant) {
+        $options.Add(@{ Action = 'assistant'
+                        Label  = 'How you talk to Zo -'
+                        Why    = 'your AI Personal Assistant, from the top' })
+    }
     if (Test-FeatureOn $script:FeatureAiEmployees) {
         $options.Add(@{ Action = 'employees'
                         Label  = 'Your AI employees  -'
@@ -4872,6 +4979,16 @@ function Reset-VimigoSetup {
     $options.Add(@{ Action = 'everything'
                     Label  = 'Everything         -'
                     Why    = 'the above, plus the programs this setup' })
+
+    # The intro is written after the list is known. "You can undo just one part,
+    # or the whole thing" is a lie on a build where the whole thing is the only
+    # part left.
+    if ($options.Count -gt 1) {
+        Write-Info 'You can undo just one part, or the whole thing:'
+    } else {
+        Write-Info 'There is one thing to undo:'
+    }
+    Write-Host ''
 
     $number = 0
     foreach ($option in $options) {
@@ -4889,8 +5006,15 @@ function Reset-VimigoSetup {
     Write-Host '        Enter  go back, changing nothing' -ForegroundColor $script:Ink.Muted
     Write-Host ''
     # Read off the list, so the prompt can never name a number the screen above
-    # does not show. Three options give "1, 2 or 3", two give "1 or 2".
-    $spoken = ((1..($options.Count - 1)) -join ', ') + " or $($options.Count)"
+    # does not show. Three give "1, 2 or 3", two give "1 or 2", one gives "1".
+    #
+    # The single case is not hypothetical: switch the assistant and employees
+    # both off and "Everything" is all that is left. Without it the range
+    # expression counts backwards from 1 to 0 and the prompt reads "Choose 0, 1
+    # or 1".
+    $spoken = if ($options.Count -eq 1) { '1' } else {
+        ((1..($options.Count - 1)) -join ', ') + " or $($options.Count)"
+    }
     Write-Brand -Text "      Choose $spoken, or Enter to go back > " -Colour Purple -NoNewline
     $scope = ([string](Read-Host)).Trim()
 
@@ -5026,7 +5150,11 @@ function Invoke-FixEverything {
     #>
     param([object[]]$Checks)
 
-    $outstanding = @($Checks | Where-Object { $_.Status -ne 'ok' })
+    # 'skipped' is settled, not outstanding: an AI app they do not want, or a
+    # plan they do not pay for. Left in here it would be attempted on every
+    # run, which is the opposite of what skipping it meant.
+    $settled = @('ok', 'skipped')
+    $outstanding = @($Checks | Where-Object { $settled -notcontains $_.Status })
     if ($outstanding.Count -eq 0) { return @() }
 
     $unfinished = New-Object System.Collections.Generic.List[object]
@@ -5218,7 +5346,8 @@ while ($true) {
     $checks = @(Get-AllChecks)
     Show-Checks -Checks $checks
 
-    $outstanding = @($checks | Where-Object { $_.Status -ne 'ok' })
+    $settled = @('ok', 'skipped')
+    $outstanding = @($checks | Where-Object { $settled -notcontains $_.Status })
 
     # Hiring is optional, so not hiring is not an unfinished setup.
     #
@@ -5306,7 +5435,7 @@ while ($true) {
         continue
     }
 
-    if ($choice -match '^[Aa]') {
+    if ($choice -match '^[Aa]' -and (Test-FeatureOn $script:FeatureAiAssistant)) {
         Clear-Screen
         Show-Banner
         $null = Invoke-Guarded -Whats 'setting up your assistant' -Action { Reset-WhatsAppAssistant }

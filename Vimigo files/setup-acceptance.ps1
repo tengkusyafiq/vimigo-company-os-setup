@@ -540,7 +540,8 @@ try {
 { "ok": true, "workspaceUrl": "https://example.zo.computer",
   "aiProviders": { "claude": { "loggedIn": true }, "codex": { "loggedIn": true } },
   "whatsapp": { "connected": true, "answering": true },
-  "integrations": { "gmail": { "connected": true } },
+  "integrations": { "gmail": { "connected": true }, "google_calendar": { "connected": true },
+                     "google_drive": { "connected": true }, "google_sheets": { "connected": true } },
   "skills": { "installed": ["morning-briefing"], "missing": [] },
   "secondBrain": { "folders": 3, "notes": 7 },
   "employees": ["Joe"] }
@@ -559,9 +560,20 @@ try {
 
     $script:FixtureHasKey = $true
 
+    function Set-Features {
+        param([string]$All)
+        $script:FeatureAiAssistant = $All
+        $script:FeatureZoSkills = $All
+        $script:FeatureSecondBrain = $All
+        $script:FeatureAiEmployees = $All
+    }
+
     function Get-ZoRowKeys {
         # The rows that live on Zo, in the order the owner reads them.
-        param([string]$Brain, [string]$Employees, [switch]$NoKey)
+        param([string]$Assistant, [string]$Skills, [string]$Brain,
+              [string]$Employees, [switch]$NoKey)
+        $script:FeatureAiAssistant = $Assistant
+        $script:FeatureZoSkills = $Skills
         $script:FeatureSecondBrain = $Brain
         $script:FeatureAiEmployees = $Employees
         $script:FixtureHasKey = -not $NoKey
@@ -572,37 +584,53 @@ try {
         return ($keys -join ' ')
     }
 
-    $bothOn = 'zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo zo-employees'
-    $bothOff = 'zo-claude-code zo-codex zo-skills zo-google talk-to-zo'
+    function Get-AllRowKeys {
+        param([string]$All, [switch]$NoKey)
+        Set-Features $All
+        $script:FixtureHasKey = -not $NoKey
+        return (@(Get-AllChecks 6>$null | ForEach-Object { $_.Key }) -join ' ')
+    }
 
-    Assert-True ((Get-ZoRowKeys -Brain 'on' -Employees 'on') -eq $bothOn) `
-        'switched on, the checklist is in the order it always was'
-    Assert-True ((Get-ZoRowKeys -Brain 'off' -Employees 'off') -eq $bothOff) `
-        'switched off, both rows go and the rest keeps its order'
-    Assert-True ((Get-ZoRowKeys -Brain 'on' -Employees 'off') -eq `
-        'zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo') `
-        'one on and one off takes only the one that is off'
-    Assert-True ((Get-ZoRowKeys -Brain 'off' -Employees 'on') -eq `
-        'zo-claude-code zo-codex zo-skills zo-google talk-to-zo zo-employees') `
-        'and the other way round'
+    $allOn = 'zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo zo-employees'
+    $allOff = 'zo-claude-code zo-codex zo-google'
+
+    Assert-True ((Get-ZoRowKeys -Assistant 'on' -Skills 'on' -Brain 'on' -Employees 'on') -eq $allOn) `
+        'everything on, the checklist is in the order it always was'
+    Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'off' -Employees 'off') -eq $allOff) `
+        'everything off, only the rows that always ship are left'
+    Assert-True ((Get-ZoRowKeys -Assistant 'on' -Skills 'off' -Brain 'off' -Employees 'off') -eq `
+        'zo-claude-code zo-codex zo-google talk-to-zo') `
+        'the assistant alone brings back only its own row'
+    Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'on' -Brain 'off' -Employees 'off') -eq `
+        'zo-claude-code zo-codex zo-skills zo-google') `
+        'skills alone come back in their old place'
+    Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'on' -Employees 'off') -eq `
+        'zo-claude-code zo-codex zo-brain zo-google') `
+        'the second brain alone sits where it always sat'
+    Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'off' -Employees 'on') -eq `
+        'zo-claude-code zo-codex zo-google zo-employees') `
+        'employees alone stay last'
 
     # The fault this guards is a real one that shipped: the list shown before
     # the key is pasted was kept by hand and had lost the second brain, so
     # pasting the key silently rearranged the screen - the exact thing the note
     # above that list forbids.
-    Assert-True ((Get-ZoRowKeys -Brain 'on' -Employees 'on' -NoKey) -eq `
-                 (Get-ZoRowKeys -Brain 'on' -Employees 'on')) `
-        'switched on, pasting the key does not rearrange the list'
-    Assert-True ((Get-ZoRowKeys -Brain 'off' -Employees 'off' -NoKey) -eq `
-                 (Get-ZoRowKeys -Brain 'off' -Employees 'off')) `
-        'switched off, pasting the key does not rearrange the list either'
+    Assert-True ((Get-ZoRowKeys -Assistant 'on' -Skills 'on' -Brain 'on' -Employees 'on' -NoKey) -eq `
+                 (Get-ZoRowKeys -Assistant 'on' -Skills 'on' -Brain 'on' -Employees 'on')) `
+        'everything on, pasting the key does not rearrange the list'
+    Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'off' -Employees 'off' -NoKey) -eq `
+                 (Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'off' -Employees 'off')) `
+        'everything off, pasting the key does not rearrange the list either'
 
-    # The assistant is not switchable. Every other row can come and go; without
-    # this one there is nowhere for the owner to type.
-    Assert-True ((Get-ZoRowKeys -Brain 'off' -Employees 'off') -match 'talk-to-zo') `
-        'the AI Personal Assistant survives both switches being off'
-    Assert-True ((Get-ZoRowKeys -Brain 'off' -Employees 'off' -NoKey) -match 'talk-to-zo') `
-        'and survives with no key either'
+    # Whatever else is switched off, the owner must finish with a way to reach
+    # their Zo. Claude Desktop and ChatGPT are that way and are never
+    # switchable.
+    Assert-True ((Get-AllRowKeys -All 'off') -match 'claude-mcp') `
+        'Zo inside Claude Desktop survives every switch being off'
+    Assert-True ((Get-AllRowKeys -All 'off') -match 'chatgpt-mcp') `
+        'Zo inside ChatGPT survives every switch being off'
+    Assert-True ((Get-AllRowKeys -All 'off' -NoKey) -match 'chatgpt-mcp') `
+        'and survives with no key either, so there is always somewhere to type'
 
     Write-Host ''
     Write-Host 'Telegram: is a phone connected' -ForegroundColor Cyan
@@ -658,6 +686,99 @@ try {
         'and never compares against a count taken beforehand'
 
     Write-Host ''
+    Write-Host 'One AI app is enough' -ForegroundColor Cyan
+
+    # A customer who pays for ChatGPT and not Claude is a finished setup, not a
+    # half-finished one. Counted as half-finished their Claude rows stayed red
+    # for ever, the checklist never said done, and what they reported was "a
+    # problem with the Zo connection".
+    function Get-AppRows {
+        param([bool]$Claude, [bool]$ChatGpt)
+        $script:WantClaude = $Claude
+        $script:WantChatGpt = $ChatGpt
+        Set-Features 'off'
+        $script:FixtureHasKey = $true
+        $wanted = @('claude-app', 'chatgpt-app', 'claude-mcp', 'chatgpt-mcp')
+        return ((@(Get-AllChecks 6>$null | Where-Object { $wanted -contains $_.Key } |
+            ForEach-Object { "$($_.Key):$($_.Status)" })) -join ' ')
+    }
+
+    function Test-ClaudeDesktopInstalled { return $script:WantClaude }
+    function Test-ChatGptDesktopInstalled { return $script:WantChatGpt }
+    function Test-ClaudeDesktopOpened { return $script:WantClaude }
+    function Test-ChatGptSignedIn { return $script:WantChatGpt }
+    function Test-ClaudeMcpConfigured { return $script:WantClaude }
+    function Test-CodexMcpConfigured { return $script:WantChatGpt }
+
+    Assert-True ((Get-AppRows -Claude $true -ChatGpt $false) -eq `
+        'claude-app:ok chatgpt-app:skipped claude-mcp:ok chatgpt-mcp:skipped') `
+        'with only Claude, the ChatGPT rows are settled and not chased'
+    Assert-True ((Get-AppRows -Claude $false -ChatGpt $true) -eq `
+        'claude-app:skipped chatgpt-app:ok claude-mcp:skipped chatgpt-mcp:ok') `
+        'with only ChatGPT, the Claude rows are settled and not chased'
+    Assert-True ((Get-AppRows -Claude $true -ChatGpt $true) -eq `
+        'claude-app:ok chatgpt-app:ok claude-mcp:ok chatgpt-mcp:ok') `
+        'with both, both are used'
+    # Nothing to prefer, so both are offered - a blank machine still gets set up.
+    Assert-True ((Get-AppRows -Claude $false -ChatGpt $false) -eq `
+        'claude-app:missing chatgpt-app:missing claude-mcp:missing chatgpt-mcp:missing') `
+        'with neither, both are still offered'
+
+    # The part that decides whether they ever see "all done".
+    $script:WantClaude = $false; $script:WantChatGpt = $true
+    Set-Features 'off'
+    $script:FixtureHasKey = $true
+    $settledStates = @('ok', 'skipped')
+    $left = @(Get-AllChecks 6>$null | Where-Object { $settledStates -notcontains $_.Status })
+    Assert-True ($left.Count -eq 0) `
+        'a ChatGPT-only machine can reach a finished setup'
+
+    # The two plan rows need a paid subscription, so no amount of pressing
+    # Enter clears them. Counted as outstanding they held the setup open for
+    # anyone paying for neither, which is most people trying it.
+    $planRows = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'zo-claude-code' -or $_.Key -eq 'zo-codex' })
+    Assert-True (@($planRows | Where-Object { $_.Status -eq 'ok' }).Count -eq 2) `
+        'a signed-in plan still shows as done'
+
+    $zoNoPlans = @'
+{ "ok": true, "workspaceUrl": "https://example.zo.computer",
+  "aiProviders": { "claude": { "loggedIn": false }, "codex": { "loggedIn": false } },
+  "whatsapp": { "connected": true, "answering": true },
+  "integrations": { "gmail": { "connected": true }, "google_calendar": { "connected": true },
+                     "google_drive": { "connected": true }, "google_sheets": { "connected": true } },
+  "skills": { "installed": ["morning-briefing"], "missing": [] },
+  "secondBrain": { "folders": 3, "notes": 7 }, "employees": ["Joe"] }
+'@ | ConvertFrom-Json
+    $script:FixturePlans = $false
+    # Declared here as well as further down, because this block runs before the
+    # step-trail section that used to be the only place it was set - and a
+    # StrictMode read of an unset script variable stops the whole suite dead.
+    $script:FixtureUndone = $false
+    function Get-ZoVerification {
+        param($Token)
+        if (-not $script:FixtureHasKey) { return $null }
+        if (-not $script:FixturePlans) { return $zoNoPlans }
+        if ($script:FixtureUndone) { return $zoUndone }
+        return $zoFixture
+    }
+    $noPlanRows = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'zo-claude-code' -or $_.Key -eq 'zo-codex' })
+    Assert-True (@($noPlanRows | Where-Object { $_.Status -eq 'skipped' }).Count -eq 2) `
+        'an unsigned plan is settled, not outstanding'
+    $leftNoPlans = @(Get-AllChecks 6>$null | Where-Object { $settledStates -notcontains $_.Status })
+    Assert-True ($leftNoPlans.Count -eq 0) `
+        'so paying for neither plan still reaches a finished setup'
+    $script:FixturePlans = $true
+
+    Write-Host ''
+    Write-Host 'The progress bar counts a settled row as done' -ForegroundColor Cyan
+
+    # A bar that never fills because the owner does not pay for a second AI
+    # plan reads as a setup that failed.
+    $barText = (@(Show-Checks -Checks @(Get-AllChecks 6>$null) 6>&1 |
+        ForEach-Object { [regex]::Replace([string]$_, "$([char]27)\[[0-9;]*m", '') }) -join ' ')
+    Assert-True ($barText -notmatch '\b0 of ') 'the bar is not stuck at zero'
+
+    Write-Host ''
     Write-Host 'No step goes missing from the run' -ForegroundColor Cyan
 
     # "Step 3 of 7" is worked out from what is still outstanding, so a
@@ -679,9 +800,8 @@ try {
     function Get-StepTrail {
         # "1/7", "2/7", ... as the owner sees it, driving the real
         # Invoke-FixEverything rather than counting rows by hand.
-        param([string]$Brain, [string]$Employees)
-        $script:FeatureSecondBrain = $Brain
-        $script:FeatureAiEmployees = $Employees
+        param([string]$All)
+        Set-Features $All
         $script:FixtureUndone = $true
         $written = @(Invoke-FixEverything -Checks (Get-AllChecks) 6>&1 |
             ForEach-Object { [regex]::Replace([string]$_, "$([char]27)\[[0-9;]*m", '') })
@@ -714,8 +834,8 @@ try {
         return $true
     }
 
-    $trailOff = @(Get-StepTrail -Brain 'off' -Employees 'off')
-    $trailOn = @(Get-StepTrail -Brain 'on' -Employees 'on')
+    $trailOff = @(Get-StepTrail -All 'off')
+    $trailOn = @(Get-StepTrail -All 'on')
 
     Assert-True (Test-TrailWhole $trailOff) `
         'switched off, the steps run 1..N with no gaps and end on the total'
@@ -724,8 +844,8 @@ try {
     # Counted as a difference, not as an absolute: how many local rows are
     # outstanding depends on the machine this suite runs on, but switching two
     # features off must remove exactly two steps anywhere.
-    Assert-True (($trailOn.Count - $trailOff.Count) -eq 2) `
-        'switching both off removes exactly two steps, no more and no fewer'
+    Assert-True (($trailOn.Count - $trailOff.Count) -eq 4) `
+        'switching all four off removes exactly four steps, no more and no fewer'
 
     Write-Host ''
     Write-Host 'A switched-off feature takes its key with it' -ForegroundColor Cyan
@@ -734,7 +854,8 @@ try {
         # The letters the finished menu offers, in order. Read off the records
         # Write-Host emits rather than off the screen, so no colour handling or
         # console width can change the answer.
-        param([string]$Brain, [string]$Employees)
+        param([string]$Assistant, [string]$Brain, [string]$Employees)
+        $script:FeatureAiAssistant = $Assistant
         $script:FeatureSecondBrain = $Brain
         $script:FeatureAiEmployees = $Employees
         # Colours stripped first. Write-Brand wraps the key in 24-bit escapes on
@@ -746,14 +867,16 @@ try {
             ForEach-Object { $_.Trim() }) -join ' ')
     }
 
-    Assert-True ((Get-MenuKeys -Brain 'on' -Employees 'on') -eq 'E T A M Z S Q') `
-        'switched on, the finished menu offers every key it always did'
-    Assert-True ((Get-MenuKeys -Brain 'off' -Employees 'off') -eq 'A Z S Q') `
-        'switched off, E, T and M are gone and the rest is unmoved'
-    Assert-True ((Get-MenuKeys -Brain 'on' -Employees 'off') -eq 'A M Z S Q') `
-        'the second brain alone leaves M and takes E and T'
-    Assert-True ((Get-MenuKeys -Brain 'off' -Employees 'on') -eq 'E T A Z S Q') `
-        'employees alone leave E and T and take M'
+    Assert-True ((Get-MenuKeys -Assistant 'on' -Brain 'on' -Employees 'on') -eq 'E T A M Z S Q') `
+        'everything on, the finished menu offers every key it always did'
+    Assert-True ((Get-MenuKeys -Assistant 'off' -Brain 'off' -Employees 'off') -eq 'Z S Q') `
+        'everything off, only Zo, start over and close are left'
+    Assert-True ((Get-MenuKeys -Assistant 'on' -Brain 'off' -Employees 'off') -eq 'A Z S Q') `
+        'the assistant alone leaves A'
+    Assert-True ((Get-MenuKeys -Assistant 'off' -Brain 'on' -Employees 'off') -eq 'M Z S Q') `
+        'the second brain alone leaves M'
+    Assert-True ((Get-MenuKeys -Assistant 'off' -Brain 'off' -Employees 'on') -eq 'E T Z S Q') `
+        'employees alone leave E and T'
 
     # Hidden is not enough. A key that still fires while nothing on screen
     # mentions it is worse than a missing one, so the main loop gates each
@@ -761,7 +884,8 @@ try {
     foreach ($case in @(
         @{ Key = 'E'; Feature = 'FeatureAiEmployees'; What = 'hiring' },
         @{ Key = 'T'; Feature = 'FeatureAiEmployees'; What = 'the team list' },
-        @{ Key = 'M'; Feature = 'FeatureSecondBrain'; What = 'the second brain' }
+        @{ Key = 'M'; Feature = 'FeatureSecondBrain'; What = 'the second brain' },
+        @{ Key = 'A'; Feature = 'FeatureAiAssistant'; What = 'the assistant setup' }
     )) {
         $guard = "\`$choice -match '\^\[$($case.Key)$($case.Key.ToLower())\]' -and \(Test-FeatureOn \`$script:$($case.Feature)\)"
         Assert-True ($setupText -match $guard) `
@@ -778,39 +902,53 @@ try {
     function Read-YesNo { param($Question, $YesLabel, $NoLabel) return $false }
 
     function Get-ResetScreen {
-        param([string]$Employees, [string]$Typed)
+        param([string]$Assistant, [string]$Employees, [string]$Typed)
+        $script:FeatureAiAssistant = $Assistant
         $script:FeatureAiEmployees = $Employees
         $script:Typed = $Typed
         return (@(Reset-VimigoSetup 6>&1 | ForEach-Object { [string]$_ }) -join "`n")
     }
 
-    $three = Get-ResetScreen -Employees 'on' -Typed ''
-    $two = Get-ResetScreen -Employees 'off' -Typed ''
+    $three = Get-ResetScreen -Assistant 'on' -Employees 'on' -Typed ''
+    $two = Get-ResetScreen -Assistant 'on' -Employees 'off' -Typed ''
+    $one = Get-ResetScreen -Assistant 'off' -Employees 'off' -Typed ''
     Assert-True ($three -match 'Choose 1, 2 or 3, or Enter to go back') `
-        'switched on, start over still offers three'
+        'everything on, start over still offers three'
     Assert-True ($two -match 'Choose 1 or 2, or Enter to go back') `
-        'switched off, it offers two and says so'
+        'employees off, it offers two and says so'
+    # One option left is not hypothetical: switch both off and "Everything" is
+    # all there is. Counting backwards from one would print "Choose 0, 1 or 1".
+    Assert-True ($one -match 'Choose 1, or Enter to go back') `
+        'both off, it offers one and still reads as a sentence'
+    Assert-True ($one -match 'There is one thing to undo') `
+        'and stops claiming you can undo just one part of it'
     Assert-True ($two -notmatch 'Your AI employees') `
-        'and the employee line is gone from the list'
+        'the employee line is gone from the list'
+    Assert-True ($one -notmatch 'How you talk to Zo') `
+        'and so is the assistant line'
     Assert-True ($two -match 'Enter  go back, changing nothing') `
         'the way out is still written down'
 
-    Assert-True ((Get-ResetScreen -Employees 'on' -Typed '1') -match 'RAN_ASSISTANT') `
-        'switched on, 1 is the assistant'
-    Assert-True ((Get-ResetScreen -Employees 'on' -Typed '2') -match 'RAN_EMPLOYEES') `
-        'switched on, 2 lets an employee go'
-    Assert-True ((Get-ResetScreen -Employees 'off' -Typed '1') -match 'RAN_ASSISTANT') `
-        'switched off, 1 is still the assistant'
-    # The one that bites. Hiding the middle option without renumbering leaves 2
-    # wired to the employee reset - a key nothing on screen mentions, quietly
-    # letting an AI employee go.
-    Assert-True ((Get-ResetScreen -Employees 'off' -Typed '2') -notmatch 'RAN_EMPLOYEES') `
-        'switched off, 2 never reaches the employee reset'
-    Assert-True ((Get-ResetScreen -Employees 'off' -Typed '3') -match 'Nothing was changed') `
-        'switched off, the old number 3 does nothing at all'
-    Assert-True ((Get-ResetScreen -Employees 'on' -Typed '') -match 'Nothing was changed') `
+    Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'on' -Typed '1') -match 'RAN_ASSISTANT') `
+        'everything on, 1 is the assistant'
+    Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'on' -Typed '2') -match 'RAN_EMPLOYEES') `
+        'everything on, 2 lets an employee go'
+    Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'off' -Typed '1') -match 'RAN_ASSISTANT') `
+        'employees off, 1 is still the assistant'
+    # The one that bites. Hiding an option without renumbering leaves its old
+    # number wired to it - a key nothing on screen mentions, quietly letting an
+    # AI employee go, or wiping the assistant.
+    Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'off' -Typed '2') -notmatch 'RAN_EMPLOYEES') `
+        'employees off, 2 never reaches the employee reset'
+    Assert-True ((Get-ResetScreen -Assistant 'off' -Employees 'on' -Typed '1') -notmatch 'RAN_ASSISTANT') `
+        'assistant off, 1 never reaches the assistant reset'
+    Assert-True ((Get-ResetScreen -Assistant 'off' -Employees 'on' -Typed '1') -match 'RAN_EMPLOYEES') `
+        'assistant off, 1 is the employee reset instead, as the screen says'
+    Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'off' -Typed '3') -match 'Nothing was changed') `
+        'employees off, the old number 3 does nothing at all'
+    Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'on' -Typed '') -match 'Nothing was changed') `
         'Enter goes back without changing anything'
-    Assert-True ((Get-ResetScreen -Employees 'on' -Typed '08') -match 'Nothing was changed') `
+    Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'on' -Typed '08') -match 'Nothing was changed') `
         'a leading zero is read as text, not as a number'
 
     Write-Host ''
@@ -821,10 +959,15 @@ try {
     # code, only a promise to stay in step.
     $macText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'vimigo-setup.sh') -Raw
     foreach ($pair in @(
+        @{ Win = 'AiAssistant'; Mac = 'AI_ASSISTANT'; What = 'the AI Personal Assistant' },
+        @{ Win = 'ZoSkills';    Mac = 'ZO_SKILLS';    What = 'the Zo skills' },
         @{ Win = 'SecondBrain'; Mac = 'SECOND_BRAIN'; What = 'the second brain' },
         @{ Win = 'AiEmployees'; Mac = 'AI_EMPLOYEES'; What = 'AI employees' }
     )) {
-        $winMatch = [regex]::Match($setupText, "\`$script:Feature$($pair.Win) = '([a-z]+)'")
+        # ' +=' and not ' =': the declarations are column-aligned, so some carry
+        # several spaces before the equals. Insisting on exactly one read those
+        # as absent, and an absent default passes half a drift check silently.
+        $winMatch = [regex]::Match($setupText, "\`$script:Feature$($pair.Win) += '([a-z]+)'")
         $macMatch = [regex]::Match($macText, "(?m)^FEATURE_$($pair.Mac)='([a-z]+)'")
         Assert-True ($winMatch.Success -and $macMatch.Success -and
             $winMatch.Groups[1].Value -eq $macMatch.Groups[1].Value) `
