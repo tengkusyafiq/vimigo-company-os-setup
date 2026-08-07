@@ -24,15 +24,6 @@ curl -fsSL https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setu
 irm https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-windows.ps1 | iex
 ```
 
-## That is it
-
-The setup opens and tells you what it is doing. It will ask you to sign in to
-Claude or ChatGPT, and to paste your Zo key. Everything else it does itself.
-
-If it stops, run the same line again — it carries on from where it got to.
-
-If it stops twice, contact Vimigo support and tell them what the screen said.
-
 ---
 
 Helping someone through this using Claude or ChatGPT? Read
