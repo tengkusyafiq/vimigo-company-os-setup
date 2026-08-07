@@ -982,10 +982,72 @@ function Test-WingetPackageInstalled {
 }
 
 function Test-ClaudeDesktopInstalled {
+    # The packaged install comes first, and cheapest.
+    #
+    # Claude Desktop now ships as an MSIX, and that is the only build its Cowork
+    # feature will run under. This check knew nothing about it: it asked winget,
+    # then looked for the old Squirrel claude.exe. So an owner who installed
+    # Claude properly - from claude.ai/download, which is what this setup tells
+    # them to do when winget fails - was reported as not having it, and every
+    # run offered to install it again.
+    if (Get-AppxPackage -Name 'Claude' -ErrorAction SilentlyContinue) { return $true }
     if (Test-WingetPackageInstalled -PackageId 'Anthropic.Claude') { return $true }
     # Fall back to the install location, in case it arrived outside winget.
     $direct = Join-Path $env:LOCALAPPDATA 'AnthropicClaude\claude.exe'
     return (Test-Path -LiteralPath $direct)
+}
+
+function Install-ClaudeMsix {
+    <#
+        Installs Claude Desktop from Anthropic's own MSIX.
+
+        winget's Anthropic.Claude is the older Squirrel .exe, and Claude
+        Desktop installed that way refuses to run Cowork - "Cowork requires
+        Claude Desktop be installed with our modern installer", with the tab
+        greyed out and no way forward. Same app and same publisher, different
+        package; when this was written winget's copy was also two versions
+        behind.
+
+        Returns $true only if Claude is actually there afterwards. The caller
+        falls back to winget on $false, so the worst case is what shipped
+        before rather than no Claude at all.
+    #>
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
+    $url = "https://claude.ai/api/desktop/win32/$arch/msix/latest/redirect"
+    $package = Join-Path $env:TEMP ('Claude-' + [guid]::NewGuid().ToString('N') + '.msix')
+
+    try {
+        Write-Info 'Downloading Claude Desktop. This is a few hundred megabytes.'
+        # Progress off: the meter repaints the whole line and turns a status
+        # screen into a flickering mess on a slow connection.
+        $previous = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $package -UseBasicParsing -TimeoutSec 900
+        } finally {
+            $ProgressPreference = $previous
+        }
+
+        Write-Info 'Installing it...'
+        if ($PSVersionTable.PSVersion.Major -ge 6) {
+            # Appx is a Windows PowerShell module. On PowerShell 7 the cmdlet is
+            # either absent or runs through a compatibility shim, and the
+            # launcher prefers 7 whenever it is on the machine - so this would
+            # have failed on exactly the machines most likely to have it.
+            & powershell.exe -NoProfile -NonInteractive -Command `
+                "Add-AppxPackage -Path '$package' -ErrorAction Stop" 2>&1 |
+                ForEach-Object { Write-Host "    $_" -ForegroundColor $script:Ink.Muted }
+        } else {
+            Add-AppxPackage -Path $package -ErrorAction Stop
+        }
+    } catch {
+        Write-SetupLog "MSIX install failed: $($_.Exception.Message)"
+        return $false
+    } finally {
+        Remove-Item -LiteralPath $package -Force -ErrorAction SilentlyContinue
+    }
+
+    return [bool](Get-AppxPackage -Name 'Claude' -ErrorAction SilentlyContinue)
 }
 
 function Test-ChatGptDesktopInstalled {
@@ -2047,6 +2109,18 @@ function Install-ClaudeDesktop {
         Write-Good 'Claude Desktop is already installed. Nothing to do.'
         return $true
     }
+
+    # Anthropic's own package first. See Install-ClaudeMsix: the winget build
+    # is the older installer, and Claude Desktop installed from it will not run
+    # Cowork at all.
+    if (Install-ClaudeMsix) {
+        Write-Good 'Claude Desktop is installed.'
+        return $true
+    }
+
+    # Then winget, which at least leaves them with a working Claude. Anything
+    # that needs the modern package will say so itself.
+    Write-Info 'Trying the Windows installer instead...'
     & winget.exe install --id 'Anthropic.Claude' --exact --silent `
         --accept-package-agreements --accept-source-agreements 2>&1 |
         ForEach-Object { Write-Host "    $_" -ForegroundColor $script:Ink.Muted }
@@ -4409,6 +4483,9 @@ function Connect-ZoAiProvider {
         return $false
     }
 
+    # The scripts have to be on the Zo before one of them can answer.
+    Install-ZoScriptsOnce
+
     Write-Info 'Starting the sign-in. This takes a moment.'
     $result = Invoke-ZoHelper -Arguments @('--signin', $Which)
 
@@ -5138,6 +5215,26 @@ function Reset-VimigoSetup {
     Write-Host ''
 }
 
+$script:ZoScriptsPushed = $false
+
+function Install-ZoScriptsOnce {
+    <#
+        Puts this setup's own scripts on the owner's Zo. Once per run, because
+        several steps need them and none of them should have to care whether
+        another got there first.
+
+        zo-ai-signin.sh is what reports whether a plan is linked, and it used to
+        be put on the Zo only by the WhatsApp assistant and the employee
+        Telegram steps. Switch those off - as v1 does - and it never arrives at
+        all, so the sign-in could not start and the two plan rows stayed red for
+        ever, no matter how many times the owner linked their plan on the Zo
+        website.
+    #>
+    if ($script:ZoScriptsPushed) { return }
+    $script:ZoScriptsPushed = $true
+    $null = Invoke-ZoHelper -Arguments @('--install-zo-scripts') -Waiting 'updating your Zo...'
+}
+
 function Invoke-FixEverything {
     <#
         Works through everything outstanding in one pass, numbering the steps so
@@ -5156,6 +5253,11 @@ function Invoke-FixEverything {
     $settled = @('ok', 'skipped')
     $outstanding = @($Checks | Where-Object { $settled -notcontains $_.Status })
     if ($outstanding.Count -eq 0) { return @() }
+
+    # Before anything else, and only when there is a key to do it with. Several
+    # steps below read their answer from a script that lives on the Zo, and
+    # until this ran they were reading nothing.
+    if (Test-ZoTokenShape -Token (Get-ZoToken)) { Install-ZoScriptsOnce }
 
     $unfinished = New-Object System.Collections.Generic.List[object]
     $total = $outstanding.Count

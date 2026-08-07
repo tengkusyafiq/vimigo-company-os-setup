@@ -1721,6 +1721,17 @@ zo_helper() {
 }
 
 ZO_HELPER_REASON=''
+ZO_SCRIPTS_PUSHED='no'
+
+ensure_zo_scripts() {
+    # Puts this setup's own scripts on the owner's Zo. Once per run, because
+    # several steps need them and none of them should have to care whether
+    # another got there first.
+    [ "$ZO_SCRIPTS_PUSHED" = 'yes' ] && return 0
+    ZO_SCRIPTS_PUSHED='yes'
+    zo_helper --install-zo-scripts >/dev/null 2>&1 || true
+    return 0
+}
 
 zo_helper_reason() {
     # One plain line about the last failure, when there is one worth printing.
@@ -3636,6 +3647,16 @@ connect_zo_ai_provider() {
         return 1
     fi
 
+    # The scripts have to be on the Zo before one of them can answer.
+    #
+    # zo-ai-signin.sh is what reports whether a plan is linked, and it used to
+    # be put on the Zo only by the WhatsApp assistant and the employee Telegram
+    # steps. Switch those off - as v1 does - and it never arrives at all, so
+    # this step could not start and the two plan rows stayed red for ever, no
+    # matter how many times the owner linked their plan on the Zo website.
+    # Cheap, and it also carries any fix shipped since their last run.
+    ensure_zo_scripts
+
     info 'Starting the sign-in. This takes a moment.'
     local answer; answer="$(zo_helper --signin "$which")" || {
         bad 'Could not start the sign-in.'; zo_helper_reason; return 1; }
@@ -3908,6 +3929,11 @@ EOF
 }
 
 fix_everything() {
+    # Before anything else, and only when there is a key to do it with. Several
+    # steps below read their answer from a script that lives on the Zo, and
+    # until this ran they were reading nothing.
+    if token_looks_valid "$(get_zo_token)"; then ensure_zo_scripts; fi
+
     UNFINISHED=""
     local total=0 number=0 announced_no_key=no
 
