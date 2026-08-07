@@ -295,21 +295,26 @@ printf '\n\033[36mOne AI app is enough\033[0m\n'
 # referring to it after the call returns, and the next collect_checks then dies
 # on an unbound variable under set -u - silently, taking the whole suite with
 # it and reporting nothing but a non-zero exit.
-WANT_CLAUDE='no'
-WANT_GPT='yes'
+#
+# TEST_ prefixed, and that matters: these were WANT_CLAUDE and WANT_GPT until
+# the script itself grew a WANT_CLAUDE. collect_checks then overwrote the
+# stub's own answer mid-call, so "with neither installed" tested a machine with
+# Claude on it.
+TEST_HAS_CLAUDE='no'
+TEST_HAS_GPT='yes'
 
 app_rows() {
     # $1 = has Claude, $2 = has ChatGPT. Prints "key:status" for the four rows
     # that the answer decides.
-    WANT_CLAUDE="$1"; WANT_GPT="$2"
+    TEST_HAS_CLAUDE="$1"; TEST_HAS_GPT="$2"
     app_installed() {
         case "$1" in
-            Claude)  [ "$WANT_CLAUDE" = 'yes' ] ;;
-            ChatGPT) [ "$WANT_GPT" = 'yes' ] ;;
+            Claude)  [ "$TEST_HAS_CLAUDE" = 'yes' ] ;;
+            ChatGPT) [ "$TEST_HAS_GPT" = 'yes' ] ;;
         esac
     }
-    claude_mcp_configured() { [ "$WANT_CLAUDE" = 'yes' ]; }
-    codex_mcp_configured() { [ "$WANT_GPT" = 'yes' ]; }
+    claude_mcp_configured() { [ "$TEST_HAS_CLAUDE" = 'yes' ]; }
+    codex_mcp_configured() { [ "$TEST_HAS_GPT" = 'yes' ]; }
     zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
     collect_checks >/dev/null 2>&1
     local entry out=''

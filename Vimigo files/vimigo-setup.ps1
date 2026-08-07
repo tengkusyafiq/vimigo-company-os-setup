@@ -956,6 +956,40 @@ function Test-NodeTooOld {
     return ($major -lt $script:NodeMinMajor)
 }
 
+function Get-NpxPath {
+    <#
+        The full path to npx.cmd, never the bare word.
+
+        Claude Desktop now ships as a packaged app, and a packaged app does not
+        inherit the user's PATH the way an ordinary process does. A config that
+        just says "npx" then produces an MCP server that never starts, and the
+        app shows Zo as installed but not connected - with no hint that the
+        cause is a path.
+
+        And on Windows the runnable one is npx.cmd. The extensionless "npx"
+        beside it is a shell script, which CreateProcess cannot launch at all,
+        so even a full PATH would not have saved the bare word.
+
+        This is the same fault that was fixed on macOS months ago and left
+        standing here, because Windows usually has a fuller PATH and it only
+        surfaced once the packaged Claude arrived.
+    #>
+    $found = Get-Command -Name 'npx.cmd' -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($found -and $found.Source) { return $found.Source }
+
+    # Beside whichever node is on the machine.
+    $node = Get-Command -Name 'node' -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($node -and $node.Source) {
+        $beside = Join-Path (Split-Path -Parent $node.Source) 'npx.cmd'
+        if (Test-Path -LiteralPath $beside) { return $beside }
+    }
+
+    # Nothing found. The bare word is what shipped before and is no worse.
+    return 'npx'
+}
+
 function Get-CommandVersion {
     param([string]$Command, [string[]]$VersionArgs)
 
@@ -1478,14 +1512,43 @@ function Get-AllChecks {
     $script:HasChatGpt = [bool](Test-ChatGptDesktopInstalled)
     $script:HasEitherApp = $script:HasClaude -or $script:HasChatGpt
 
+    # What the owner said wins over what happens to be lying on the machine.
+    #
+    # Guessing from what is installed is only ever a fallback: somebody who
+    # pays for ChatGPT and has an old Claude they never opened would otherwise
+    # be marched through setting Claude up. Asked once, remembered, and the
+    # unwanted one is never mentioned again.
+    $chosen = [string]((Get-Profile)['aiApps'])
+    switch ($chosen) {
+        'claude'  { $wantClaude = $true;  $wantChatGpt = $false }
+        'chatgpt' { $wantClaude = $false; $wantChatGpt = $true }
+        'both'    { $wantClaude = $true;  $wantChatGpt = $true }
+        default   {
+            if ($script:HasEitherApp) {
+                $wantClaude = $script:HasClaude; $wantChatGpt = $script:HasChatGpt
+            } else {
+                $wantClaude = $true; $wantChatGpt = $true
+            }
+        }
+    }
+    $script:WantClaudeApp = $wantClaude
+    $script:WantChatGptApp = $wantChatGpt
+    # "you chose" when they said so, "you have" when it was worked out. Being
+    # told a step is unnecessary "because you have ChatGPT" reads as a mistake
+    # to somebody who has just said they want Claude.
+    $because = if ($chosen) { 'you chose' } else { 'you have' }
+
     Write-Checking 'Claude Desktop'
     if (-not $script:HasClaude) {
-        if ($script:HasEitherApp) {
+        if (-not $wantClaude) {
             $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'skipped' `
-                -Detail 'not needed - you have ChatGPT'))
+                -Detail "not needed - $because ChatGPT"))
         } else {
             $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'missing' -Detail 'not installed'))
         }
+    } elseif (-not $wantClaude) {
+        $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'skipped' `
+            -Detail "not needed - $because ChatGPT"))
     } elseif (Test-ClaudeDesktopOpened) {
         $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'ok' -Detail 'installed'))
     } else {
@@ -1495,12 +1558,15 @@ function Get-AllChecks {
 
     Write-Checking 'ChatGPT Desktop'
     if (-not $script:HasChatGpt) {
-        if ($script:HasEitherApp) {
+        if (-not $wantChatGpt) {
             $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'skipped' `
-                -Detail 'not needed - you have Claude'))
+                -Detail "not needed - $because Claude"))
         } else {
             $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'missing' -Detail 'not installed'))
         }
+    } elseif (-not $wantChatGpt) {
+        $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'skipped' `
+            -Detail "not needed - $because Claude"))
     } elseif (Test-ChatGptSignedIn) {
         $checks.Add((New-Check -Key 'chatgpt-app' -Title 'ChatGPT Desktop' -Status 'ok' -Detail 'signed in'))
     } else {
@@ -1529,18 +1595,18 @@ function Get-AllChecks {
     Write-Checking 'the Zo connection inside each app'
     if (Test-ClaudeMcpConfigured) {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'ok' -Detail 'connected'))
-    } elseif (-not $script:HasClaude -and $script:HasEitherApp) {
+    } elseif (-not $wantClaude) {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'skipped' `
-            -Detail 'not needed - you have ChatGPT'))
+            -Detail "not needed - $because ChatGPT"))
     } else {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'missing' -Detail 'not connected'))
     }
 
     if (Test-CodexMcpConfigured) {
         $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'ok' -Detail 'connected'))
-    } elseif (-not $script:HasChatGpt -and $script:HasEitherApp) {
+    } elseif (-not $wantChatGpt) {
         $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'skipped' `
-            -Detail 'not needed - you have Claude'))
+            -Detail "not needed - $because Claude"))
     } else {
         $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'missing' -Detail 'not connected'))
     }
@@ -2175,12 +2241,16 @@ function Open-DesktopAppToSignIn {
     Write-NumberedStep 3 'Leave it open and come back here'
     Write-Host ''
 
-    if (Read-YesNo -Question "Open $Which now?" -YesLabel 'Open it' -NoLabel 'I will open it myself') {
-        if (Start-DesktopApp -Which $Which) {
-            Write-Good "$Which is opening."
-        } else {
-            Write-Info "Could not open it from here. Please open $Which from the Start menu."
-        }
+    # Opened, not offered.
+    #
+    # "Open Claude now? Y/N" is a question with one sensible answer, asked of
+    # somebody who just asked for Claude to be set up. Opening an app changes
+    # nothing and is instantly undone by closing it, so the setup does it and
+    # says so.
+    if (Start-DesktopApp -Which $Which) {
+        Write-Good "$Which is opening now."
+    } else {
+        Write-Info "Could not open it from here. Please open $Which yourself."
     }
     return $true
 }
@@ -2263,8 +2333,10 @@ function Set-ZoTokenInteractive {
 
     # Their own workspace once a key has ever worked on this computer; the
     # generic host only on a machine that has never seen one.
-    if (Read-YesNo -Question 'Open the Zo settings page now?') {
-        Start-Process (Get-ZoSettingsUrl -WorkspaceUrl $script:ZoWorkspaceUrl)
+    # Opened, not offered. The key can only be copied from that page, so
+    # asking whether to go there is a question with one sensible answer.
+    try { Start-Process (Get-ZoSettingsUrl -WorkspaceUrl $script:ZoWorkspaceUrl) } catch {
+        Write-Info 'Could not open your browser. The address is above.'
     }
 
     # Asked until it is right, or until they say stop. Everything below this
@@ -2392,7 +2464,7 @@ function Connect-ZoToClaude {
     }
 
     $entry = [pscustomobject]@{
-        command = 'npx'
+        command = (Get-NpxPath)
         args    = @(
             $script:McpRemotePackage
             $script:ZoMcpUrl
@@ -2546,7 +2618,15 @@ function Connect-ZoToChatGpt {
     $sectionHeader = "[mcp_servers.$script:ZoMcpEntryName]"
     $block = @(
         $sectionHeader
-        'command = "npx"'
+        # Backslashes doubled, because this goes into a TOML string. A Windows
+        # path written raw turns C:\Users\... into a string with a tab and a
+        # form feed in it, and Codex then fails to parse its own config.
+        #
+        # .Replace, not -replace: the regex form takes a pattern on one side and
+        # a replacement on the other with different escaping rules, and getting
+        # it wrong here produced four backslashes per separator - a path no
+        # parser would accept, in a file nobody reads by hand.
+        ('command = "{0}"' -f (Get-NpxPath).Replace('\', '\\'))
         ('args = ["{0}", "{1}", "--header", "Authorization: Bearer {2}"]' -f `
             $script:McpRemotePackage, $script:ZoMcpUrl, $token)
     ) -join "`n"
@@ -4511,8 +4591,9 @@ function Connect-ZoAiProvider {
     }
     Write-Host ''
 
-    if (Read-YesNo -Question 'Open that page in your browser now?') {
-        Start-Process $result.url
+    # Opened, not offered. The sign-in only happens on that page.
+    try { Start-Process $result.url } catch {
+        Write-Info 'Could not open your browser. The address is above.'
     }
 
     if ($result.needsCodeBack) {
@@ -4616,8 +4697,10 @@ function Open-ZoGoogle {
     Write-Info 'Anything you use every day is worth connecting.'
     Write-Host ''
 
-    if (Read-YesNo -Question 'Open Zo in your browser now?') {
-        Start-Process (Get-ZoIntegrationsUrl -WorkspaceUrl $script:ZoWorkspaceUrl)
+    # Opened, not offered. Same reasoning as the app above: this step cannot be
+    # done anywhere else, so the page is where they have to be.
+    try { Start-Process (Get-ZoIntegrationsUrl -WorkspaceUrl $script:ZoWorkspaceUrl) } catch {
+        Write-Info 'Could not open your browser. The address is above.'
     }
 
     Write-Host ''
@@ -4681,13 +4764,21 @@ function Invoke-Fix {
         'node'        { return (Install-ManagedTool -Tool ($script:ManagedTools | Where-Object Key -eq 'node')) }
         'git'         { return (Install-ManagedTool -Tool ($script:ManagedTools | Where-Object Key -eq 'git')) }
         'python'      { return (Install-ManagedTool -Tool ($script:ManagedTools | Where-Object Key -eq 'python')) }
+        # Installed is not signed in, and only signed in is any use: the Zo
+        # entry goes into a config the app writes for a logged-in user, so an
+        # app nobody has opened looks perfectly installed and has no Zo in it.
+        # So a fresh install is followed straight away by opening it.
         'claude-app'  {
-            if (Test-ClaudeDesktopInstalled) { return (Open-DesktopAppToSignIn -Which 'Claude') }
-            return (Install-ClaudeDesktop)
+            if (-not (Test-ClaudeDesktopInstalled)) {
+                if (-not (Install-ClaudeDesktop)) { return $false }
+            }
+            return (Open-DesktopAppToSignIn -Which 'Claude')
         }
         'chatgpt-app' {
-            if (Test-ChatGptDesktopInstalled) { return (Open-DesktopAppToSignIn -Which 'ChatGPT') }
-            return (Install-ChatGptDesktop)
+            if (-not (Test-ChatGptDesktopInstalled)) {
+                if (-not (Install-ChatGptDesktop)) { return $false }
+            }
+            return (Open-DesktopAppToSignIn -Which 'ChatGPT')
         }
         'claude-hcs'  { return (Repair-HcsServices) }
         'local-whatsapp' { return (Show-LocalWhatsAppInstall) }
@@ -4719,6 +4810,7 @@ function Invoke-Fix {
 # the next one while they are still doing it is how a setup ends up reporting
 # that nothing worked.
 $script:OwnerCompletes = @(
+    'claude-app', 'chatgpt-app',
     'claude-mcp', 'chatgpt-mcp',
     'zo-claude-code', 'zo-codex',
     'zo-google'
@@ -4740,6 +4832,10 @@ function Test-CheckNow {
     switch ($Key) {
         'claude-mcp'  { $result.Done = (Test-ClaudeMcpConfigured); return $result }
         'chatgpt-mcp' { $result.Done = (Test-CodexMcpConfigured); return $result }
+        # Signed in, not merely installed. Both are answered on this computer,
+        # so neither needs Zo and neither should fall through to the ask below.
+        'claude-app'  { $result.Done = ((Test-ClaudeDesktopInstalled) -and (Test-ClaudeDesktopOpened)); return $result }
+        'chatgpt-app' { $result.Done = ((Test-ChatGptDesktopInstalled) -and (Test-ChatGptSignedIn)); return $result }
     }
 
     $zo = Get-ZoVerification -Token (Get-ZoToken)
@@ -5235,6 +5331,48 @@ function Install-ZoScriptsOnce {
     $null = Invoke-ZoHelper -Arguments @('--install-zo-scripts') -Waiting 'updating your Zo...'
 }
 
+function Read-AiAppChoice {
+    <#
+        Which AI app the owner wants, asked once and remembered.
+
+        Asked rather than inferred because inference gets it wrong in the case
+        that matters: somebody who pays for ChatGPT, with an old Claude on the
+        machine they have never opened, would be walked through setting Claude
+        up and signing into it. One of the two is enough, and they know which.
+    #>
+    $stored = [string]((Get-Profile)['aiApps'])
+    if ($stored) { return $stored }
+
+    Write-Title 'Claude or ChatGPT'
+    Write-Info 'Your Zo works with both, and you only need one.'
+    Write-Info 'Pick the one you already pay for, if you pay for either.'
+    Write-Host ''
+    Write-NumberedStep 1 'Claude    -' 'from Anthropic'
+    Write-NumberedStep 2 'ChatGPT   -' 'from OpenAI'
+    Write-NumberedStep 3 'Both      -' 'set up both, if you use both'
+    Write-Host ''
+    Write-Host '        Enter  both, if you are not sure' -ForegroundColor $script:Ink.Muted
+    Write-Host ''
+    Write-Brand -Text '      Choose 1, 2 or 3, or Enter > ' -Colour Purple -NoNewline
+    $answer = ([string](Read-Host)).Trim()
+
+    # Anything unrecognised means both, which is what this did before anybody
+    # was asked. A wrong keypress must never quietly drop an app they wanted.
+    $choice = switch ($answer) {
+        '1'     { 'claude' }
+        '2'     { 'chatgpt' }
+        default { 'both' }
+    }
+    Set-ProfileValue -Name 'aiApps' -Value $choice
+    Write-Host ''
+    switch ($choice) {
+        'claude'  { Write-Good 'Claude it is. ChatGPT will be left alone.' }
+        'chatgpt' { Write-Good 'ChatGPT it is. Claude will be left alone.' }
+        default   { Write-Good 'Both, then.' }
+    }
+    return $choice
+}
+
 function Invoke-FixEverything {
     <#
         Works through everything outstanding in one pass, numbering the steps so
@@ -5258,6 +5396,14 @@ function Invoke-FixEverything {
     # steps below read their answer from a script that lives on the Zo, and
     # until this ran they were reading nothing.
     if (Test-ZoTokenShape -Token (Get-ZoToken)) { Install-ZoScriptsOnce }
+
+    # Asked before the first app step, not on the opening screen: the very
+    # first thing an owner sees should be what they already have, not a
+    # question. Skipped entirely once answered.
+    $appKeys = @('claude-app', 'chatgpt-app', 'claude-mcp', 'chatgpt-mcp')
+    if (@($outstanding | Where-Object { $appKeys -contains $_.Key }).Count -gt 0) {
+        $null = Read-AiAppChoice
+    }
 
     $unfinished = New-Object System.Collections.Generic.List[object]
     $total = $outstanding.Count

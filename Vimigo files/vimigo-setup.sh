@@ -808,20 +808,44 @@ collect_checks() {
         HAS_EITHER_APP='yes'
     fi
 
+    # What the owner said wins over what happens to be lying on the machine.
+    #
+    # Guessing from what is installed is only ever a fallback: somebody who
+    # pays for ChatGPT and has an old Claude they never opened would otherwise
+    # be marched through setting Claude up. Asked once, remembered, and the
+    # unwanted one is never mentioned again.
+    local chosen because
+    chosen="$(profile_get aiApps)"
+    case "$chosen" in
+        claude)  WANT_CLAUDE='yes'; WANT_CHATGPT='no' ;;
+        chatgpt) WANT_CLAUDE='no';  WANT_CHATGPT='yes' ;;
+        both)    WANT_CLAUDE='yes'; WANT_CHATGPT='yes' ;;
+        *)
+            if [ "$HAS_EITHER_APP" = 'yes' ]; then
+                WANT_CLAUDE="$HAS_CLAUDE"; WANT_CHATGPT="$HAS_CHATGPT"
+            else
+                WANT_CLAUDE='yes'; WANT_CHATGPT='yes'
+            fi ;;
+    esac
+    # "you chose" when they said so, "you have" when it was worked out. Being
+    # told a step is unnecessary "because you have ChatGPT" reads as a mistake
+    # to somebody who has just said they want Claude.
+    if [ -n "$chosen" ]; then because='you chose'; else because='you have'; fi
+
     checking 'Claude Desktop'
-    if [ "$HAS_CLAUDE" = 'yes' ]; then
+    if [ "$WANT_CLAUDE" = 'no' ]; then
+        CHECKS+=("claude-app|Claude Desktop|skipped|not needed - $because ChatGPT|")
+    elif [ "$HAS_CLAUDE" = 'yes' ]; then
         CHECKS+=("claude-app|Claude Desktop|ok|installed|")
-    elif [ "$HAS_EITHER_APP" = 'yes' ]; then
-        CHECKS+=("claude-app|Claude Desktop|skipped|not needed - you have ChatGPT|")
     else
         CHECKS+=("claude-app|Claude Desktop|missing|not installed|")
     fi
 
     checking 'ChatGPT Desktop'
-    if [ "$HAS_CHATGPT" = 'yes' ]; then
+    if [ "$WANT_CHATGPT" = 'no' ]; then
+        CHECKS+=("chatgpt-app|ChatGPT Desktop|skipped|not needed - $because Claude|")
+    elif [ "$HAS_CHATGPT" = 'yes' ]; then
         CHECKS+=("chatgpt-app|ChatGPT Desktop|ok|installed|")
-    elif [ "$HAS_EITHER_APP" = 'yes' ]; then
-        CHECKS+=("chatgpt-app|ChatGPT Desktop|skipped|not needed - you have Claude|")
     else
         CHECKS+=("chatgpt-app|ChatGPT Desktop|missing|not installed|")
     fi
@@ -837,16 +861,16 @@ collect_checks() {
     checking 'the Zo connection inside each app'
     if claude_mcp_configured; then
         CHECKS+=("claude-mcp|Zo inside Claude Desktop|ok|connected|")
-    elif [ "$HAS_CLAUDE" = 'no' ] && [ "$HAS_EITHER_APP" = 'yes' ]; then
-        CHECKS+=("claude-mcp|Zo inside Claude Desktop|skipped|not needed - you have ChatGPT|")
+    elif [ "$WANT_CLAUDE" = 'no' ]; then
+        CHECKS+=("claude-mcp|Zo inside Claude Desktop|skipped|not needed - $because ChatGPT|")
     else
         CHECKS+=("claude-mcp|Zo inside Claude Desktop|missing|not connected|")
     fi
 
     if codex_mcp_configured; then
         CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|ok|connected|")
-    elif [ "$HAS_CHATGPT" = 'no' ] && [ "$HAS_EITHER_APP" = 'yes' ]; then
-        CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|skipped|not needed - you have Claude|")
+    elif [ "$WANT_CHATGPT" = 'no' ]; then
+        CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|skipped|not needed - $because Claude|")
     else
         CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|missing|not connected|")
     fi
@@ -1448,6 +1472,30 @@ install_brew_formula() {
     return 1
 }
 
+open_app_to_sign_in() {
+    # $1 = the .app name. Opens an app so the owner can do the one thing nobody
+    # else can: signing in is a password and often a second factor.
+    local appname="$1"
+
+    title "Signing in to $appname"
+    info "$appname is installed, but nobody has signed in on this Mac yet."
+    info 'Until you do, it cannot reach your Zo.'
+    printf '\n'
+    numbered 1 "Sign in with your" "$appname account"
+    numbered 2 'Leave it open and come back here' ''
+    printf '\n'
+
+    # Opened, not offered. "Open Claude now? Y/N" is a question with one
+    # sensible answer, asked of somebody who just asked for Claude to be set
+    # up. Opening an app changes nothing and closing it undoes it.
+    if open -a "$appname" 2>/dev/null; then
+        good "$appname is opening now."
+    else
+        info "Could not open it from here. Please open $appname yourself."
+    fi
+    return 0
+}
+
 install_desktop_app() {
     # $1 = cask, $2 = .app name, $3 = friendly title, $4 = download page
     local cask="$1" appname="$2" friendly="$3" download="$4"
@@ -1532,9 +1580,9 @@ set_zo_token_interactive() {
     numbered 4 'Click Add, then copy the key it shows you'
     printf '\n'
 
-    if ask_yes_no 'Open the Zo settings page now?'; then
-        open "$(zo_settings_url)"
-    fi
+    # Opened, not offered. The key can only be copied from that page.
+    open "$(zo_settings_url)" 2>/dev/null ||
+        info 'Could not open your browser. The address is above.'
 
     printf '\n'
     info 'Paste the key below. It will not appear on screen as you type.'
@@ -1722,6 +1770,8 @@ zo_helper() {
 
 ZO_HELPER_REASON=''
 ZO_SCRIPTS_PUSHED='no'
+WANT_CLAUDE='yes'
+WANT_CHATGPT='yes'
 
 ensure_zo_scripts() {
     # Puts this setup's own scripts on the owner's Zo. Once per run, because
@@ -3744,9 +3794,10 @@ open_zo_google() {
     info 'Anything you use every day is worth connecting.'
     printf '\n'
 
-    if ask_yes_no 'Open Zo in your browser now?'; then
-        open "$(zo_integrations_url)"
-    fi
+    # Opened, not offered. This step cannot be done anywhere but that page, so
+    # asking whether to go there is a question with one sensible answer.
+    open "$(zo_integrations_url)" 2>/dev/null ||
+        info 'Could not open your browser. The address is above.'
 
     printf '\n'
     # Nothing is recorded on the owner's say-so. The next check asks Zo itself,
@@ -3792,8 +3843,16 @@ fix_one() {
                 warn 'Trying the longer way instead.'
                 install_brew_formula python@3.13 "Python" python3 --version
             fi ;;
-        claude-app)  install_desktop_app claude "Claude" "Claude Desktop" "$CLAUDE_DOWNLOAD_URL" ;;
-        chatgpt-app) install_desktop_app chatgpt "ChatGPT" "ChatGPT Desktop" "$CHATGPT_DOWNLOAD_URL" ;;
+        # Installed is not signed in, and only signed in is any use: the Zo
+        # entry goes into a config the app writes for a logged-in user, so an
+        # app nobody has opened looks perfectly installed and has no Zo in it.
+        # So the install is followed straight away by opening it.
+        claude-app)
+            install_desktop_app claude "Claude" "Claude Desktop" "$CLAUDE_DOWNLOAD_URL" || return 1
+            open_app_to_sign_in "Claude" ;;
+        chatgpt-app)
+            install_desktop_app chatgpt "ChatGPT" "ChatGPT Desktop" "$CHATGPT_DOWNLOAD_URL" || return 1
+            open_app_to_sign_in "ChatGPT" ;;
         zo-token)    set_zo_token_interactive ;;
         claude-mcp)  connect_zo_to_claude ;;
         chatgpt-mcp) connect_zo_to_chatgpt ;;
@@ -3823,7 +3882,7 @@ UNFINISHED=""
 # sign in on a website, or type a code into their phone. Running straight on to
 # the next one while they are still doing it is how a setup ends up reporting
 # that nothing worked.
-OWNER_COMPLETES="claude-mcp chatgpt-mcp zo-claude-code zo-codex zo-google"
+OWNER_COMPLETES="claude-app chatgpt-app claude-mcp chatgpt-mcp zo-claude-code zo-codex zo-google"
 
 # The steps that cannot do anything without the owner's Zo key. Kept in step
 # with the Windows list of the same name.
@@ -3836,6 +3895,10 @@ check_now() {
     case "$1" in
         claude-mcp)  claude_mcp_configured && printf 'true' || printf 'false'; return 0 ;;
         chatgpt-mcp) codex_mcp_configured  && printf 'true' || printf 'false'; return 0 ;;
+        # Answered on this Mac, so neither needs Zo and neither should fall
+        # through to the ask below.
+        claude-app)  app_installed "Claude"  && printf 'true' || printf 'false'; return 0 ;;
+        chatgpt-app) app_installed "ChatGPT" && printf 'true' || printf 'false'; return 0 ;;
     esac
 
     zo_verify "$(get_zo_token)"
@@ -3928,11 +3991,64 @@ EOF
     done
 }
 
+read_ai_app_choice() {
+    # Which AI app the owner wants, asked once and remembered.
+    #
+    # Asked rather than inferred because inference gets it wrong in the case
+    # that matters: somebody who pays for ChatGPT, with an old Claude on the
+    # Mac they have never opened, would be walked through setting Claude up and
+    # signing into it. One of the two is enough, and they know which.
+    local stored; stored="$(profile_get aiApps)"
+    [ -n "$stored" ] && { printf '%s' "$stored"; return 0; }
+
+    title 'Claude or ChatGPT'
+    info 'Your Zo works with both, and you only need one.'
+    info 'Pick the one you already pay for, if you pay for either.'
+    printf '\n'
+    numbered 1 'Claude    -' 'from Anthropic'
+    numbered 2 'ChatGPT   -' 'from OpenAI'
+    numbered 3 'Both      -' 'set up both, if you use both'
+    printf '\n'
+    printf '        %sEnter  both, if you are not sure%s\n\n' "$C_GREY" "$C_RESET"
+    printf '      %sChoose 1, 2 or 3, or Enter > %s' "$C_PURPLE" "$C_RESET"
+
+    local answer choice
+    read -r answer || answer=''
+    answer="$(printf '%s' "$answer" | tr -cd '0-9')"
+    # Anything unrecognised means both, which is what this did before anybody
+    # was asked. A wrong keypress must never quietly drop an app they wanted.
+    case "$answer" in
+        1) choice='claude' ;;
+        2) choice='chatgpt' ;;
+        *) choice='both' ;;
+    esac
+    profile_set aiApps "$choice"
+    printf '\n'
+    case "$choice" in
+        claude)  good 'Claude it is. ChatGPT will be left alone.' ;;
+        chatgpt) good 'ChatGPT it is. Claude will be left alone.' ;;
+        *)       good 'Both, then.' ;;
+    esac
+    printf '%s' "$choice"
+}
+
 fix_everything() {
     # Before anything else, and only when there is a key to do it with. Several
     # steps below read their answer from a script that lives on the Zo, and
     # until this ran they were reading nothing.
     if token_looks_valid "$(get_zo_token)"; then ensure_zo_scripts; fi
+
+    # Asked before the first app step, not on the opening screen: the very
+    # first thing an owner sees should be what they already have, not a
+    # question. Skipped entirely once answered.
+    local entry key
+    for entry in "${CHECKS[@]}"; do
+        key="${entry%%|*}"
+        case "$key" in claude-app|chatgpt-app|claude-mcp|chatgpt-mcp) ;; *) continue ;; esac
+        case "$(printf '%s' "$entry" | cut -d'|' -f3)" in ok|skipped) continue ;; esac
+        read_ai_app_choice >/dev/null
+        break
+    done
 
     UNFINISHED=""
     local total=0 number=0 announced_no_key=no

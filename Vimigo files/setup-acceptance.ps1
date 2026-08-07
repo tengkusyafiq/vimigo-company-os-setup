@@ -73,7 +73,13 @@ try {
     Assert-True ($after.mcpServers.PSObject.Properties.Name -contains 'somebody-elses-server') `
         "the owner's other MCP server survived"
     Assert-True ($after.someUnrelatedSetting -eq 42) 'an unrelated setting survived'
-    Assert-True ($after.mcpServers.zo.command -eq 'npx') 'the entry launches npx'
+    # The bare word, or a full path ending in npx.cmd. Asserting the bare word
+    # is what this used to do, and it would have passed for ever while a
+    # packaged Claude Desktop - which does not inherit the user's PATH - failed
+    # to launch the server at all and showed Zo as "installed, not connected".
+    Assert-True (($after.mcpServers.zo.command -eq 'npx') -or
+                 ($after.mcpServers.zo.command -match 'npx\.cmd$')) `
+        'the entry launches npx, by a path a packaged Claude can actually find'
     Assert-True ($after.mcpServers.zo.args -contains 'https://api.zo.computer/mcp') `
         'the entry points at the Zo endpoint'
 
@@ -110,7 +116,18 @@ enabled = true
     Assert-True ($toml -match 'model = "gpt-5\.6-sol"') 'the existing model setting survived'
     Assert-True ($toml -match [regex]::Escape('[plugins."github@openai-curated"]')) `
         "the owner's existing plugin section survived"
-    Assert-True ($toml -match 'command = "npx"') 'the entry launches npx'
+    Assert-True ($toml -match 'command = "([^"]*)?npx(\.cmd)?"') `
+        'the entry launches npx, by a path ChatGPT can actually find'
+
+    # The path has to survive TOML, and "matches npx" does not prove that. A
+    # Windows path needs each separator doubled: written raw, \U and \n become
+    # escape sequences and Codex cannot parse its own config; doubled twice by
+    # mistake, the path points nowhere. So the value is unescaped and checked
+    # against the real one.
+    $tomlCommand = ([regex]::Match($toml, '(?m)^command = "([^"]*)"')).Groups[1].Value
+    Assert-True ($tomlCommand -notmatch '\\\\\\\\') 'the path is not over-escaped'
+    Assert-True ($tomlCommand.Replace('\\', '\') -eq (Get-NpxPath)) `
+        'and unescapes back to exactly the npx this machine has'
 
     $null = Connect-ZoToChatGpt 6>$null
     $tomlTwice = Get-Content -LiteralPath $script:CodexConfigPath -Raw
@@ -120,7 +137,7 @@ enabled = true
     # The header count alone is not enough: dropping the header but leaving its
     # body would orphan `command = "npx"` into whichever section came before,
     # silently corrupting a setting the owner never touched.
-    $bodyCount = ([regex]::Matches($tomlTwice, '(?m)^\s*command = "npx"')).Count
+    $bodyCount = ([regex]::Matches($tomlTwice, '(?m)^\s*command = "[^"]*npx(\.cmd)?"')).Count
     Assert-True ($bodyCount -eq 1) 'a second run leaves no orphaned settings behind'
     Assert-True ($tomlTwice -match 'model = "gpt-5\.6-sol"') 'a second run keeps the model setting'
 
@@ -154,7 +171,9 @@ enabled = true
     Assert-True (Test-ClaudeMcpConfigured) 'and reports connected afterwards'
 
     $fresh = Get-Content -LiteralPath $script:ClaudeConfigPath -Raw | ConvertFrom-Json
-    Assert-True ($fresh.mcpServers.zo.command -eq 'npx') 'the entry it created is the right shape'
+    Assert-True (($fresh.mcpServers.zo.command -eq 'npx') -or
+                 ($fresh.mcpServers.zo.command -match 'npx\.cmd$')) `
+        'the entry it created is the right shape'
 
     # Same again for a file that exists but holds nothing but an empty object.
     '{}' | Set-Content -LiteralPath $script:ClaudeConfigPath -Encoding UTF8
