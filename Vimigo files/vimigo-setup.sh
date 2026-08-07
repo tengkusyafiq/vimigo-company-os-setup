@@ -2324,10 +2324,23 @@ set_talk_to_zo_telegram() {
     printf '\n'
     info 'Setting this up for you. One moment.'
 
-    local before linked_before link
-    before="$(zo_helper --telegram-status)"
-    linked_before="$(json_field "$before" 'data.linked || 0')"
-    [ -n "$linked_before" ] || linked_before=0
+    # "Is a phone connected?", not "has a new one arrived since I looked?".
+    #
+    # The old question compared a count before and after, which stuck fast for
+    # anybody who already had Telegram connected: their number never went up, so
+    # a setup that was finished before it started waited twelve minutes and then
+    # gave up. Asking whether the step is done answers every case - nobody
+    # connected yet, somebody connected already, or the same phone paired twice.
+    local state linked link
+    state="$(zo_helper --telegram-status)"
+    linked="$(json_field "$state" 'data.linked || 0')"
+    if [ "${linked:-0}" -gt 0 ] 2>/dev/null; then
+        profile_set talkChannel 'telegram'
+        printf '\n'
+        good 'Telegram is already connected. Message your assistant there any time.'
+        info 'To use a different phone instead, change it on the Zo website.'
+        return 0
+    fi
 
     link="$(zo_helper --telegram)"
     case "$link" in
@@ -2343,8 +2356,12 @@ set_talk_to_zo_telegram() {
         return 1
     }
 
+    # Remembered only once it has actually worked. The channel used to be
+    # written before the wait, so an owner who walked away from the QR came back
+    # to a checklist claiming their assistant was set up on Telegram - the row
+    # reads the remembered channel, not the link.
+    wait_for_telegram_pairing "$link" || return 1
     profile_set talkChannel 'telegram'
-    wait_for_telegram_pairing "$link" "$linked_before"
 }
 
 show_telegram_invite() {
@@ -2386,7 +2403,7 @@ wait_for_telegram_pairing() {
     # it is counted down, a fresh one is fetched when it runs out, and Zo is
     # asked whether the phone has actually appeared rather than the owner being
     # asked whether it worked.
-    local link="$1" linked_before="$2"
+    local link="$1"
     local started issued last_asked now remaining state linked again
 
     started="$(date +%s)"; issued="$started"; last_asked="$started"
@@ -2424,10 +2441,13 @@ wait_for_telegram_pairing() {
         if [ $((now - last_asked)) -lt 15 ]; then continue; fi
         last_asked="$now"
 
+        # Connected at all, not connected more than before. See the note in
+        # set_talk_to_zo_telegram: the same phone pairing twice adds no account,
+        # and counting made that look like nothing had happened.
         state="$(zo_helper --telegram-status)"
         linked="$(json_field "$state" 'data.linked || 0')"
         [ -n "$linked" ] || linked=0
-        if [ "$linked" -gt "$linked_before" ] 2>/dev/null; then
+        if [ "$linked" -gt 0 ] 2>/dev/null; then
             clear_wait_line
             good 'Telegram is connected. Message your assistant there any time.'
             return 0

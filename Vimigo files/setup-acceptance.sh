@@ -234,6 +234,41 @@ assert $? 'the AI Personal Assistant survives both switches being off'
 case "$(zo_rows off off nokey)" in *talk-to-zo*) true ;; *) false ;; esac
 assert $? 'and survives with no key either'
 
+printf '\n\033[36mTelegram: is a phone connected\033[0m\n'
+
+# The question used to be answered by counting entries in a file on Zo's disk.
+# That file is not written when a phone pairs through Zo's hosted bot - it was a
+# month stale on the Zo that found this - so the count never moved and the setup
+# waited for ever on a link that had already worked. The answer now comes from
+# the only place Zo states it: the reply to a message it cannot route.
+#
+# It reads prose, so it is tested like prose: on the exact wording seen live, on
+# the shapes a reworded Zo might send, and on the ones that must never be read
+# as a connected phone.
+tg_accounts() {
+    "$(node_bin)" -e '
+        const { readConnectedTelegram } = require(process.argv[1]);
+        process.stdout.write(JSON.stringify(readConnectedTelegram(process.argv[2])));
+    ' "$SCRIPT_DIR/zo-verify.js" "$1"
+}
+
+LIVE_WORDING="Error: Failed to send Telegram message: ValueError: No Telegram binding found for recipient 'vimigo-setup-status-probe'. Connected accounts: heartsmith. Do not retry — inform the user that delivery failed."
+
+[ "$(tg_accounts "$LIVE_WORDING")" = '["heartsmith"]' ]
+assert $? 'the wording Zo actually sends names the connected phone'
+[ "$(tg_accounts 'Connected accounts: alice, bob, carol.')" = '["alice","bob","carol"]' ]
+assert $? 'several phones are all read, and trimmed'
+[ "$(tg_accounts 'Connected accounts: none.')" = '[]' ]
+assert $? '"none" is not a phone'
+[ "$(tg_accounts 'Connected accounts: .')" = '[]' ]
+assert $? 'and neither is an empty list'
+[ "$(tg_accounts 'Telegram message sent successfully')" = '[]' ]
+assert $? 'a send that worked is not proof on its own'
+[ "$(tg_accounts '')" = '[]' ]
+assert $? 'nothing back is not proof either'
+[ "$(tg_accounts 'connected accounts: Heartsmith.')" = '["Heartsmith"]' ]
+assert $? 'the wording is matched whatever its case'
+
 printf '\n\033[36mNo step goes missing from the run\033[0m\n'
 
 # "Step 3 of 7" is worked out from what is still outstanding, so a switched-off

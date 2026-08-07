@@ -1480,18 +1480,33 @@ async function main() {
     return;
   }
 
-  // How many Telegram accounts are linked, so the setup can tell when one more
-  // has arrived rather than asking the owner whether it worked.
+  // Which Telegram accounts are linked, so the setup can tell when the phone
+  // has actually appeared rather than asking the owner whether it worked.
+  //
+  // This used to count the entries in /root/.hermes/channel_directory.json.
+  // That is the local gateway's own directory and it is NOT written when a
+  // phone pairs through Zo's hosted @zo_computer_bot: on the Zo this was found
+  // on it was a month stale and already held one entry, so the count never
+  // moved. Tengku linked his phone, watched it work, and the setup sat there
+  // counting to one for ever.
+  //
+  // Zo has no "list my channels" tool. It does name them when a message cannot
+  // be routed, so the question is asked that way: a recipient that cannot
+  // exist delivers nothing to anybody and comes back with the authoritative
+  // list. The name below contains hyphens, which a Telegram username may never
+  // contain, so there is no account it could ever reach by accident.
   if (rest.includes('--telegram-status')) {
-    const text = await runOnZo(
-      `cat /root/.hermes/channel_directory.json 2>/dev/null || echo '{}'`,
-      'Check linked Telegram accounts', session, token).catch(() => '{}');
-    let linked = 0;
-    try {
-      const parsed = JSON.parse((/\{[\s\S]*\}/.exec(text) || ['{}'])[0]);
-      linked = (parsed.platforms?.telegram || []).length;
-    } catch { }
-    process.stdout.write(JSON.stringify({ ok: true, linked }) + '\n');
+    const probe = await rpc('tools/call', {
+      name: 'send_telegram_message',
+      arguments: { message: '.', recipient: 'vimigo-setup-status-probe' },
+    }, session, token).catch(() => null);
+
+    const content = probe?.json?.result?.content;
+    const text = Array.isArray(content) ? content.map((p) => p.text || '').join('\n') : '';
+    const accounts = readConnectedTelegram(text);
+
+    process.stdout.write(JSON.stringify(
+      { ok: true, linked: accounts.length, accounts }) + '\n');
     return;
   }
 
@@ -1623,10 +1638,28 @@ async function main() {
       secondBrain, employees: hiredEmployees }) + '\n');
 }
 
+// Which Telegram accounts Zo named, read out of the reply to a send it could
+// not route.
+//
+// Its own function because it reads prose rather than a field, and prose can be
+// reworded upstream without anybody here noticing. A wrong answer here is not a
+// wrong number on a screen - it is a setup that sits waiting for a phone that
+// connected ten minutes ago, which is exactly what the count it replaced did.
+// Kept where the acceptance suites can call it directly.
+function readConnectedTelegram(text) {
+  // Read off the error, and only off the error. Treating a successful send as
+  // proof would mean a Zo that stopped rejecting unknown recipients quietly
+  // reported every owner as connected.
+  const named = (/Connected accounts:\s*([^.\n]*)/i.exec(String(text || '')) || [])[1] || '';
+  return named.split(',')
+    .map((one) => one.trim())
+    .filter((one) => one && !/^(none|no accounts?)$/i.test(one));
+}
+
 // Run normally, but importable so the model choice can be tested without a
 // network or a Zo.
 if (require.main === module) {
   main().catch((error) => fail('unexpected', error.message));
 } else {
-  module.exports = { chooseOwnPlanModel };
+  module.exports = { chooseOwnPlanModel, readConnectedTelegram };
 }

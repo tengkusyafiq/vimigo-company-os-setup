@@ -605,6 +605,59 @@ try {
         'and survives with no key either'
 
     Write-Host ''
+    Write-Host 'Telegram: is a phone connected' -ForegroundColor Cyan
+
+    # The question used to be answered by counting entries in a file on Zo's
+    # disk. That file is not written when a phone pairs through Zo's hosted bot
+    # - it was a month stale on the Zo that found this - so the count never
+    # moved and the setup waited for ever on a link that had already worked. The
+    # answer now comes from the only place Zo states it: the reply to a message
+    # it cannot route.
+    #
+    # It reads prose, so it is tested like prose: on the exact wording seen
+    # live, on the shapes a reworded Zo might send, and on the ones that must
+    # never be read as a connected phone.
+    $verifyPath = (Join-Path $PSScriptRoot 'zo-verify.js') -replace '\\', '/'
+    function Get-TelegramAccounts {
+        param([string]$Text)
+        # The sample goes through a file, never on the command line. PowerShell
+        # 5.1 does not escape quotes in native arguments, and these samples are
+        # nothing but quotes and apostrophes - the same trap that once silenced
+        # forty of these checks without a word.
+        $textFile = Join-Path $sandbox ('tg-' + [guid]::NewGuid().ToString('N') + '.txt')
+        Set-Content -LiteralPath $textFile -Value $Text -Encoding UTF8 -NoNewline
+        $reader = "const t = require('fs').readFileSync(process.argv[1], 'utf8');" +
+            "const { readConnectedTelegram } = require('$verifyPath');" +
+            "process.stdout.write(JSON.stringify(readConnectedTelegram(t)));"
+        return (& node -e $reader $textFile)
+    }
+
+    $liveWording = "Error: Failed to send Telegram message: ValueError: No Telegram binding found for recipient 'vimigo-setup-status-probe'. Connected accounts: heartsmith. Do not retry - inform the user that delivery failed."
+
+    Assert-True ((Get-TelegramAccounts $liveWording) -eq '["heartsmith"]') `
+        'the wording Zo actually sends names the connected phone'
+    Assert-True ((Get-TelegramAccounts 'Connected accounts: alice, bob, carol.') -eq '["alice","bob","carol"]') `
+        'several phones are all read, and trimmed'
+    Assert-True ((Get-TelegramAccounts 'Connected accounts: none.') -eq '[]') `
+        '"none" is not a phone'
+    Assert-True ((Get-TelegramAccounts 'Connected accounts: .') -eq '[]') `
+        'and neither is an empty list'
+    Assert-True ((Get-TelegramAccounts 'Telegram message sent successfully') -eq '[]') `
+        'a send that worked is not proof on its own'
+    Assert-True ((Get-TelegramAccounts '') -eq '[]') `
+        'nothing back is not proof either'
+    Assert-True ((Get-TelegramAccounts 'connected accounts: Heartsmith.') -eq '["Heartsmith"]') `
+        'the wording is matched whatever its case'
+
+    # The wait asks whether a phone is connected, never whether more are
+    # connected than before. Checked by parsing, because the loop it lives in
+    # cannot be entered without a QR on screen and twelve minutes to spare.
+    Assert-True ($setupText -match '\$state\.linked -gt 0') `
+        'the wait asks whether a phone is connected at all'
+    Assert-True ($setupText -notmatch 'linked -gt \$LinkedBefore') `
+        'and never compares against a count taken beforehand'
+
+    Write-Host ''
     Write-Host 'No step goes missing from the run' -ForegroundColor Cyan
 
     # "Step 3 of 7" is worked out from what is still outstanding, so a

@@ -3667,8 +3667,21 @@ function Set-TalkToZoTelegram {
     Write-Host ''
     Write-Info 'Setting this up for you. One moment.'
 
-    $before = Invoke-ZoHelper -Arguments @('--telegram-status') -Waiting 'asking Zo...'
-    $linkedBefore = if ($before -and $before.ok) { [int]$before.linked } else { 0 }
+    # "Is a phone connected?", not "has a new one arrived since I looked?".
+    #
+    # The old question compared a count before and after, which stuck fast for
+    # anybody who already had Telegram connected: their number never went up,
+    # so a setup that was finished before it started waited twelve minutes and
+    # then gave up. Asking whether the step is done answers every case - nobody
+    # connected yet, somebody connected already, or the same phone paired twice.
+    $state = Invoke-ZoHelper -Arguments @('--telegram-status') -Waiting 'asking Zo...'
+    if ($state -and $state.ok -and [int]$state.linked -gt 0) {
+        Set-ProfileValue -Name 'talkChannel' -Value 'telegram'
+        Write-Host ''
+        Write-Good 'Telegram is already connected. Message your assistant there any time.'
+        Write-Info 'To use a different phone instead, change it on the Zo website.'
+        return $true
+    }
 
     $link = Invoke-ZoHelper -Arguments @('--telegram') -Waiting 'making your Telegram link...'
     if (-not $link -or -not $link.ok -or -not $link.url) {
@@ -3677,8 +3690,13 @@ function Set-TalkToZoTelegram {
         return $false
     }
 
+    # Remembered only once it has actually worked. The channel used to be
+    # written before the wait, so an owner who walked away from the QR came back
+    # to a checklist claiming their assistant was set up on Telegram - the row
+    # reads the remembered channel, not the link.
+    if (-not (Wait-ForTelegramPairing -Link $link)) { return $false }
     Set-ProfileValue -Name 'talkChannel' -Value 'telegram'
-    return (Wait-ForTelegramPairing -Link $link -LinkedBefore $linkedBefore)
+    return $true
 }
 
 function Show-TelegramInvite {
@@ -3709,7 +3727,7 @@ function Wait-ForTelegramPairing {
         is asked whether the phone has actually appeared rather than the owner
         being asked whether it worked.
     #>
-    param([object]$Link, [int]$LinkedBefore)
+    param([object]$Link)
 
     $inviteLifetime = [TimeSpan]::FromMinutes(3)
     $overallLimit = [TimeSpan]::FromMinutes(12)
@@ -3752,8 +3770,11 @@ function Wait-ForTelegramPairing {
         if (((Get-Date) - $lastAsked).TotalSeconds -lt 15) { continue }
         $lastAsked = Get-Date
 
+        # Connected at all, not connected more than before. See the note in
+        # Set-TalkToZoTelegram: the same phone pairing twice adds no account,
+        # and counting made that look like nothing had happened.
         $state = Invoke-ZoHelper -Arguments @('--telegram-status') -Waiting 'checking your phone...'
-        if ($state -and $state.ok -and [int]$state.linked -gt $LinkedBefore) {
+        if ($state -and $state.ok -and [int]$state.linked -gt 0) {
             Write-Host ("`r" + (' ' * 70) + "`r") -NoNewline
             Write-Good 'Telegram is connected. Message your assistant there any time.'
             return $true
