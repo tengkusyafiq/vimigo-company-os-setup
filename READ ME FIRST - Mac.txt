@@ -6,25 +6,53 @@ This sets up your computer to work with your Zo, Claude and ChatGPT.
 You do not need to know anything technical.
 
 
-HOW TO START
-------------
-
-  RIGHT-CLICK on Setup-Mac.command, then choose Open.
-  Then click Open again when your Mac asks.
-
-  Do NOT double-click it the first time. Your Mac blocks anything
-  downloaded from the internet until you tell it once that this is fine.
-
-  After that first time, double-clicking works normally.
-
-
 BEFORE YOU START
 ----------------
 
-  1. Copy this WHOLE folder somewhere you can find it, like your Desktop.
-     Do not run it from inside the zip file.
+  Copy this WHOLE folder somewhere you can find it, like your Desktop.
+  Do not run it from inside the zip file.
 
-  2. Have your phone nearby. You will need it once, to link WhatsApp.
+
+HOW TO START
+------------
+
+  Your Mac blocks anything downloaded from the internet until you allow
+  it once. That is normal and it happens to every program. It takes four
+  clicks, one time only.
+
+  STEP 1  Double-click Setup-Mac.command.
+
+          Your Mac will refuse, and say it "could not verify" the file.
+          That is the block. It is meant to happen.
+
+          Click DONE.
+
+          *** Do NOT click "Move to Trash". ***
+          That is the blue button, and it deletes the setup.
+
+  STEP 2  Open System Settings.
+          (the grey gear icon, or the Apple menu at the top left)
+
+  STEP 3  Click Privacy & Security in the left-hand list, then scroll
+          down to the part called Security.
+
+          You will see a line about Setup-Mac.command being blocked,
+          with a button next to it.
+
+          Click OPEN ANYWAY.
+
+  STEP 4  Your Mac asks for your fingerprint or your password. Give it.
+          Then click Open.
+
+  The setup now starts, and a black window appears. That window is
+  meant to be there. Just follow what it says.
+
+  After this one time, double-clicking works normally.
+
+
+  If Step 3 shows no line about Setup-Mac.command, you have not done
+  Step 1 yet. Your Mac only offers the button after it has blocked it
+  once.
 
 
 WHAT HAPPENS
@@ -36,7 +64,6 @@ already installed is left exactly as it is.
 Along the way it will ask you to:
 
   - paste your Zo account key
-  - type a short code into WhatsApp on your phone
   - click Allow on a few Google permission screens
   - type your Mac password, so it can install things
 
