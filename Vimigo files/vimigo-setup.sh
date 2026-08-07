@@ -1151,7 +1151,16 @@ show_progress_bar() {
     [ "$total" -gt 0 ] || return 0
     filled=$(( (done * width + total / 2) / total ))
     for ((i = 0; i < width; i++)); do
-        if [ "$i" -lt "$filled" ]; then bar="$bar█"; else bar="$bar░"; fi
+        # Braced, and that is not style.
+        #
+        # "$bar█" put the block character straight after the name, and the
+        # block's first byte is 0xE2. macOS ships bash 3.2, and in a non-UTF-8
+        # locale its parser accepts a high byte as part of an identifier - so
+        # it looked up a variable called bar-block-character, found nothing,
+        # and under set -u killed the whole setup with "bar?: unbound
+        # variable" the moment the first progress bar was drawn. On a
+        # customer's MacBook, at the end of the very first screen.
+        if [ "$i" -lt "$filled" ]; then bar="${bar}█"; else bar="${bar}░"; fi
     done
     if [ "$done" -eq "$total" ]; then colour="$C_GREEN"; else colour="$C_TEAL"; fi
     printf '     %s%s%s  %s%d of %d done%s\n' "$colour" "$bar" "$C_RESET" "$C_GREY" "$done" "$total" "$C_RESET"
