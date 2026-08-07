@@ -73,13 +73,28 @@ try {
     Assert-True ($after.mcpServers.PSObject.Properties.Name -contains 'somebody-elses-server') `
         "the owner's other MCP server survived"
     Assert-True ($after.someUnrelatedSetting -eq 42) 'an unrelated setting survived'
-    # The bare word, or a full path ending in npx.cmd. Asserting the bare word
-    # is what this used to do, and it would have passed for ever while a
-    # packaged Claude Desktop - which does not inherit the user's PATH - failed
-    # to launch the server at all and showed Zo as "installed, not connected".
-    Assert-True (($after.mcpServers.zo.command -eq 'npx') -or
-                 ($after.mcpServers.zo.command -match 'npx\.cmd$')) `
-        'the entry launches npx, by a path a packaged Claude can actually find'
+    # Not the bare word, and not npx.cmd either.
+    #
+    # "npx" fails under a packaged Claude Desktop, which does not inherit the
+    # user's PATH. npx.cmd then fails on the default Node install, because that
+    # batch file invokes its own location unquoted and Windows cuts
+    # C:\Program Files\nodejs at the space - the log line customers actually
+    # saw was 'C:\Program' is not recognized. Both of those pass a test that
+    # only checks the word "npx" appears somewhere.
+    #
+    # So the check is what makes it work: a real executable, spawned directly,
+    # with the script as an argument rather than through any shell.
+    $claudeCommand = [string]$after.mcpServers.zo.command
+    Assert-True ($claudeCommand -match '(^|\\)node(\.exe)?$') `
+        'the entry runs node itself, not a shim that re-parses its own path'
+    Assert-True (Test-Path -LiteralPath $claudeCommand) `
+        'and that node exists on this machine'
+    Assert-True ([string]$after.mcpServers.zo.args[0] -match 'npx-cli\.js$') `
+        'with npm own npx script as the first argument'
+    Assert-True (Test-Path -LiteralPath ([string]$after.mcpServers.zo.args[0])) `
+        'and that script exists too'
+    Assert-True (@($after.mcpServers.zo.args) -contains '-y') `
+        'and -y, because an MCP server has no terminal to answer a prompt on'
     Assert-True ($after.mcpServers.zo.args -contains 'https://api.zo.computer/mcp') `
         'the entry points at the Zo endpoint'
 
@@ -116,8 +131,8 @@ enabled = true
     Assert-True ($toml -match 'model = "gpt-5\.6-sol"') 'the existing model setting survived'
     Assert-True ($toml -match [regex]::Escape('[plugins."github@openai-curated"]')) `
         "the owner's existing plugin section survived"
-    Assert-True ($toml -match 'command = "([^"]*)?npx(\.cmd)?"') `
-        'the entry launches npx, by a path ChatGPT can actually find'
+    Assert-True ($toml -match 'command = "[^"]*node(\.exe)?"') `
+        'the entry runs node itself, not a shim that re-parses its own path'
 
     # The path has to survive TOML, and "matches npx" does not prove that. A
     # Windows path needs each separator doubled: written raw, \U and \n become
@@ -126,8 +141,12 @@ enabled = true
     # against the real one.
     $tomlCommand = ([regex]::Match($toml, '(?m)^command = "([^"]*)"')).Groups[1].Value
     Assert-True ($tomlCommand -notmatch '\\\\\\\\') 'the path is not over-escaped'
-    Assert-True ($tomlCommand.Replace('\\', '\') -eq (Get-NpxPath)) `
-        'and unescapes back to exactly the npx this machine has'
+    Assert-True (Test-Path -LiteralPath $tomlCommand.Replace('\\', '\')) `
+        'and unescapes back to a node that exists on this machine'
+    # The arguments have to survive TOML too, and one of them is a path.
+    $tomlArgs = ([regex]::Match($toml, '(?m)^args = \[(.*)\]$')).Groups[1].Value
+    Assert-True ($tomlArgs -match 'npx-cli\.js') 'the arguments carry npm own npx script'
+    Assert-True ($tomlArgs -match '"-y"') 'and -y'
 
     $null = Connect-ZoToChatGpt 6>$null
     $tomlTwice = Get-Content -LiteralPath $script:CodexConfigPath -Raw
@@ -137,7 +156,7 @@ enabled = true
     # The header count alone is not enough: dropping the header but leaving its
     # body would orphan `command = "npx"` into whichever section came before,
     # silently corrupting a setting the owner never touched.
-    $bodyCount = ([regex]::Matches($tomlTwice, '(?m)^\s*command = "[^"]*npx(\.cmd)?"')).Count
+    $bodyCount = ([regex]::Matches($tomlTwice, '(?m)^\s*command = "[^"]*node(\.exe)?"')).Count
     Assert-True ($bodyCount -eq 1) 'a second run leaves no orphaned settings behind'
     Assert-True ($tomlTwice -match 'model = "gpt-5\.6-sol"') 'a second run keeps the model setting'
 
@@ -171,8 +190,8 @@ enabled = true
     Assert-True (Test-ClaudeMcpConfigured) 'and reports connected afterwards'
 
     $fresh = Get-Content -LiteralPath $script:ClaudeConfigPath -Raw | ConvertFrom-Json
-    Assert-True (($fresh.mcpServers.zo.command -eq 'npx') -or
-                 ($fresh.mcpServers.zo.command -match 'npx\.cmd$')) `
+    Assert-True (([string]$fresh.mcpServers.zo.command -match '(^|\\)node(\.exe)?$') -or
+                 ([string]$fresh.mcpServers.zo.command -eq 'npx')) `
         'the entry it created is the right shape'
 
     # Same again for a file that exists but holds nothing but an empty object.

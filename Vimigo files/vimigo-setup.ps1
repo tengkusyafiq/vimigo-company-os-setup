@@ -956,38 +956,88 @@ function Test-NodeTooOld {
     return ($major -lt $script:NodeMinMajor)
 }
 
-function Get-NpxPath {
+function Get-McpLauncher {
     <#
-        The full path to npx.cmd, never the bare word.
+        How to start an MCP server on this machine: node.exe, run directly on
+        npm's npx-cli.js, with the npx shim skipped altogether.
 
-        Claude Desktop now ships as a packaged app, and a packaged app does not
-        inherit the user's PATH the way an ordinary process does. A config that
-        just says "npx" then produces an MCP server that never starts, and the
-        app shows Zo as installed but not connected - with no hint that the
-        cause is a path.
+        Three faults stacked up here, each hiding the next.
 
-        And on Windows the runnable one is npx.cmd. The extensionless "npx"
-        beside it is a shell script, which CreateProcess cannot launch at all,
-        so even a full PATH would not have saved the bare word.
+        The config used to say "npx". A packaged Claude Desktop does not
+        inherit the user's PATH, so the server never started and the app showed
+        Zo as installed but not connected.
 
-        This is the same fault that was fixed on macOS months ago and left
-        standing here, because Windows usually has a fuller PATH and it only
-        surfaced once the packaged Claude arrived.
+        Pointing at npx.cmd fixed that and broke on the commonest machine of
+        all. npx.cmd is a batch file, and on the default Node install it
+        invokes its own location unquoted. With Node at C:\Program
+        Files\nodejs, Windows cuts that at the space, and the log says:
+
+            'C:\Program' is not recognized as an internal or external command
+            Server transport closed unexpectedly... process exiting early
+
+        That is a Node installer bug this setup cannot patch, and it hits
+        anyone who took the default path - which is what winget installs.
+
+        So neither shim is used. node.exe is a real executable, spawned
+        directly with its arguments passed as an array, and a space in
+        "Program Files" is then just a character in a string that no shell ever
+        re-parses.
+
+        Returns $null when node cannot be found at all, which is a different
+        problem with its own row on the checklist.
     #>
-    $found = Get-Command -Name 'npx.cmd' -CommandType Application -ErrorAction SilentlyContinue |
+    $node = Get-Command -Name 'node.exe' -CommandType Application -ErrorAction SilentlyContinue |
         Select-Object -First 1
-    if ($found -and $found.Source) { return $found.Source }
+    if (-not $node) {
+        $node = Get-Command -Name 'node' -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+    }
+    if (-not $node -or -not $node.Source) { return $null }
 
-    # Beside whichever node is on the machine.
-    $node = Get-Command -Name 'node' -CommandType Application -ErrorAction SilentlyContinue |
-        Select-Object -First 1
-    if ($node -and $node.Source) {
-        $beside = Join-Path (Split-Path -Parent $node.Source) 'npx.cmd'
-        if (Test-Path -LiteralPath $beside) { return $beside }
+    $directory = Split-Path -Parent $node.Source
+    $cli = Join-Path $directory 'node_modules\npm\bin\npx-cli.js'
+    if (-not (Test-Path -LiteralPath $cli)) { return $null }
+
+    return @{ Node = $node.Source; NpxCli = $cli }
+}
+
+function Get-McpCommandParts {
+    <#
+        The command and arguments for the Zo MCP entry, as both config files
+        need them.
+
+        -y matters: without it npx stops to ask before fetching the package,
+        and an MCP server has no terminal to ask on.
+    #>
+    param([string]$Token)
+
+    $launcher = Get-McpLauncher
+    if ($launcher) {
+        return @{
+            Command = $launcher.Node
+            Args    = @(
+                $launcher.NpxCli
+                '-y'
+                $script:McpRemotePackage
+                $script:ZoMcpUrl
+                '--header'
+                "Authorization: Bearer $Token"
+            )
+        }
     }
 
-    # Nothing found. The bare word is what shipped before and is no worse.
-    return 'npx'
+    # No node found, or an npm layout this does not recognise. The bare word is
+    # what shipped for a year and works wherever PATH is inherited.
+    return @{
+        Command = 'npx'
+        Args    = @(
+            '-y'
+            $script:McpRemotePackage
+            $script:ZoMcpUrl
+            '--header'
+            "Authorization: Bearer $Token"
+        )
+    }
 }
 
 function Get-CommandVersion {
@@ -2463,14 +2513,10 @@ function Connect-ZoToClaude {
         $document | Add-Member -NotePropertyName 'mcpServers' -NotePropertyValue ([pscustomobject]@{})
     }
 
+    $parts = Get-McpCommandParts -Token $token
     $entry = [pscustomobject]@{
-        command = (Get-NpxPath)
-        args    = @(
-            $script:McpRemotePackage
-            $script:ZoMcpUrl
-            '--header'
-            "Authorization: Bearer $token"
-        )
+        command = $parts.Command
+        args    = $parts.Args
     }
 
     if (Test-ObjectHasProperty -Object $document.mcpServers -Name $script:ZoMcpEntryName) {
@@ -2616,19 +2662,20 @@ function Connect-ZoToChatGpt {
     if ($backup) { Write-Info 'Saved a backup of your existing ChatGPT settings.' }
 
     $sectionHeader = "[mcp_servers.$script:ZoMcpEntryName]"
+    $parts = Get-McpCommandParts -Token $token
+    # Backslashes doubled, because these go into TOML strings. A Windows path
+    # written raw turns C:\Users\... into a string with a tab and a form feed
+    # in it, and Codex then fails to parse its own config.
+    #
+    # .Replace, not -replace: the regex form takes a pattern on one side and a
+    # replacement on the other with different escaping rules, and getting it
+    # wrong here produced four backslashes per separator - a path no parser
+    # would accept, in a file nobody reads by hand.
+    $tomlArgs = ($parts.Args | ForEach-Object { '"' + $_.Replace('\', '\\').Replace('"', '\"') + '"' }) -join ', '
     $block = @(
         $sectionHeader
-        # Backslashes doubled, because this goes into a TOML string. A Windows
-        # path written raw turns C:\Users\... into a string with a tab and a
-        # form feed in it, and Codex then fails to parse its own config.
-        #
-        # .Replace, not -replace: the regex form takes a pattern on one side and
-        # a replacement on the other with different escaping rules, and getting
-        # it wrong here produced four backslashes per separator - a path no
-        # parser would accept, in a file nobody reads by hand.
-        ('command = "{0}"' -f (Get-NpxPath).Replace('\', '\\'))
-        ('args = ["{0}", "{1}", "--header", "Authorization: Bearer {2}"]' -f `
-            $script:McpRemotePackage, $script:ZoMcpUrl, $token)
+        ('command = "{0}"' -f $parts.Command.Replace('\', '\\'))
+        ('args = [{0}]' -f $tomlArgs)
     ) -join "`n"
 
     $updated = Remove-TomlSection -Content $existing -Header $sectionHeader
@@ -4811,10 +4858,18 @@ function Invoke-Fix {
 # that nothing worked.
 $script:OwnerCompletes = @(
     'claude-app', 'chatgpt-app',
-    'claude-mcp', 'chatgpt-mcp',
     'zo-claude-code', 'zo-codex',
     'zo-google'
 )
+
+# claude-mcp and chatgpt-mcp used to be on that list and are not any more.
+#
+# They were there because connecting Zo needs the app restarted, and a restart
+# was the owner's job. It is not any more - the setup restarts the app itself -
+# and the check for these two reads the config file the setup has just written
+# and verified. So "Have you finished that step?" was asking the owner to
+# confirm something already known, about work they had not done. Exactly the
+# kind of question Tengku asked to have taken out.
 
 function Test-CheckNow {
     <#

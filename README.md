@@ -12,50 +12,55 @@ Zo runs 24/7 in the cloud and holds your business data.](company-os.png)
 laptop, connected to your Zo and your business data. The WhatsApp assistant is
 coming.
 
-## Download
+## Run it — one line
 
-**Windows** —
-[download the zip](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-windows-v1.0.zip),
-open it, and copy the whole folder somewhere you can find it. Your Desktop is
-fine.
+Nothing to download, unzip or drag anywhere. Copy the line for your computer,
+paste it, press Enter. It fetches everything, puts the folder on your Desktop,
+and starts.
 
-**Mac** — don't download anything. Use the one line in **[Run it](#run-it)**
-below; it fetches everything itself and avoids a block that is very hard to get
-past by hand.
+### Mac
 
-(If you land on the releases page, ignore the two "Source code" files. GitHub
-adds those to everything; they are not what you want.)
-
-## Run it
-
-**Windows** — double-click `Setup-Windows.bat`
-
-Windows may say "Windows protected your PC". Click **More info**, then **Run
-anyway**. That is because the file came from the internet, not because anything
-is wrong.
-
-### Mac — do this instead of downloading
-
-**Do not download the zip on a Mac.** Your Mac blocks anything that arrives
-through a browser, and getting past that block takes four clicks buried in
-System Settings that almost nobody finds. One of the two buttons it offers
-deletes the setup.
-
-This way skips all of it. **Copy this one line:**
+1. Press **Command + Space**, type `Terminal`, press **Enter**.
+2. Paste this and press **Enter**:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-mac.sh | bash
 ```
 
-1. Press **Command + Space**, type `Terminal`, press **Enter**.
-2. Paste the line above and press **Enter**.
+### Windows
 
-It downloads the setup, puts the folder on your Desktop, and starts it. From
-then on you can just double-click `Setup-Mac.command` in that folder — the
-block does not come back.
+1. Press the **Windows key**, type `PowerShell`, press **Enter**.
+2. Paste this and press **Enter**:
+
+```
+irm https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-windows.ps1 | iex
+```
+
+Afterwards you can just double-click the launcher in that Desktop folder —
+`Setup-Mac.command` or `Setup-Windows.bat`. The security warning does not come
+back, because the one line clears it for you.
 
 <details>
-<summary>If you already downloaded the zip and your Mac is refusing to open it</summary>
+<summary>Prefer to download a zip instead?</summary>
+
+You can:
+**[Windows](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-windows-v1.0.zip)**
+&nbsp;·&nbsp;
+**[Mac](https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-mac-v1.0.zip)**
+— open it and copy the **whole folder** to your Desktop, then double-click the
+launcher inside. Running it from inside the zip does not work.
+
+On Windows you will get "Windows protected your PC": click **More info**, then
+**Run anyway**. On a Mac you will hit a block that is genuinely hard to get
+past — see below.
+
+(If you land on the releases page, ignore the two "Source code" files. GitHub
+adds those to everything; they are not what you want.)
+
+</details>
+
+<details>
+<summary>If you downloaded the zip and your Mac is refusing to open it</summary>
 
 You will have seen **"Apple could not verify Setup-Mac.command is free of
 malware"**, offering only *Done* and *Move to Trash*.

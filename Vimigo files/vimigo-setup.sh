@@ -3891,7 +3891,13 @@ UNFINISHED=""
 # sign in on a website, or type a code into their phone. Running straight on to
 # the next one while they are still doing it is how a setup ends up reporting
 # that nothing worked.
-OWNER_COMPLETES="claude-app chatgpt-app claude-mcp chatgpt-mcp zo-claude-code zo-codex zo-google"
+# claude-mcp and chatgpt-mcp used to be on this list and are not any more.
+# They were here because connecting Zo needs the app restarted, and a restart
+# was the owner's job. It is not any more - the setup restarts the app itself -
+# and the check for these two reads the config file the setup has just written
+# and verified. So "Have you finished that step?" was asking the owner to
+# confirm something already known, about work they had not done.
+OWNER_COMPLETES="claude-app chatgpt-app zo-claude-code zo-codex zo-google"
 
 # The steps that cannot do anything without the owner's Zo key. Kept in step
 # with the Windows list of the same name.
