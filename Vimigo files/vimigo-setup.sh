@@ -2409,6 +2409,29 @@ enable_whatsapp_replies() {
     return 0
 }
 
+main_setup_unfinished() {
+    # Prints the title of every step the main setup has not finished, one per
+    # line, and nothing at all when it is done.
+    #
+    # Its own function so it can be tested. Inline in the --assistant block it
+    # could only be exercised by breaking the machine running it, which meant
+    # the one path whose entire job is refusing was the one path never tried.
+    #
+    # The assistant is counted out: its own row must not be what stops it being
+    # set up.
+    local was="$FEATURE_AI_ASSISTANT" entry
+    FEATURE_AI_ASSISTANT='off'
+    collect_checks >/dev/null 2>&1
+    FEATURE_AI_ASSISTANT="$was"
+    for entry in "${CHECKS[@]}"; do
+        case "$(printf '%s' "$entry" | cut -d'|' -f3)" in
+            ok|skipped) ;;
+            *) printf '%s
+' "$(printf '%s' "$entry" | cut -d'|' -f2)" ;;
+        esac
+    done
+}
+
 set_talk_to_zo() {
     # How the owner actually reaches Zo day to day.
     #
@@ -4604,6 +4627,77 @@ if [ "${1:-}" = "--check" ]; then
     collect_checks
     show_checks
     info 'Nothing was changed. Run without --check to fix anything.'
+    printf '\n'
+    exit 0
+fi
+
+if [ "${1:-}" = "--assistant" ]; then
+    # The AI Personal Assistant on its own, for somebody who has already run
+    # the setup and wants the thing v1 leaves out.
+    #
+    # It forces the feature on for this run only. Nothing is written to say so,
+    # so the ordinary setup is unchanged the next time they open it - this is a
+    # side door, not a switch they have flipped by accident.
+    FEATURE_AI_ASSISTANT='on'
+
+    show_logo
+
+    if ! node_bin >/dev/null; then
+        bad 'Node.js is missing, and the assistant needs it.'
+        info 'Run the main setup first, then come back to this.'
+        printf '\n'
+        exit 1
+    fi
+    if node_too_old; then
+        bad "Your Node.js is older than $NODE_MIN_MAJOR, and the assistant needs $NODE_MIN_MAJOR or newer."
+        info 'Run the main setup first - it will offer to update it.'
+        printf '\n'
+        exit 1
+    fi
+    if ! token_looks_valid "$(get_zo_token)"; then
+        bad 'No Zo key on this Mac yet.'
+        info 'Run the main setup first. It asks for the key, and everything'
+        info 'here needs it.'
+        printf '\n'
+        exit 1
+    fi
+
+    # The main setup finishes first. That is the rule, and this checks it
+    # rather than trusting it.
+    #
+    # The assistant is the last thing built and the first thing blamed. It
+    # needs the Zo key, the scripts this setup puts on the Zo, and a Zo that
+    # answers - so started on a half-finished machine it fails somewhere in the
+    # middle, having already asked for a phone number, and what the owner
+    # remembers is that the assistant broke.
+    #
+    # Counted with the assistant switched off, so its own row is not what holds
+    # it back.
+    info 'Checking the main setup is finished...'
+    unfinished="$(main_setup_unfinished)"
+
+    if [ -n "$unfinished" ]; then
+        clear_screen
+        show_logo
+        warn 'The main setup is not finished yet, so this cannot run.'
+        printf '\n'
+        info 'Still to do:'
+        printf '%s' "$unfinished" | while IFS= read -r line; do
+            [ -n "$line" ] && printf '         %s• %s%s\n' "$C_YELLOW" "$line" "$C_RESET"
+        done
+        printf '\n'
+        info 'Finish the main setup first, then run this line again.'
+        printf '\n'
+        exit 1
+    fi
+
+    # The scripts that answer for the assistant live on the Zo, and on a Zo
+    # that has never had one they are not there yet.
+    ensure_zo_scripts
+
+    set_talk_to_zo || true
+    printf '\n'
+    info 'Run this again any time to change how you reach your assistant.'
     printf '\n'
     exit 0
 fi

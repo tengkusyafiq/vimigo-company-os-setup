@@ -894,6 +894,48 @@ try {
         'switching all five off removes exactly five steps, no more and no fewer'
 
     Write-Host ''
+    Write-Host 'The assistant refuses to start on a half-finished setup' -ForegroundColor Cyan
+
+    # The rule: the main setup finishes first. The assistant needs the Zo key,
+    # the scripts this setup puts on the Zo, and a Zo that answers - so started
+    # early it fails somewhere in the middle, having already asked for a phone
+    # number, and what the owner remembers is that the assistant broke.
+    function Get-GateResult {
+        param([switch]$Halfway)
+        Set-Features 'off'
+        $script:FixtureHasKey = $true
+        if ($Halfway) {
+            # Nothing installed and nothing connected: the state a customer is
+            # in before they have run anything.
+            $script:WantClaude = $false; $script:WantChatGpt = $false
+        } else {
+            $script:WantClaude = $false; $script:WantChatGpt = $true
+        }
+        return @(Get-MainSetupUnfinished | ForEach-Object { [string]$_.Title })
+    }
+
+    # Captured once each and read from the variable: every call runs a whole
+    # checklist, and re-running one per assertion is slow and lets three
+    # assertions disagree about the same machine.
+    $gateDone = @(Get-GateResult)
+    $gateHalf = @(Get-GateResult -Halfway)
+
+    Assert-True ($gateDone.Count -eq 0) 'a finished setup lets the assistant through'
+    Assert-True ($gateHalf.Count -gt 0) 'a half-finished one does not'
+    Assert-True ($gateHalf -contains 'ChatGPT Desktop') `
+        'and it names what is still missing, rather than just refusing'
+
+    # Its own row must never be the thing that blocks it, and the switch has to
+    # come back exactly as it was found.
+    $script:FeatureAiAssistant = 'on'
+    $script:WantClaude = $false; $script:WantChatGpt = $true
+    $script:FixtureHasKey = $true
+    Assert-True (@(Get-MainSetupUnfinished).Count -eq 0) `
+        'the assistant is not counted against itself'
+    Assert-True ($script:FeatureAiAssistant -eq 'on') `
+        'and the switch is left as it was found'
+
+    Write-Host ''
     Write-Host 'Google is a switch like the rest' -ForegroundColor Cyan
 
     # The last row that could hold a v1 setup open. Tengku believed it was

@@ -478,6 +478,58 @@ assert $? 'switching all five off removes exactly five steps, no more and no few
 case "$TRAIL_OFF" in *WOULD_DO*) false ;; *) true ;; esac
 assert $? 'and nothing was actually run to find that out'
 
+printf '\n\033[36mThe assistant refuses to start on a half-finished setup\033[0m\n'
+
+# The rule Tengku set: the main setup finishes first. The assistant needs the
+# Zo key, the scripts this setup puts on the Zo, and a Zo that answers - so
+# started early it fails somewhere in the middle, having already asked for a
+# phone number, and what the owner remembers is that the assistant broke.
+gate_says() {
+    # $1 = 'done' or 'halfway'. Prints what the gate found, one title per line.
+    FEATURE_AI_ASSISTANT='off'; FEATURE_ZO_SKILLS='off'
+    FEATURE_SECOND_BRAIN='off'; FEATURE_AI_EMPLOYEES='off'; FEATURE_GOOGLE='off'
+    if [ "$1" = 'done' ]; then
+        app_installed() { [ "$1" = 'ChatGPT' ]; }
+        claude_mcp_configured() { return 1; }
+        codex_mcp_configured() { return 0; }
+    else
+        # Nothing installed and nothing connected: the state a customer is in
+        # before they have run anything.
+        app_installed() { return 1; }
+        claude_mcp_configured() { return 1; }
+        codex_mcp_configured() { return 1; }
+    fi
+    zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
+    main_setup_unfinished
+}
+
+# Captured once each, and read from the variable. Calling gate_says again for
+# every assertion re-ran a whole checklist per line and made a failure hard to
+# read: three assertions could disagree about the same machine.
+GATE_DONE="$(gate_says done)"
+GATE_HALF="$(gate_says halfway)"
+
+[ -z "$GATE_DONE" ]
+assert $? 'a finished setup lets the assistant through'
+[ -n "$GATE_HALF" ]
+assert $? 'a half-finished one does not'
+case "$GATE_HALF" in
+    *'ChatGPT Desktop'*) true ;;
+    *) printf '        it said: %s\n' "$(printf '%s' "$GATE_HALF" | tr '\n' ';')"; false ;;
+esac
+assert $? 'and it names what is still missing, rather than just refusing'
+
+# Its own row must never be the thing that blocks it.
+FEATURE_AI_ASSISTANT='on'
+app_installed() { [ "$1" = 'ChatGPT' ]; }
+claude_mcp_configured() { return 1; }
+codex_mcp_configured() { return 0; }
+zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
+[ -z "$(main_setup_unfinished)" ]
+assert $? 'the assistant is not counted against itself'
+[ "$FEATURE_AI_ASSISTANT" = 'on' ]
+assert $? 'and the switch is left as it was found'
+
 printf '\n\033[36mGoogle is a switch like the rest\033[0m\n'
 
 # The last row that could hold a v1 setup open. Tengku believed it was already

@@ -27,6 +27,10 @@ param(
     # Print status and exit without offering to change anything.
     [switch]$Check,
 
+    # Set up the AI Personal Assistant on its own, and nothing else. For
+    # somebody who has already run the setup and wants the part v1 leaves out.
+    [switch]$Assistant,
+
     # Leave the console's own colours alone instead of applying the Vimigo
     # theme. Useful if a terminal renders it badly.
     [switch]$NoTheme
@@ -3802,6 +3806,28 @@ function Sync-HiredEmployees {
     return $team
 }
 
+function Get-MainSetupUnfinished {
+    <#
+        Every step the main setup has not finished, and nothing at all when it
+        is done.
+
+        Its own function so it can be tested. Inline in the -Assistant block it
+        could only be exercised by breaking the machine running it, which meant
+        the one path whose entire job is refusing was the one path never tried.
+
+        The assistant is counted out: its own row must not be what stops it
+        being set up.
+    #>
+    $was = $script:FeatureAiAssistant
+    $script:FeatureAiAssistant = 'off'
+    try {
+        $settled = @('ok', 'skipped')
+        return @(Get-AllChecks | Where-Object { $settled -notcontains $_.Status })
+    } finally {
+        $script:FeatureAiAssistant = $was
+    }
+}
+
 function Set-TalkToZo {
     <#
         How the owner actually reaches Zo day to day.
@@ -5618,6 +5644,82 @@ Set-VimigoTheme
 if ($Check) {
     Show-Checks -Checks (Get-AllChecks)
     Write-Info 'Nothing was changed. Run without -Check to fix anything.'
+    Write-Host ''
+    Reset-Theme
+    exit 0
+}
+
+if ($Assistant) {
+    # The AI Personal Assistant on its own.
+    #
+    # It forces the feature on for this run only. Nothing is written to say so,
+    # so the ordinary setup is unchanged the next time they open it - this is a
+    # side door, not a switch they have flipped by accident.
+    $script:FeatureAiAssistant = 'on'
+
+    Show-Logo
+
+    if (-not (Get-CommandVersion -Command 'node' -VersionArgs @('--version'))) {
+        Write-Bad 'Node.js is missing, and the assistant needs it.'
+        Write-Info 'Run the main setup first, then come back to this.'
+        Write-Host ''
+        Reset-Theme
+        exit 1
+    }
+    if (Test-NodeTooOld) {
+        Write-Bad "Your Node.js is older than $script:NodeMinMajor, and the assistant needs $script:NodeMinMajor or newer."
+        Write-Info 'Run the main setup first - it will offer to update it.'
+        Write-Host ''
+        Reset-Theme
+        exit 1
+    }
+
+    if (-not (Test-ZoTokenShape -Token (Get-ZoToken))) {
+        Write-Bad 'No Zo key on this computer yet.'
+        Write-Info 'Run the main setup first. It asks for the key, and everything'
+        Write-Info 'here needs it.'
+        Write-Host ''
+        Reset-Theme
+        exit 1
+    }
+
+    # The main setup finishes first. That is the rule, and this checks it
+    # rather than trusting it.
+    #
+    # The assistant is the last thing built and the first thing blamed. It
+    # needs the Zo key, the scripts this setup puts on the Zo, and a Zo that
+    # answers - so started on a half-finished machine it fails somewhere in the
+    # middle, having already asked for a phone number, and what the owner
+    # remembers is that the assistant broke.
+    #
+    # Counted with the assistant switched off, so its own row is not what holds
+    # it back.
+    Write-Info 'Checking the main setup is finished...'
+    $unfinished = @(Get-MainSetupUnfinished)
+
+    if ($unfinished.Count -gt 0) {
+        Clear-Screen
+        Show-Logo
+        Write-Warn 'The main setup is not finished yet, so this cannot run.'
+        Write-Host ''
+        Write-Info 'Still to do:'
+        foreach ($item in $unfinished) {
+            Write-Host "         - $($item.Title)" -ForegroundColor $script:Ink.Warn
+        }
+        Write-Host ''
+        Write-Info 'Finish the main setup first, then run this line again.'
+        Write-Host ''
+        Reset-Theme
+        exit 1
+    }
+
+    # The scripts that answer for the assistant live on the Zo, and on a Zo
+    # that has never had one they are not there yet.
+    Install-ZoScriptsOnce
+
+    $null = Invoke-Guarded -Whats 'setting up your assistant' -Action { Set-TalkToZo }
+    Write-Host ''
+    Write-Info 'Run this again any time to change how you reach your assistant.'
     Write-Host ''
     Reset-Theme
     exit 0
