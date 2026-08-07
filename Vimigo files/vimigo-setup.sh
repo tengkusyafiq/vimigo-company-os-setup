@@ -20,6 +20,50 @@ set -u
 set -o pipefail
 
 # ---------------------------------------------------------------------------
+# What this build offers
+# ---------------------------------------------------------------------------
+# Two parts of the setup can be switched off for a release that has to stay
+# simple. Switched off they disappear from the checklist, from the menu, and
+# from the "start over" screen - so the owner is never shown a step this build
+# will not do, and never a key that does nothing.
+#
+# Off is not the same as gone. Every line of code behind them still ships and
+# still works; only the ways in are closed. Turning one back on restores the
+# same screens it always had, and needs no other change.
+#
+# The AI Personal Assistant is deliberately NOT a switch. Without it there is
+# nowhere for the owner to type, and a setup that finishes with no way to reach
+# the thing it just built is not a setup.
+#
+# vimigo-setup.ps1 carries the same two names with the same defaults, and the
+# acceptance suite fails if they ever disagree - a Mac and a Windows machine
+# offering different setups is worse than either answer on its own.
+FEATURE_SECOND_BRAIN='off'
+FEATURE_AI_EMPLOYEES='off'
+
+# One run, without editing the file - for support, or a demo:
+#     VIMIGO_FEATURE_AI_EMPLOYEES=on ./vimigo-setup.sh
+# It overrides in both directions, so it can also turn one off.
+if [ -n "${VIMIGO_FEATURE_SECOND_BRAIN:-}" ]; then
+    FEATURE_SECOND_BRAIN="$VIMIGO_FEATURE_SECOND_BRAIN"
+fi
+if [ -n "${VIMIGO_FEATURE_AI_EMPLOYEES:-}" ]; then
+    FEATURE_AI_EMPLOYEES="$VIMIGO_FEATURE_AI_EMPLOYEES"
+fi
+
+feature_on() {
+    # Generous about what counts as yes.
+    #
+    # Somebody reaching for this is typing an environment variable on a support
+    # call, and 'ON', 'true' or '1' meeting silence would read as the switch
+    # being broken rather than as the wrong word.
+    case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+        on|yes|true|1) return 0 ;;
+    esac
+    return 1
+}
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
@@ -765,10 +809,14 @@ collect_checks() {
         CHECKS+=("zo-claude-code|Claude plan on Zo|needs-you|$why|")
         CHECKS+=("zo-codex|ChatGPT plan on Zo|needs-you|$why|")
         CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$why|")
-        CHECKS+=("zo-brain|Your company second brain|needs-you|$why|")
+        if feature_on "$FEATURE_SECOND_BRAIN"; then
+            CHECKS+=("zo-brain|Your company second brain|needs-you|$why|")
+        fi
         CHECKS+=("zo-google|Basic integrations for your Zo|needs-you|$why|")
         CHECKS+=("talk-to-zo|Your AI Personal Assistant|needs-you|$why|")
-        CHECKS+=("zo-employees|Hire AI employees|needs-you|$why|")
+        if feature_on "$FEATURE_AI_EMPLOYEES"; then
+            CHECKS+=("zo-employees|Hire AI employees|needs-you|$why|")
+        fi
         return 0
     fi
 
@@ -817,17 +865,23 @@ collect_checks() {
     # Zo gains rather than something the owner has to do. Read from the same
     # reply, so checking costs no extra round trip and - the part that matters -
     # asking whether the company second brain exists never creates it.
+    #
+    # Zo is asked about it either way - the answer rides along in the same reply
+    # as everything else, so a switched-off second brain costs nothing to stay
+    # informed about. Only the row is withheld.
     local brain_folders brain_notes
-    brain_folders="$(zo_field 'data.secondBrain ? data.secondBrain.folders : -1')"
-    brain_notes="$(zo_field 'data.secondBrain ? data.secondBrain.notes : 0')"
-    if [ "${brain_folders:--1}" -gt 0 ] 2>/dev/null; then
-        if [ "${brain_notes:-0}" -gt 0 ] 2>/dev/null; then
-            CHECKS+=("zo-brain|Your company second brain|ok|$brain_notes notes kept|")
+    if feature_on "$FEATURE_SECOND_BRAIN"; then
+        brain_folders="$(zo_field 'data.secondBrain ? data.secondBrain.folders : -1')"
+        brain_notes="$(zo_field 'data.secondBrain ? data.secondBrain.notes : 0')"
+        if [ "${brain_folders:--1}" -gt 0 ] 2>/dev/null; then
+            if [ "${brain_notes:-0}" -gt 0 ] 2>/dev/null; then
+                CHECKS+=("zo-brain|Your company second brain|ok|$brain_notes notes kept|")
+            else
+                CHECKS+=("zo-brain|Your company second brain|ok|ready and empty|")
+            fi
         else
-            CHECKS+=("zo-brain|Your company second brain|ok|ready and empty|")
+            CHECKS+=("zo-brain|Your company second brain|needs-you|not set up yet|somewhere to keep what your Zo learns")
         fi
-    else
-        CHECKS+=("zo-brain|Your company second brain|needs-you|not set up yet|somewhere to keep what your Zo learns")
     fi
 
     # Google is several apps, each authorised separately. They are listed one by
@@ -896,6 +950,13 @@ collect_checks() {
     # Last, because an employee is only worth hiring once the Zo they work for
     # can actually do something. Read from Zo, so somebody removed on the
     # website disappears from here too.
+    #
+    # Switched off, the row goes and the employees do not. Anybody hired on a
+    # build that offered it, or made on the Zo website, keeps working exactly as
+    # before - this setup simply stops reporting on them, which is why nothing
+    # here removes anything.
+    feature_on "$FEATURE_AI_EMPLOYEES" || return 0
+
     local employees_known employees_count
     employees_known="$(zo_field 'data.employees ? "yes" : "no"')"
     employees_count="$(zo_field 'data.employees ? data.employees.length : 0')"
@@ -2669,15 +2730,24 @@ show_main_options() {
     # Everything else manages something that does not exist yet, on a screen
     # that already says how much is left. The whole list comes back the moment
     # it is done. See the Windows note for the reasoning.
+    #
+    # A switched-off feature takes its key with it. A menu that lists something
+    # this build will not do is worse than one that never mentioned it: the
+    # owner presses the key, nothing happens, and now they doubt the rest of the
+    # screen too.
     if [ "${1:-}" = 'finished' ]; then
-        printf '        %s E %s  %sHire an AI employee         %s%ssales, admin, accounts, and more%s\n' \
-            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-        printf '        %s T %s  %sSee your AI employees       %s%swho works for you, and where they answer%s\n' \
-            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        if feature_on "$FEATURE_AI_EMPLOYEES"; then
+            printf '        %s E %s  %sHire an AI employee         %s%ssales, admin, accounts, and more%s\n' \
+                "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+            printf '        %s T %s  %sSee your AI employees       %s%swho works for you, and where they answer%s\n' \
+                "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        fi
         printf '        %s A %s  %sSet up your assistant again %s%schange the number, or how you reach it%s\n' \
             "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
-        printf '        %s M %s  %sYour company second brain   %s%swhat your Zo remembers about the business%s\n' \
-            "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        if feature_on "$FEATURE_SECOND_BRAIN"; then
+            printf '        %s M %s  %sYour company second brain   %s%swhat your Zo remembers about the business%s\n' \
+                "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
+        fi
         printf '        %s Z %s  %sOpen your Zo                %s%sthe website, for anything not here%s\n' \
             "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
         # Named for what it does, not for what it is useful for. "To test it as a
@@ -2704,13 +2774,20 @@ handle_main_choice() {
     #
     # Prints nothing and returns 1 for a key it does not know, so the caller can
     # treat that as "do the whole checklist".
+    #
+    # Each key is gated on its feature, not only hidden from the menu. A key
+    # that still works while nothing offers it is worse than a missing one: the
+    # owner presses E by accident and this build hires somebody it was never
+    # meant to be able to hire.
     case "$1" in
         e*)
+            feature_on "$FEATURE_AI_EMPLOYEES" || return 1
             clear_screen; show_banner
             hire_employee || true
             printf '      Press Enter to go back '; read -r _ || true
             return 0 ;;
         t*)
+            feature_on "$FEATURE_AI_EMPLOYEES" || return 1
             clear_screen; show_banner
             show_team_screen || true
             printf '\n      Press Enter to go back '; read -r _ || true
@@ -2721,6 +2798,7 @@ handle_main_choice() {
             printf '      Press Enter to go back '; read -r _ || true
             return 0 ;;
         m*)
+            feature_on "$FEATURE_SECOND_BRAIN" || return 1
             clear_screen; show_banner
             setup_second_brain || true
             printf '\n      Press Enter to go back '; read -r _ || true
@@ -3970,19 +4048,64 @@ reset_vimigo_setup() {
     # again" were separate options that did the same thing to anyone on
     # WhatsApp, which is nearly everyone - choosing the channel now runs the
     # linking itself, so undoing one is undoing the other.
-    numbered 1 'How you talk to Zo -' 'your AI Personal Assistant, from the top'
-    numbered 2 'Your AI employees  -' 'let one go, so you can hire again'
-    numbered 3 'Everything         -' 'the above, plus the programs this setup'
+    # The numbers are worked out, not written down, because one of these options
+    # is switchable. A hard-coded list with the middle one hidden offers "1" and
+    # "3" and no 2, and - the part that actually bites - leaves 2 still wired to
+    # the employee reset, so a key nothing on screen mentions quietly lets an AI
+    # employee go.
+    # Declared apart from the scalars. macOS ships bash 3.2 and nothing here has
+    # ever run on it, so the array gets the form that is unambiguous everywhere
+    # rather than the tidy one-liner.
+    local n=0 spoken i
+    local actions
+    actions=()
+    numbered $((n += 1)) 'How you talk to Zo -' 'your AI Personal Assistant, from the top'
+    actions+=('assistant')
+    if feature_on "$FEATURE_AI_EMPLOYEES"; then
+        numbered $((n += 1)) 'Your AI employees  -' 'let one go, so you can hire again'
+        actions+=('employees')
+    fi
+    numbered $((n += 1)) 'Everything         -' 'the above, plus the programs this setup'
+    actions+=('everything')
     printf '                                %sinstalled and your saved Zo key%s\n' "$C_GREY" "$C_RESET"
-    printf '\n      %sChoose 1, 2 or 3 > %s' "$C_PURPLE" "$C_RESET"
+    printf '\n'
+    # The way out, written down.
+    #
+    # Pressing Enter already left this screen without changing anything, and it
+    # never said so. Somebody who opens the menu and wants none of it has no
+    # visible way back, and the only exit they can see is closing the window -
+    # which loses the whole run.
+    printf '        %sEnter  go back, changing nothing%s\n\n' "$C_GREY" "$C_RESET"
+    # Read off the list, so the prompt can never name a number the screen above
+    # does not show. Three options give "1, 2 or 3", two give "1 or 2".
+    spoken=''
+    i=1
+    while [ "$i" -lt "$n" ]; do
+        [ -z "$spoken" ] || spoken="$spoken, "
+        spoken="$spoken$i"
+        i=$((i + 1))
+    done
+    spoken="$spoken or $n"
+    printf '      %sChoose %s, or Enter to go back > %s' "$C_PURPLE" "$spoken" "$C_RESET"
 
-    local scope; read -r scope || scope=''
+    local scope chosen
+    read -r scope || scope=''
     scope="$(printf '%s' "$scope" | tr -cd '0-9')"
 
-    case "$scope" in
-        1) reset_whatsapp_assistant; return 0 ;;
-        2) reset_ai_employees; return 0 ;;
-        3) ;;
+    # Matched as text, never as a number. Bash reads a leading zero as octal, so
+    # "08" in an arithmetic test is not 8 but an error message on a screen whose
+    # whole job is being calm about mistakes.
+    chosen=''
+    i=1
+    while [ "$i" -le "$n" ]; do
+        [ "$scope" = "$i" ] && chosen="${actions[$((i - 1))]}"
+        i=$((i + 1))
+    done
+
+    case "$chosen" in
+        assistant) reset_whatsapp_assistant; return 0 ;;
+        employees) reset_ai_employees; return 0 ;;
+        everything) ;;
         *) printf '\n'; info 'Nothing was changed.'; return 0 ;;
     esac
 

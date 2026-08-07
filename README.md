@@ -4,9 +4,9 @@ Sets up your computer to work with Zo, Claude and ChatGPT.
 
 You do not need to know anything technical.
 
-![How the Vimigo Company OS fits together: you reach Zo through WhatsApp or
-through Claude and ChatGPT on your laptop. Zo runs 24/7 in the cloud, holds
-your business data, and is where your AI employees live.](company-os.png)
+![How the Vimigo Company OS fits together: you reach Zo through your AI
+Personal Assistant on WhatsApp, or through Claude and ChatGPT on your laptop.
+Zo runs 24/7 in the cloud and holds your business data.](company-os.png)
 
 ## Download
 

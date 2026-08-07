@@ -93,6 +93,46 @@ function Reset-Theme {
 }
 
 # ---------------------------------------------------------------------------
+# What this build offers
+# ---------------------------------------------------------------------------
+# Two parts of the setup can be switched off for a release that has to stay
+# simple. Switched off they disappear from the checklist, from the menu, and
+# from the "start over" screen - so the owner is never shown a step this build
+# will not do, and never a key that does nothing.
+#
+# Off is not the same as gone. Every line of code behind them still ships and
+# still works; only the ways in are closed. Turning one back on restores the
+# same screens it always had, and needs no other change.
+#
+# The AI Personal Assistant is deliberately NOT a switch. Without it there is
+# nowhere for the owner to type, and a setup that finishes with no way to reach
+# the thing it just built is not a setup.
+#
+# vimigo-setup.sh carries the same two names with the same defaults, and the
+# acceptance suite fails if they ever disagree - a Mac and a Windows machine
+# offering different setups is worse than either answer on its own.
+$script:FeatureSecondBrain = 'off'
+$script:FeatureAiEmployees = 'off'
+
+# One run, without editing the file - for support, or a demo:
+#     $env:VIMIGO_FEATURE_AI_EMPLOYEES = 'on'
+# It overrides in both directions, so it can also turn one off.
+if ($env:VIMIGO_FEATURE_SECOND_BRAIN) { $script:FeatureSecondBrain = $env:VIMIGO_FEATURE_SECOND_BRAIN }
+if ($env:VIMIGO_FEATURE_AI_EMPLOYEES) { $script:FeatureAiEmployees = $env:VIMIGO_FEATURE_AI_EMPLOYEES }
+
+function Test-FeatureOn {
+    <#
+        Generous about what counts as yes.
+
+        Somebody reaching for this is typing an environment variable on a
+        support call, and 'ON', 'true' or '1' meeting silence would read as the
+        switch being broken rather than as the wrong word.
+    #>
+    param([string]$Value)
+    return @('on', 'yes', 'true', '1') -contains ([string]$Value).Trim().ToLowerInvariant()
+}
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
@@ -1399,14 +1439,24 @@ function Get-AllChecks {
         # Same order, and the same names, as when a key is present. A list that
         # rearranges itself once the key is pasted looks like a different
         # program.
-        foreach ($row in @(
-            @{ Key = 'zo-claude-code'; Title = 'Claude plan on Zo' },
-            @{ Key = 'zo-codex';       Title = 'ChatGPT plan on Zo' },
-            @{ Key = 'zo-skills';      Title = 'Basic skills for your Zo' },
-            @{ Key = 'zo-google';      Title = 'Basic integrations for your Zo' },
-            @{ Key = 'talk-to-zo';     Title = 'Your AI Personal Assistant' },
-            @{ Key = 'zo-employees';   Title = 'Hire AI employees' }
-        )) {
+        #
+        # Built a row at a time rather than written out as one literal, because
+        # a hand-kept second copy of the order is how this list came to be
+        # missing the second brain while the list below it had one - the exact
+        # rearrangement the paragraph above forbids, shipped for weeks.
+        $offline = New-Object System.Collections.Generic.List[object]
+        $offline.Add(@{ Key = 'zo-claude-code'; Title = 'Claude plan on Zo' })
+        $offline.Add(@{ Key = 'zo-codex';       Title = 'ChatGPT plan on Zo' })
+        $offline.Add(@{ Key = 'zo-skills';      Title = 'Basic skills for your Zo' })
+        if (Test-FeatureOn $script:FeatureSecondBrain) {
+            $offline.Add(@{ Key = 'zo-brain';   Title = 'Your company second brain' })
+        }
+        $offline.Add(@{ Key = 'zo-google';      Title = 'Basic integrations for your Zo' })
+        $offline.Add(@{ Key = 'talk-to-zo';     Title = 'Your AI Personal Assistant' })
+        if (Test-FeatureOn $script:FeatureAiEmployees) {
+            $offline.Add(@{ Key = 'zo-employees'; Title = 'Hire AI employees' })
+        }
+        foreach ($row in $offline) {
             $checks.Add((New-Check -Key $row.Key -Title $row.Title -Status 'needs-you' -Detail $why))
         }
         return $checks
@@ -1459,16 +1509,22 @@ function Get-AllChecks {
 
     # Straight after skills, because it is the same kind of thing: something the
     # Zo gains rather than something the owner has to do.
-    $brain = if (Test-ObjectHasProperty $zo 'secondBrain') { $zo.secondBrain } else { $null }
-    if ($null -eq $brain) {
-        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'needs-you' `
-            -Detail 'not set up yet' -Note 'somewhere to keep what your Zo learns'))
-    } elseif ($brain.folders -gt 0) {
-        $detail = if ($brain.notes -gt 0) { "$($brain.notes) notes kept" } else { 'ready and empty' }
-        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'ok' -Detail $detail))
-    } else {
-        $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'needs-you' `
-            -Detail 'not set up yet' -Note 'somewhere to keep what your Zo learns'))
+    #
+    # Zo is asked about it either way - the answer rides along in the same reply
+    # as everything else, so a switched-off second brain costs nothing to stay
+    # informed about. Only the row is withheld.
+    if (Test-FeatureOn $script:FeatureSecondBrain) {
+        $brain = if (Test-ObjectHasProperty $zo 'secondBrain') { $zo.secondBrain } else { $null }
+        if ($null -eq $brain) {
+            $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'needs-you' `
+                -Detail 'not set up yet' -Note 'somewhere to keep what your Zo learns'))
+        } elseif ($brain.folders -gt 0) {
+            $detail = if ($brain.notes -gt 0) { "$($brain.notes) notes kept" } else { 'ready and empty' }
+            $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'ok' -Detail $detail))
+        } else {
+            $checks.Add((New-Check -Key 'zo-brain' -Title 'Your company second brain' -Status 'needs-you' `
+                -Detail 'not set up yet' -Note 'somewhere to keep what your Zo learns'))
+        }
     }
 
     # Google is several apps, each authorised separately. They are listed one by
@@ -1547,6 +1603,13 @@ function Get-AllChecks {
     # Last, because an employee is only worth hiring once the Zo they work for
     # can actually do something. Read from Zo, so somebody removed on the
     # website disappears from here too.
+    #
+    # Switched off, the row goes and the employees do not. Anybody hired on a
+    # build that offered it, or made on the Zo website, keeps working exactly as
+    # before - this setup simply stops reporting on them, which is why nothing
+    # here removes anything.
+    if (-not (Test-FeatureOn $script:FeatureAiEmployees)) { return $checks }
+
     $employees = if (Test-ObjectHasProperty $zo 'employees') { $zo.employees } else { $null }
     if ($null -eq $employees) {
         $checks.Add((New-Check -Key 'zo-employees' -Title 'Hire AI employees' -Status 'needs-you' `
@@ -1782,12 +1845,21 @@ function Show-MainOptions {
     # brain" before it has been made, is a menu of ways to be confused - and
     # this screen already says six things are left. One instruction, one key,
     # and the whole list comes back the moment it is done.
+    #
+    # A switched-off feature takes its key with it. A menu that lists something
+    # this build will not do is worse than one that never mentioned it: the
+    # owner presses the key, nothing happens, and now they doubt the rest of the
+    # screen too.
     $rows = @()
     if ($Finished) {
-        $rows += @{ Key = 'E'; What = 'Hire an AI employee'; Why = 'sales, admin, accounts, and more' }
-        $rows += @{ Key = 'T'; What = 'See your AI employees'; Why = 'who works for you, and where they answer' }
+        if (Test-FeatureOn $script:FeatureAiEmployees) {
+            $rows += @{ Key = 'E'; What = 'Hire an AI employee'; Why = 'sales, admin, accounts, and more' }
+            $rows += @{ Key = 'T'; What = 'See your AI employees'; Why = 'who works for you, and where they answer' }
+        }
         $rows += @{ Key = 'A'; What = 'Set up your assistant again'; Why = 'change the number, or how you reach it' }
-        $rows += @{ Key = 'M'; What = 'Your company second brain'; Why = 'what your Zo remembers about the business' }
+        if (Test-FeatureOn $script:FeatureSecondBrain) {
+            $rows += @{ Key = 'M'; What = 'Your company second brain'; Why = 'what your Zo remembers about the business' }
+        }
         $rows += @{ Key = 'Z'; What = 'Open your Zo'; Why = 'the website, for anything not here' }
     }
     foreach ($row in $rows) {
@@ -1802,7 +1874,11 @@ function Show-MainOptions {
         Write-Brand -Text ' S ' -Colour Yellow -NoNewline
         Write-Host "  $('Start over'.PadRight(28))" -ForegroundColor $script:Ink.Strong -NoNewline
         Write-Host 'WARNING! Removes what this setup' -ForegroundColor $script:Ink.Warn
-        Write-Host ('                                        installed, then sets it up again') -ForegroundColor $script:Ink.Warn
+        # Lined up under "WARNING!", which starts at column 41: eight spaces, the
+        # three-character key, two more, then the twenty-eight the label
+        # occupies. It was forty, so the second line sat one space to the left of
+        # the first on every finished screen.
+        Write-Host ('                                         installed, then sets it up again') -ForegroundColor $script:Ink.Warn
     }
 
     Write-Host '        ' -NoNewline
@@ -4420,6 +4496,11 @@ function Invoke-Fix {
         # explanation reads as the setup ignoring them.
         'talk-to-zo'  { return (Set-TalkToZo) }
         'zo-skills'   { return (Install-ZoSkills) }
+        # These two stay listed even when their feature is switched off. Nothing
+        # can reach them - the only caller works from the checklist, and a
+        # switched-off feature puts no row on it - and leaving them means
+        # turning the feature back on is one word in one place, not a hunt for
+        # the four other lines somebody deleted to tidy up.
         'zo-brain'    { return (Install-SecondBrain) }
         'zo-claude-code' { return (Connect-ZoAiProvider -Which 'claude') }
         'zo-codex'       { return (Connect-ZoAiProvider -Which 'codex') }
@@ -4753,9 +4834,29 @@ function Reset-VimigoSetup {
     # again" were separate options that did the same thing to anyone on
     # WhatsApp, which is nearly everyone - choosing the channel now runs the
     # linking itself, so undoing one is undoing the other.
-    Write-NumberedStep 1 'How you talk to Zo -' 'your AI Personal Assistant, from the top'
-    Write-NumberedStep 2 'Your AI employees  -' 'let one go, so you can hire again'
-    Write-NumberedStep 3 'Everything         -' 'the above, plus the programs this setup'
+    # The numbers are worked out, not written down, because one of these options
+    # is switchable. A hard-coded list with the middle one hidden offers "1" and
+    # "3" and no 2, and - the part that actually bites - leaves 2 still wired to
+    # the employee reset, so a key nothing on screen mentions quietly lets an AI
+    # employee go.
+    $options = New-Object System.Collections.Generic.List[object]
+    $options.Add(@{ Action = 'assistant'
+                    Label  = 'How you talk to Zo -'
+                    Why    = 'your AI Personal Assistant, from the top' })
+    if (Test-FeatureOn $script:FeatureAiEmployees) {
+        $options.Add(@{ Action = 'employees'
+                        Label  = 'Your AI employees  -'
+                        Why    = 'let one go, so you can hire again' })
+    }
+    $options.Add(@{ Action = 'everything'
+                    Label  = 'Everything         -'
+                    Why    = 'the above, plus the programs this setup' })
+
+    $number = 0
+    foreach ($option in $options) {
+        $number++
+        Write-NumberedStep $number $option.Label $option.Why
+    }
     Write-Host '                                installed and your saved Zo key' -ForegroundColor $script:Ink.Muted
     Write-Host ''
     # The way out, written down.
@@ -4766,17 +4867,28 @@ function Reset-VimigoSetup {
     # can see is closing the window - which loses the whole run.
     Write-Host '        Enter  go back, changing nothing' -ForegroundColor $script:Ink.Muted
     Write-Host ''
-    Write-Brand -Text '      Choose 1, 2 or 3, or Enter to go back > ' -Colour Purple -NoNewline
+    # Read off the list, so the prompt can never name a number the screen above
+    # does not show. Three options give "1, 2 or 3", two give "1 or 2".
+    $spoken = ((1..($options.Count - 1)) -join ', ') + " or $($options.Count)"
+    Write-Brand -Text "      Choose $spoken, or Enter to go back > " -Colour Purple -NoNewline
     $scope = ([string](Read-Host)).Trim()
 
-    if ($scope -eq '1') { Reset-WhatsAppAssistant; return }
+    # Matched as text, not parsed as a number, so "01" falls through to "nothing
+    # was changed" exactly as it always has - and exactly as it does on the Mac,
+    # where parsing it would have meant reading "08" as octal.
+    $chosen = ''
+    for ($i = 1; $i -le $options.Count; $i++) {
+        if ($scope -eq [string]$i) { $chosen = $options[$i - 1].Action }
+    }
 
-    if ($scope -eq '2') {
+    if ($chosen -eq 'assistant') { Reset-WhatsAppAssistant; return }
+
+    if ($chosen -eq 'employees') {
         Reset-AiEmployees
         return
     }
 
-    if ($scope -ne '3') {
+    if ($chosen -ne 'everything') {
         Write-Host ''
         Write-Info 'Nothing was changed.'
         return
@@ -5116,7 +5228,11 @@ while ($true) {
 
     if ($choice -match '^[Qq]') { Write-Host ''; Write-Info 'Nothing was changed. Bye.'; Write-Host ''; break }
 
-    if ($choice -match '^[Ee]') {
+    # Each key is gated on its feature, not only hidden from the menu above.
+    # A key that still works while nothing offers it is worse than a missing
+    # one: the owner presses E by accident and this build hires somebody it was
+    # never meant to be able to hire.
+    if ($choice -match '^[Ee]' -and (Test-FeatureOn $script:FeatureAiEmployees)) {
         Clear-Screen
         Show-Banner
         $null = Invoke-Guarded -Whats 'hiring an AI employee' -Action { Invoke-HireEmployee }
@@ -5128,7 +5244,7 @@ while ($true) {
         continue
     }
 
-    if ($choice -match '^[Tt]') {
+    if ($choice -match '^[Tt]' -and (Test-FeatureOn $script:FeatureAiEmployees)) {
         Clear-Screen
         Show-Banner
         $null = Invoke-Guarded -Whats 'listing your AI employees' -Action { Show-TeamList }
@@ -5140,7 +5256,7 @@ while ($true) {
         continue
     }
 
-    if ($choice -match '^[Mm]') {
+    if ($choice -match '^[Mm]' -and (Test-FeatureOn $script:FeatureSecondBrain)) {
         Clear-Screen
         Show-Banner
         $null = Invoke-Guarded -Whats 'your company second brain' -Action { Install-SecondBrain }
