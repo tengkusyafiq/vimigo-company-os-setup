@@ -60,6 +60,17 @@ FEATURE_HERMES='on'
 # acceptance suites can hold them to it. A switch that exists in one file only
 # is how the two setups drift apart without anybody noticing.
 FEATURE_CLAUDE_FEATURES='on'
+# What the finished screen offers besides Close.
+#
+# Off, so "ALL DONE" ends the setup instead of presenting a menu. The two rows
+# it hides are "Open your Zo", which is a website the owner can reach anyway,
+# and "Start over", which removes what the setup installed - a destructive
+# action sitting one keypress away on the screen an owner is most likely to be
+# tapping at idly, having just been told everything worked.
+#
+# Start over is not lost: ./vimigo-setup.sh --reset runs it directly, which is
+# how support and testing reach it now.
+FEATURE_FINISHED_MENU='off'
 
 # One run, without editing the file - for support, or a demo:
 #     VIMIGO_FEATURE_AI_EMPLOYEES=on ./vimigo-setup.sh
@@ -84,6 +95,9 @@ if [ -n "${VIMIGO_FEATURE_HERMES:-}" ]; then
 fi
 if [ -n "${VIMIGO_FEATURE_CLAUDE_FEATURES:-}" ]; then
     FEATURE_CLAUDE_FEATURES="$VIMIGO_FEATURE_CLAUDE_FEATURES"
+fi
+if [ -n "${VIMIGO_FEATURE_FINISHED_MENU:-}" ]; then
+    FEATURE_FINISHED_MENU="$VIMIGO_FEATURE_FINISHED_MENU"
 fi
 
 feature_on() {
@@ -3221,6 +3235,17 @@ setup_second_brain() {
     return 0
 }
 
+menu_has_options() {
+    # Whether the finished screen offers anything besides Close. Its own
+    # function so the header and the acceptance suite ask the same question,
+    # rather than each keeping a list of switches that has to be updated twice.
+    feature_on "$FEATURE_AI_EMPLOYEES" && return 0
+    feature_on "$FEATURE_AI_ASSISTANT" && return 0
+    feature_on "$FEATURE_SECOND_BRAIN" && return 0
+    feature_on "$FEATURE_FINISHED_MENU" && return 0
+    return 1
+}
+
 show_main_options() {
     # Everything the owner can do, in one place. $1 = 'finished' to leave out
     # the big Enter box.
@@ -3229,7 +3254,10 @@ show_main_options() {
     # do here" should not depend on how much is ticked - somebody who finished
     # yesterday and came back to hire a second employee met a different,
     # shorter menu than the one they used the first time.
-    if [ "${1:-}" = 'finished' ]; then
+    # The header only when there is something under it. With every switch off
+    # the finished screen offers Close and nothing else, and "What you can do:"
+    # above a single Close reads like the rest failed to load.
+    if [ "${1:-}" = 'finished' ] && menu_has_options; then
         info 'What you can do:'
     fi
     printf '\n'
@@ -3266,6 +3294,7 @@ show_main_options() {
             printf '        %s M %s  %sYour company second brain   %s%swhat your Zo remembers about the business%s\n' \
                 "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
         fi
+        if feature_on "$FEATURE_FINISHED_MENU"; then
         printf '        %s Z %s  %sOpen your Zo                %s%sthe website, for anything not here%s\n' \
             "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREY" "$C_RESET"
         # Named for what it does, not for what it is useful for. "To test it as a
@@ -3277,6 +3306,7 @@ show_main_options() {
         # three-character key, two more, then the twenty-eight the label occupies.
         printf '                                         %sinstalled, then sets it up again%s\n' \
             "$C_YELLOW" "$C_RESET"
+        fi
     fi
 
     printf '        %s Q %s  %sClose%s\n' "$C_YELLOW" "$C_RESET" "$C_WHITE" "$C_RESET"
@@ -3323,6 +3353,7 @@ handle_main_choice() {
             printf '\n      Press Enter to go back '; read -r _ || true
             return 0 ;;
         z*)
+            feature_on "$FEATURE_FINISHED_MENU" || return 1
             clear_screen; show_banner
             local home; home="${ZO_WORKSPACE_URL:-https://zo.computer}"
             [ -n "$home" ] || home='https://zo.computer'
@@ -3332,6 +3363,11 @@ handle_main_choice() {
             printf '      Press Enter to go back '; read -r _ || true
             return 0 ;;
         s*)
+            # Gated even though nothing offers it, because this one removes
+            # what the setup installed. An owner tapping at a finished screen
+            # must not be able to reach it by accident, and --reset is how
+            # support and testing get to it now.
+            feature_on "$FEATURE_FINISHED_MENU" || return 1
             clear_screen; show_banner
             reset_vimigo_setup || true
             printf '      Press Enter to check again '; read -r _ || true
@@ -4910,6 +4946,20 @@ if [ "${1:-}" = "--check" ]; then
     collect_checks
     show_checks
     info 'Nothing was changed. Run without --check to fix anything.'
+    printf '\n'
+    exit 0
+fi
+
+if [ "${1:-}" = "--reset" ]; then
+    # Start over, which used to be a key on the finished screen and is not any
+    # more. It removes what this setup installed, and a destructive action one
+    # keypress from "ALL DONE" is a destructive action somebody will reach by
+    # accident - on the screen they are most likely to be idly tapping at.
+    #
+    # Here instead, where it has to be asked for on purpose. The screens it
+    # shows are the ones it always showed, including its own confirmations.
+    show_logo
+    reset_vimigo_setup || true
     printf '\n'
     exit 0
 fi

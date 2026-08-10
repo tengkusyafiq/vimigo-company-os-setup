@@ -991,6 +991,12 @@ try {
         $script:FeatureAiAssistant = $Assistant
         $script:FeatureSecondBrain = $Brain
         $script:FeatureAiEmployees = $Employees
+        # Held on, and said here rather than inherited. These checks are about
+        # each feature taking its own key with it, and Z and S are not features
+        # - they are the finished menu itself, which has its own switch and its
+        # own section. Left to inherit, all five turned red the day that switch
+        # went off, for a reason none of them is about.
+        $script:FeatureFinishedMenu = 'on'
         # Colours stripped first. Write-Brand wraps the key in 24-bit escapes on
         # a capable console, so a pattern that expected a bare letter found none
         # of them and every row read as absent.
@@ -1207,6 +1213,49 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     Assert-True ($null -eq (Get-HermesWindowsAsset)) `
         'an unreachable feed says nothing, so the pinned version is used'
     Remove-Item -LiteralPath 'function:Invoke-WebRequest' -ErrorAction SilentlyContinue
+
+    Write-Host ''
+    Write-Host 'The finished screen ends the setup, it does not open a menu' -ForegroundColor Cyan
+
+    # "ALL DONE" is the screen an owner is most likely to be tapping at idly,
+    # having just been told everything worked - so a key that removes what the
+    # setup installed must not be sitting on it.
+    function Get-FinishedMenuText {
+        param([string]$FinishedMenu)
+        $script:FeatureFinishedMenu = $FinishedMenu
+        return ((@(Show-MainOptions -Finished 6>&1 |
+            ForEach-Object { [regex]::Replace([string]$_, "$([char]27)\[[0-9;]*m", '') }) -join "`n"))
+    }
+
+    Set-Features 'off'
+    $plain = Get-FinishedMenuText -FinishedMenu 'off'
+    Assert-True ($plain -notmatch 'Start over') 'Start over is gone from the finished screen'
+    Assert-True ($plain -notmatch 'Open your Zo') 'and so is Open your Zo'
+    Assert-True ($plain -notmatch 'WARNING') 'and the warning that went with it'
+    Assert-True ($plain -match 'Close') 'Close is still offered, so there is a way out'
+    Assert-True ($plain -notmatch 'What you can do') `
+        'and the header goes too, rather than sitting above a lone Close'
+
+    $full = Get-FinishedMenuText -FinishedMenu 'on'
+    Assert-True ($full -match 'Start over' -and $full -match 'Open your Zo') `
+        'switched on, both come back exactly as they were'
+    Assert-True ($full -match 'What you can do') 'and the header with them'
+    $script:FeatureFinishedMenu = 'off'
+
+    # Hidden is not enough on its own. This suite's own rule, written when the
+    # other switches went in: a key that still works while nothing offers it is
+    # worse than a missing one, because it fires by accident and nothing on
+    # screen explains what just happened.
+    $dispatch = [regex]::Matches($setupText, "\`$choice -match '\^\[Ss\]'[^\r\n]*")
+    Assert-True ($dispatch.Count -eq 1 -and $dispatch[0].Value -match 'FeatureFinishedMenu') `
+        'and the S key itself is gated, not merely hidden'
+    $dispatchZ = [regex]::Matches($setupText, "\`$choice -match '\^\[Zz\]'[^\r\n]*")
+    Assert-True ($dispatchZ.Count -eq 1 -and $dispatchZ[0].Value -match 'FeatureFinishedMenu') `
+        'as is the Z key'
+
+    # Taken off the screen, not taken away.
+    Assert-True ($setupText -match '\[switch\]\$Reset') `
+        'starting over is still reachable, by asking for it on purpose'
 
     Write-Host ''
     Write-Host 'Claude Desktop features: on, and honest about what it can fix' -ForegroundColor Cyan

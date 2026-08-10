@@ -581,6 +581,12 @@ menu_keys() {
     FEATURE_AI_ASSISTANT="$1"
     FEATURE_SECOND_BRAIN="$2"
     FEATURE_AI_EMPLOYEES="$3"
+    # Held on, and said here rather than inherited. These checks are about each
+    # feature taking its own key with it, and Z and S are not features - they
+    # are the finished menu itself, which has its own switch and its own
+    # section above. Left to inherit, all five of these turned red the day that
+    # switch went off, for a reason none of them is about.
+    FEATURE_FINISHED_MENU='on'
     # Colours stripped first. They are empty until apply_theme runs, so a
     # pattern that looked for them found nothing and every row read as absent.
     show_main_options finished 2>&1 |
@@ -689,6 +695,49 @@ assert $? 'both off, 1 is Everything and reaches neither of the other two'
 assert $? 'a leading zero is read as text, not as octal'
 [ "$(reset_pick on on '')" = 'Nothing was changed' ]
 assert $? 'Enter goes back without changing anything'
+
+printf '\n\033[36mThe finished screen ends the setup, it does not open a menu\033[0m\n'
+
+# "ALL DONE" is the screen an owner is most likely to be tapping at idly,
+# having just been told everything worked - so a key that removes what the setup
+# installed must not be sitting on it.
+finished_menu() {
+    FEATURE_FINISHED_MENU="$1"
+    FEATURE_AI_ASSISTANT='off'; FEATURE_ZO_SKILLS='off'
+    FEATURE_SECOND_BRAIN='off'; FEATURE_AI_EMPLOYEES='off'; FEATURE_GOOGLE='off'
+    show_main_options finished 2>&1 | sed 's/\x1b\[[0-9;]*m//g'
+}
+
+PLAIN="$(finished_menu off)"
+printf '%s' "$PLAIN" | grep -q 'Start over'
+assert_not $? 'Start over is gone from the finished screen'
+printf '%s' "$PLAIN" | grep -q 'Open your Zo'
+assert_not $? 'and so is Open your Zo'
+printf '%s' "$PLAIN" | grep -q 'WARNING'
+assert_not $? 'and the warning that went with it'
+printf '%s' "$PLAIN" | grep -q 'Close'
+assert $? 'Close is still offered, so there is a way out'
+printf '%s' "$PLAIN" | grep -q 'What you can do'
+assert_not $? 'and the header goes too, rather than sitting above a lone Close'
+
+FULL="$(finished_menu on)"
+printf '%s' "$FULL" | grep -q 'Start over'
+assert $? 'switched on, Start over comes back exactly as it was'
+printf '%s' "$FULL" | grep -q 'Open your Zo'
+assert $? 'and Open your Zo with it'
+
+# Hidden is not enough on its own. This script's own rule: a key that still
+# works while nothing offers it is worse than a missing one, because it fires by
+# accident and nothing on screen explains what just happened.
+FEATURE_FINISHED_MENU='off'
+handle_main_choice s >/dev/null 2>&1
+assert_not $? 'the S key is gated, not merely hidden'
+handle_main_choice z >/dev/null 2>&1
+assert_not $? 'as is the Z key'
+
+# Taken off the screen, not taken away.
+grep -q '"--reset"' "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'starting over is still reachable, by asking for it on purpose'
 
 printf '\n\033[36mHermes One, the last step\033[0m\n'
 

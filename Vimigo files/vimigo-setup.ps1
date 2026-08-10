@@ -31,6 +31,12 @@ param(
     # somebody who has already run the setup and wants the part v1 leaves out.
     [switch]$Assistant,
 
+    # Start over: remove what this setup installed, then set it up again.
+    # It used to be a key on the finished screen and is not any more, because a
+    # destructive action one keypress from "ALL DONE" is one somebody reaches
+    # by accident. Here it has to be asked for on purpose.
+    [switch]$Reset,
+
     # Leave the console's own colours alone instead of applying the Vimigo
     # theme. Useful if a terminal renders it badly.
     [switch]$NoTheme
@@ -162,6 +168,17 @@ $script:FeatureHermes      = 'on'
 # hypervisor, and a restart - so it earns its place by being right about
 # whether it can work at all before it asks for any of that.
 $script:FeatureClaudeFeatures = 'on'
+# What the finished screen offers besides Close.
+#
+# Off, so "ALL DONE" ends the setup instead of presenting a menu. The two rows
+# it hides are "Open your Zo", which is a website the owner can reach anyway,
+# and "Start over", which removes what the setup installed - a destructive
+# action sitting one keypress away on the screen an owner is most likely to be
+# tapping at idly, having just been told everything worked.
+#
+# Start over is not lost: -Reset runs it directly, which is how support and
+# testing reach it now.
+$script:FeatureFinishedMenu = 'off'
 
 # One run, without editing the file - for support, or a demo:
 #     $env:VIMIGO_FEATURE_AI_EMPLOYEES = 'on'
@@ -173,6 +190,7 @@ if ($env:VIMIGO_FEATURE_SECOND_BRAIN) { $script:FeatureSecondBrain = $env:VIMIGO
 if ($env:VIMIGO_FEATURE_AI_EMPLOYEES) { $script:FeatureAiEmployees = $env:VIMIGO_FEATURE_AI_EMPLOYEES }
 if ($env:VIMIGO_FEATURE_HERMES)       { $script:FeatureHermes      = $env:VIMIGO_FEATURE_HERMES }
 if ($env:VIMIGO_FEATURE_CLAUDE_FEATURES) { $script:FeatureClaudeFeatures = $env:VIMIGO_FEATURE_CLAUDE_FEATURES }
+if ($env:VIMIGO_FEATURE_FINISHED_MENU) { $script:FeatureFinishedMenu = $env:VIMIGO_FEATURE_FINISHED_MENU }
 
 function Test-FeatureOn {
     <#
@@ -2494,6 +2512,20 @@ function Show-AllDone {
     Show-MainOptions -Finished
 }
 
+function Test-MenuHasOptions {
+    <#
+        Whether the finished screen offers anything besides Close. Its own
+        function so the header and the acceptance suite ask the same question,
+        rather than each keeping a list of switches that has to be updated
+        twice.
+    #>
+    foreach ($switch in @($script:FeatureAiEmployees, $script:FeatureAiAssistant,
+                          $script:FeatureSecondBrain, $script:FeatureFinishedMenu)) {
+        if (Test-FeatureOn $switch) { return $true }
+    }
+    return $false
+}
+
 function Show-MainOptions {
     <#
         Everything the owner can do, in one place.
@@ -2505,7 +2537,10 @@ function Show-MainOptions {
     #>
     param([switch]$Finished)
 
-    if ($Finished) {
+    # The header only when there is something under it. With every switch off
+    # the finished screen offers Close and nothing else, and "What you can do:"
+    # above a single Close reads like the rest failed to load.
+    if ($Finished -and (Test-MenuHasOptions)) {
         Write-Host '      What you can do:' -ForegroundColor $script:Ink.Body
         Write-Host ''
     }
@@ -2543,7 +2578,9 @@ function Show-MainOptions {
         if (Test-FeatureOn $script:FeatureSecondBrain) {
             $rows += @{ Key = 'M'; What = 'Your company second brain'; Why = 'what your Zo remembers about the business' }
         }
-        $rows += @{ Key = 'Z'; What = 'Open your Zo'; Why = 'the website, for anything not here' }
+        if (Test-FeatureOn $script:FeatureFinishedMenu) {
+            $rows += @{ Key = 'Z'; What = 'Open your Zo'; Why = 'the website, for anything not here' }
+        }
     }
     foreach ($row in $rows) {
         Write-Host '        ' -NoNewline
@@ -2552,7 +2589,7 @@ function Show-MainOptions {
         Write-Host $row.Why -ForegroundColor $script:Ink.Muted
     }
 
-    if ($Finished) {
+    if ($Finished -and (Test-FeatureOn $script:FeatureFinishedMenu)) {
         Write-Host '        ' -NoNewline
         Write-Brand -Text ' S ' -Colour Yellow -NoNewline
         Write-Host "  $('Start over'.PadRight(28))" -ForegroundColor $script:Ink.Strong -NoNewline
@@ -6187,6 +6224,15 @@ if ($Check) {
     exit 0
 }
 
+if ($Reset) {
+    # The screens it shows are the ones it always showed, its own confirmations
+    # included. Nothing here is a shortcut past those.
+    Show-Logo
+    $null = Invoke-Guarded -Whats 'starting over' -Action { Reset-VimigoSetup }
+    Write-Host ''
+    exit 0
+}
+
 if ($Assistant) {
     # The AI Personal Assistant on its own.
     #
@@ -6367,7 +6413,7 @@ while ($true) {
         continue
     }
 
-    if ($choice -match '^[Zz]') {
+    if ($choice -match '^[Zz]' -and (Test-FeatureOn $script:FeatureFinishedMenu)) {
         $where = if ($script:ZoWorkspaceUrl) { $script:ZoWorkspaceUrl } else { 'https://zo.computer' }
         Write-Host ''
         Write-Info 'Opening your Zo...'
@@ -6396,7 +6442,10 @@ while ($true) {
         continue
     }
 
-    if ($choice -match '^[Ss]') {
+    # Gated even though nothing offers it, because this one removes what the
+    # setup installed. An owner tapping at a finished screen must not reach it
+    # by accident, and -Reset is how support and testing get to it now.
+    if ($choice -match '^[Ss]' -and (Test-FeatureOn $script:FeatureFinishedMenu)) {
         Clear-Screen
         Show-Banner
         $null = Invoke-Guarded -Whats 'starting over' -Action { Reset-VimigoSetup }
