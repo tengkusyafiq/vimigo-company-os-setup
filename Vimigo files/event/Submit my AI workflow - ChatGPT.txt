@@ -65,9 +65,12 @@ each one:
 
   1. Open my Google Drive in my browser
   2. Make a new folder named exactly my company name - nothing else in the
-     name, no batch number and no date
+     name, no batch number and no date. If I already have one from a previous
+     batch, tell me to use that same folder instead of making a second one.
   3. Put the document in it, along with any screenshots, slides, sample
-     outputs or other files that help explain my project
+     outputs or other files that help explain my project. If a file with the
+     same name is already in there from a previous batch, tell me to add
+     " (V002)" to the new one rather than replacing the old one.
   4. Right-click that folder, choose Share, and share it with
      vimigoai@vimigoapp.com as an Editor
   5. Copy the folder link and paste it back to you

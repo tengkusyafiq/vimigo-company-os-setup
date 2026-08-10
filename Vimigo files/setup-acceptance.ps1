@@ -1146,6 +1146,12 @@ try {
         Assert-True ($half.Text -like '*August 2026*') "$($half.Name) names the month it is for"
         Assert-True ($half.Text -notlike '*V001*') `
             "$($half.Name) does not still name the batch before it"
+        # Second batch, so some owners already have a company folder holding a
+        # submission with exactly the name this one is about to write. Both
+        # halves reuse the folder by instruction, so without this they
+        # overwrite it.
+        Assert-True ($half.Text -like '*(V002)*') `
+            "$($half.Name) keeps an earlier batch's submission rather than replacing it"
     }
 
     # The real functions, run against a sandbox rather than the tester's own

@@ -193,6 +193,14 @@ do not create a second. Otherwise create it.
 The folder name is the **company name only**. No participant name, no batch
 number, no date.
 
+**Never replace what is already in there.** This is the second batch, so some
+owners already have a folder from an earlier one, holding a submission with the
+same name as the one you are about to write. Before uploading anything, check
+whether a file of that name already exists. If it does, keep both: add ` (V002)`
+to the name of everything you upload this time, and say in one line that their
+earlier submission was left untouched. Overwriting a year's work to save a
+filename is not a trade worth making.
+
 ## Step 8 — Upload
 
 Into that company folder:

@@ -947,6 +947,11 @@ for half in "$SCRIPT_DIR/event/compile-data/SKILL.md" \
     assert $? "$(basename "$half") names the month it is for"
     grep -qF 'V001' "$half"
     assert_not $? "$(basename "$half") does not still name the batch before it"
+    # Second batch, so some owners already have a company folder holding a
+    # submission with exactly the name this one is about to write. Both halves
+    # reuse the folder by instruction, so without this they overwrite it.
+    grep -qF '(V002)' "$half"
+    assert $? "$(basename "$half") keeps an earlier batch's submission rather than replacing it"
 done
 
 # The real thing, run against a sandbox rather than the tester's own home, so
