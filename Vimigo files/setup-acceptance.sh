@@ -846,8 +846,8 @@ assert $? 'both scripts ship the same answer for Hermes One'
 # drift. A switch present in one file only is how the two setups come apart.
 [ -n "$(win_default ClaudeFeatures)" ] && [ "$(win_default ClaudeFeatures)" = "$(mac_default CLAUDE_FEATURES)" ]
 assert $? 'both scripts ship the same answer for the Claude Desktop features'
-[ "$(mac_default CLAUDE_FEATURES)" = 'off' ]
-assert $? 'and that answer is off, after it sent a customer into her BIOS'
+[ "$(mac_default CLAUDE_FEATURES)" = 'on' ]
+assert $? 'and that answer is on, because the training uses Cowork rather than Chat'
 # The only one that ships on, so it is worth stating rather than implying.
 [ "$(mac_default HERMES)" = 'on' ]
 assert $? 'and that answer is on, because it was asked for by name'

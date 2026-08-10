@@ -20,6 +20,16 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'vimigo-setup.ps1')
 
+# Kept here, before anything below replaces it.
+#
+# Stubs in this suite overwrite a function rather than shadowing it, so once the
+# fixtures further down have installed their own Test-HcsServicesPresent the
+# real one is simply gone. Captured after that point it returns whatever the
+# fixture returns, and the tests that check its actual logic then pass or fail
+# for reasons that have nothing to do with the code - which is exactly what
+# happened before this line existed.
+$script:RealTestHcsServicesPresent = ${function:Test-HcsServicesPresent}
+
 $script:Failures = 0
 $script:Ran = 0
 
@@ -1199,13 +1209,14 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     Remove-Item -LiteralPath 'function:Invoke-WebRequest' -ErrorAction SilentlyContinue
 
     Write-Host ''
-    Write-Host 'Claude Desktop features: off, and honest when it is on' -ForegroundColor Cyan
+    Write-Host 'Claude Desktop features: on, and honest about what it can fix' -ForegroundColor Cyan
 
-    # This row asked for administrator permission, switched on the hypervisor,
-    # and restarted the computer - to make Claude Desktop's Cowork tab work,
-    # which v1 does not promise. On the machine it was reported from it did not
-    # work even after the restart, because the services cannot start unless
-    # virtualisation is on in the laptop's own firmware.
+    # On, because the training uses Cowork and Claude Code rather than Chat - an
+    # owner who arrives with a greyed-out Cowork button cannot take part. It is
+    # still the most invasive thing here, so it has to be right about whether it
+    # can work before asking for permission, the hypervisor and a restart.
+    Assert-True (Test-FeatureOn $script:FeatureClaudeFeatures) `
+        'it ships on, because Cowork is what the event actually uses'
     # Claude present, said here rather than inherited. An earlier block left
     # $script:WantClaude false, and Test-ClaudeDesktopInstalled follows it - so
     # this measured "no Claude, therefore no row" and read as the switch
@@ -1235,6 +1246,53 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     foreach ($name in @('vmcompute', 'hns')) {
         Assert-True ($hcsCheck.Success -and $hcsCheck.Groups[1].Value -match $name) `
             "and still asks for $name"
+    }
+
+    # Installed-and-stopped is a real state, and it looks exactly like
+    # not-installed to the owner: Claude prints the same "Missing HCS services"
+    # either way. Asking only whether they exist reported that machine as fixed,
+    # and the repair then said "already fixed, nothing to do" without starting
+    # anything - a green row above a greyed-out Cowork button.
+    ${function:Test-HcsServicesPresent} = $script:RealTestHcsServicesPresent
+    $script:FakeServices = @{}
+    function Get-Service {
+        param([string]$Name, $ErrorAction)
+        if ($script:FakeServices.ContainsKey($Name)) {
+            return [pscustomobject]@{ Name = $Name; Status = $script:FakeServices[$Name] }
+        }
+        return $null
+    }
+
+    $script:FakeServices = @{ vmcompute = 'Running'; hns = 'Running'; vfpext = 'Running' }
+    Assert-True (Test-HcsServicesPresent) 'all three running counts as working'
+
+    $script:FakeServices = @{ vmcompute = 'Running'; hns = 'Stopped'; vfpext = 'Running' }
+    Assert-True (-not (Test-HcsServicesPresent)) `
+        'installed but stopped does not, because Claude says the same thing either way'
+
+    $script:FakeServices = @{ vmcompute = 'Running'; hns = 'Running' }
+    Assert-True (-not (Test-HcsServicesPresent)) `
+        'and neither does two of the three, however healthy they look'
+
+    # Nothing to start when one is absent - that needs the features installing,
+    # which is a different and far more expensive answer.
+    $script:FakeServices = @{ vmcompute = 'Running'; hns = 'Running' }
+    Assert-True (-not (Start-HcsServices)) `
+        'starting services is not attempted when one is missing altogether'
+
+    $script:FakeServices = @{ vmcompute = 'Running'; hns = 'Running'; vfpext = 'Running' }
+    Assert-True (Start-HcsServices) `
+        'and three already running needs no permission at all'
+
+    Remove-Item -LiteralPath 'function:Get-Service' -ErrorAction SilentlyContinue
+
+    # The cheap answer is tried before the expensive one.
+    $repairOrder = [regex]::Match($setupText, '(?s)function Repair-HcsServices \{(.*?)\n\}')
+    if ($repairOrder.Success) {
+        $b = $repairOrder.Groups[1].Value
+        Assert-True (($b.IndexOf('Start-HcsServices') -ge 0) -and
+                     ($b.IndexOf('Start-HcsServices') -lt $b.IndexOf('dism.exe'))) `
+            'starting the services is tried before switching on the hypervisor'
     }
 
     # Firmware is asked about before any of it is offered.

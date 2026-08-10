@@ -150,21 +150,18 @@ $script:FeatureAiEmployees = 'off'
 # than anything on Zo, so it is the only one here that needs no key and no
 # account - which is also why it can safely be last.
 $script:FeatureHermes      = 'on'
-# Switched off after a customer went into her laptop's BIOS over it.
+# On, and it has to be: Cowork is what the training actually uses.
 #
-# This row turns on Windows' virtualisation features so Claude Desktop's Cowork
-# tab works. Everything v1 promises - Claude and ChatGPT reaching the owner's Zo
-# - works without any of it, and Cowork is a Claude feature we do not sell.
+# This row turns on the Windows virtualisation features behind Claude Desktop's
+# Cowork tab. It was briefly switched off on the reasoning that Cowork is
+# optional - which is true of the Zo connection and false of the event, where
+# Cowork and Claude Code are the point rather than Chat. An owner who reaches
+# the room with a greyed-out Cowork button cannot take part.
 #
-# Against that: it is the most invasive thing this setup can do. It asks for
-# administrator permission, switches on the hypervisor, and restarts the
-# computer. On the machine it was reported from it did not work even then,
-# because those services cannot start at all unless virtualisation is enabled
-# in the laptop's own firmware - which no amount of restarting changes.
-#
-# So it is off. Nothing about it is deleted: switch it on and it behaves as it
-# always did, now with a firmware check in front of it.
-$script:FeatureClaudeFeatures = 'off'
+# It is still the most invasive thing here - administrator permission, the
+# hypervisor, and a restart - so it earns its place by being right about
+# whether it can work at all before it asks for any of that.
+$script:FeatureClaudeFeatures = 'on'
 
 # One run, without editing the file - for support, or a demo:
 #     $env:VIMIGO_FEATURE_AI_EMPLOYEES = 'on'
@@ -1456,6 +1453,51 @@ function Test-VirtualisationInFirmware {
     }
 }
 
+function Start-HcsServices {
+    <#
+        Starts the three services when they are installed but not running, and
+        says whether all three ended up running.
+
+        Installed and stopped is a real state and it looks identical to the
+        owner: Claude prints the same "Missing HCS services" either way. Before
+        this, the only answer on offer was an administrator prompt, the
+        hypervisor and a restart - none of which a stopped service needs.
+
+        Elevation is asked for once, and only when there is something to start.
+        A service already running is not touched.
+    #>
+    $names = @('vmcompute', 'hns', 'vfpext')
+
+    $found = @($names | Where-Object { Get-Service -Name $_ -ErrorAction SilentlyContinue })
+    if ($found.Count -ne $names.Count) { return $false }
+
+    $stopped = @($found | Where-Object {
+        (Get-Service -Name $_ -ErrorAction SilentlyContinue).Status -ne 'Running'
+    })
+    if ($stopped.Count -eq 0) { return $true }
+
+    Write-Info 'Those features are already installed. Starting them...'
+    # sc.exe rather than Start-Service, because two of these are drivers and
+    # need their start type corrected as well - a disabled service refuses to
+    # start and says nothing useful about why.
+    $commands = ($stopped | ForEach-Object {
+        "sc.exe config $_ start= demand & sc.exe start $_"
+    }) -join ' & '
+    try {
+        Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $commands `
+            -Verb RunAs -Wait -WindowStyle Hidden -ErrorAction Stop | Out-Null
+    } catch {
+        Write-SetupLog "Could not start the HCS services: $($_.Exception.Message)"
+        return $false
+    }
+
+    foreach ($name in $names) {
+        $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+        if (-not $service -or $service.Status -ne 'Running') { return $false }
+    }
+    return $true
+}
+
 function Test-HcsServicesPresent {
     <#
         Claude Desktop's shell sandbox needs the Windows Host Compute Services.
@@ -1471,9 +1513,17 @@ function Test-HcsServicesPresent {
 
         vfpext is a driver rather than a service, and Get-Service returns it
         anyway, so one lookup answers for all three.
+
+        Running, not merely installed. Installed and stopped is a real state,
+        and Claude prints the identical "Missing HCS services" in it - so a
+        check that asked only whether they existed reported that machine as
+        fixed, and the repair below then said "already fixed, nothing to do"
+        without ever starting anything. Green row, greyed-out Cowork button,
+        and nothing left to try.
     #>
     foreach ($service in @('vmcompute', 'hns', 'vfpext')) {
-        if (-not (Get-Service -Name $service -ErrorAction SilentlyContinue)) { return $false }
+        $found = Get-Service -Name $service -ErrorAction SilentlyContinue
+        if (-not $found -or $found.Status -ne 'Running') { return $false }
     }
     return $true
 }
@@ -1494,34 +1544,48 @@ function Repair-HcsServices {
     # started - with Claude showing the same error and no idea why. She went
     # looking in her laptop's BIOS on her own, which is the last place a setup
     # for non-technical owners should ever send somebody.
+    # Tried before anything is asked for.
+    #
+    # The features can already be on with their services merely stopped, and
+    # then the whole ceremony - administrator prompt, hypervisor, restart - buys
+    # nothing that starting three services would not. Worth one quiet attempt
+    # first, because it is the only path here that costs the owner nothing.
+    if (Start-HcsServices) {
+        Write-Good 'Those features were already on and just needed starting.'
+        Write-Info 'Quit Claude Desktop completely and open it again, and Cowork'
+        Write-Info 'will be there. No restart needed.'
+        return $true
+    }
+
     if (-not (Test-VirtualisationInFirmware)) {
+        # Named plainly, because this is the one case where the setup genuinely
+        # cannot proceed and saying so vaguely sends people into their BIOS to
+        # guess. It happened once already.
         Write-Warn 'This computer has virtualisation switched off in its own'
-        Write-Warn 'start-up settings, and only you can change that.'
+        Write-Warn 'start-up settings, and no program can change that from here.'
         Write-Host ''
-        Write-Info 'Until it is on, these Windows features cannot start no matter'
-        Write-Info 'how many times the computer restarts - so nothing was changed'
-        Write-Info 'and no restart is needed.'
+        Write-Info 'Until it is on, these Windows features cannot start however'
+        Write-Info 'many times the computer restarts - so nothing has been'
+        Write-Info 'changed and no restart is needed.'
         Write-Host ''
-        Write-Info 'This affects only the Cowork tab in Claude Desktop. Everything'
-        Write-Info 'this setup installed works without it, including your Zo.'
+        Write-Info 'Cowork needs it. Everything else this setup installed works'
+        Write-Info 'now, including your Zo inside Claude and ChatGPT.'
         Write-Host ''
-        Write-Info 'If you want Cowork, ask whoever looks after your computer to'
-        Write-Info 'turn on virtualisation. It is worth nobody guessing at it.'
+        Write-Warn 'Please ask Vimigo support to turn this on with you.'
+        Write-Info 'It is a setting in the start-up screen, it is different on'
+        Write-Info 'every make of laptop, and it is not worth guessing at alone.'
         Write-Host ''
         return $false
     }
 
-    Write-Info 'Claude Desktop needs two Windows features that are switched off'
-    Write-Info 'on this computer. Without them its tools cannot run.'
+    Write-Info 'Cowork needs two Windows features that are switched off on this'
+    Write-Info 'computer. Without them the Cowork button stays greyed out.'
     Write-Host ''
     Write-Warn 'Windows will ask for permission, and the computer must restart afterwards.'
     Write-Host ''
-    Write-Info 'This affects only the Cowork tab. Everything else, including your'
-    Write-Info 'Zo, already works without it - so skipping this is perfectly fine.'
-    Write-Host ''
 
     if (-not (Read-YesNo -Question 'Turn those Windows features on now?' -YesLabel 'Yes, turn them on' -NoLabel 'Skip this for now')) {
-        Write-Info 'Skipped. Claude Desktop will keep showing the sandbox error.'
+        Write-Info 'Skipped. Cowork will stay greyed out until this is done.'
         return $false
     }
 

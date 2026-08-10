@@ -51,16 +51,15 @@ FEATURE_AI_EMPLOYEES='off'
 FEATURE_HERMES='on'
 # Carried here, and does nothing here yet.
 #
-# On Windows this hides the row that switches on virtualisation so Claude
-# Desktop's Cowork tab works - a row that asked for administrator permission and
-# a restart, and sent one customer into her laptop's BIOS. A Mac has no
-# equivalent row today; whether it needs one is still waiting on a customer's
-# actual error text.
+# On Windows this is the row that switches on virtualisation so Claude Desktop's
+# Cowork tab works, and it is on because the training uses Cowork and Claude
+# Code rather than Chat. A Mac has no equivalent row today; whether it needs one
+# is still waiting on a customer's actual error text.
 #
 # The name is declared anyway so the two files carry the same switches and the
 # acceptance suites can hold them to it. A switch that exists in one file only
 # is how the two setups drift apart without anybody noticing.
-FEATURE_CLAUDE_FEATURES='off'
+FEATURE_CLAUDE_FEATURES='on'
 
 # One run, without editing the file - for support, or a demo:
 #     VIMIGO_FEATURE_AI_EMPLOYEES=on ./vimigo-setup.sh
