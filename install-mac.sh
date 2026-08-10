@@ -21,7 +21,7 @@
 
 set -u
 
-RELEASE='https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-mac-v1.0.zip'
+RELEASE='https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/latest/download/vimigo-company-os-setup-mac.zip'
 DESKTOP="$HOME/Desktop"
 FOLDER='Vimigo AI Setup'
 

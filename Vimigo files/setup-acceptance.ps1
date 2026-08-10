@@ -591,6 +591,11 @@ try {
     function Test-ClaudeDesktopInstalled { return $true }
     function Test-ChatGptDesktopInstalled { return $true }
     function Test-HcsServicesPresent { return $true }
+    # Treated as present for the same reason as the two apps above it: these
+    # tests are about which rows appear and in what order, and a row that is
+    # outstanding only because the machine running the suite happens not to
+    # have the app would fail every "nothing left to do" check below.
+    function Test-HermesInstalled { return $true }
     function Find-LocalWhatsAppInstall { return @() }
     function Get-Profile { return @{ talkChannel = 'whatsapp'; employees = @() } }
     function Get-HiredEmployees { return @() }
@@ -1070,6 +1075,230 @@ try {
         'a leading zero is read as text, not as a number'
 
     Write-Host ''
+    Write-Host 'Hermes One, the last step' -ForegroundColor Cyan
+
+    function Get-LastRowKey {
+        param([string]$Hermes, [string]$Employees, [switch]$NoKey)
+        Set-Features 'off'
+        $script:FeatureHermes = $Hermes
+        $script:FeatureAiEmployees = $Employees
+        $script:FixtureHasKey = -not $NoKey
+        $keys = @(Get-AllChecks 6>$null | ForEach-Object { $_.Key })
+        if ($keys.Count -eq 0) { return '' }
+        return $keys[-1]
+    }
+
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off') -eq 'hermes-app') `
+        'it is the last row on the list'
+
+    # The one that matters most. Get-AllChecks gives up early when Zo cannot be
+    # reached, and this row is built after that point - so written in the
+    # obvious place it would be missing from every machine without a key, which
+    # is every machine the first time it is opened.
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off' -NoKey) -eq 'hermes-app') `
+        'with no Zo key at all it is still offered, and still last'
+
+    # The other early exit. Employees used to end the function outright, so
+    # anything after it vanished on every build that ships with them off.
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'on') -eq 'hermes-app') `
+        'switching AI employees back on does not push it off the end'
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off') -eq 'hermes-app') `
+        'and switching them off again does not take it with them'
+
+    Set-Features 'off'
+    $script:FeatureHermes = 'off'
+    $script:FixtureHasKey = $true
+    Assert-True (@(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'hermes-app' }).Count -eq 0) `
+        'switched off, the row disappears completely'
+
+    $script:FeatureHermes = 'on'
+    function Test-HermesInstalled { return $true }
+    $row = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'hermes-app' })[0]
+    Assert-True ($row.Status -eq 'ok' -and $row.Title -eq 'Hermes One') `
+        'an installed Hermes One reads as done'
+    function Test-HermesInstalled { return $false }
+    $row = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'hermes-app' })[0]
+    Assert-True ($row.Status -eq 'missing') 'a missing one reads as missing'
+
+    # Answered on this computer. If it ever falls through to the Zo questions
+    # it comes back "could not tell" on exactly the machines with no key.
+    function Test-HermesInstalled { return $true }
+    $script:FixtureHasKey = $false
+    Assert-True ((Test-CheckNow -Key 'hermes-app').Done -eq $true) `
+        'its own check answers here, without asking Zo'
+    $script:FixtureHasKey = $true
+
+    Assert-True ($script:OwnerCompletes -notcontains 'hermes-app') `
+        'it never asks "have you finished that step?" about work it just did'
+
+    Write-Host ''
+    Write-Host 'Which Hermes build this computer gets' -ForegroundColor Cyan
+
+    # A real install of this app writes no InstallLocation - checked against a
+    # machine that has it - so the registry route has to read the executable
+    # out of DisplayIcon instead, icon index and all. Asking for
+    # InstallLocation first meant the whole registry route never fired once,
+    # and what actually found the app was a guessed folder name.
+    $exePath = Join-Path $sandbox 'hermes-agent.exe'
+    Assert-True ((Get-HermesIconPath -Value "$exePath,0") -eq $exePath) `
+        'the icon index is stripped off the end of the recorded path'
+    Assert-True ((Get-HermesIconPath -Value "`"$exePath`"") -eq $exePath) `
+        'and so are quotes around it'
+    Assert-True ((Get-HermesIconPath -Value '') -eq '') `
+        'an empty entry yields nothing rather than a stray path'
+
+    # Two spellings of the same number. Compared as text without converting,
+    # the published checksum never matches and every download looks damaged.
+    $emptyHex = (Get-FileHash -InputStream ([IO.MemoryStream]::new()) -Algorithm SHA512).Hash
+    $emptyB64 = [Convert]::ToBase64String(
+        [Security.Cryptography.SHA512]::Create().ComputeHash([byte[]]@()))
+    Assert-True ((ConvertFrom-HexHash -Hex $emptyHex) -eq $emptyB64) `
+        'a hex checksum converts to the base64 form the project publishes'
+    Assert-True ((ConvertFrom-HexHash -Hex 'abc') -eq '') `
+        'a malformed checksum yields nothing rather than a wrong answer'
+    Assert-True ((ConvertFrom-HexHash -Hex '') -eq '') `
+        'and so does an empty one'
+
+    # GitHub serves the version feed as application/octet-stream. Windows
+    # PowerShell 5.1 hands Content back as a string and PowerShell 7 hands back
+    # raw bytes - so matched as-is this found nothing on 7, and quietly
+    # installed the pinned version every time on the newer of the two, which is
+    # the one the launcher prefers.
+    $feed = @"
+version: 0.7.6
+files:
+  - url: hermes-desktop-0.7.6-setup.exe
+    sha512: SUM_INDENTED
+    size: 154543361
+path: hermes-desktop-0.7.6-setup.exe
+sha512: SUM_TOP_LEVEL
+releaseDate: '2026-07-22T11:44:41.451Z'
+"@
+    foreach ($shape in @(
+        @{ What = 'a string, as Windows PowerShell 5.1 returns it'; Body = $feed },
+        @{ What = 'raw bytes, as PowerShell 7 returns them'
+           Body = [Text.Encoding]::UTF8.GetBytes($feed) }
+    )) {
+        $captured = $shape.Body
+        function Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $TimeoutSec, $OutFile)
+            return [pscustomobject]@{ Content = $captured } }
+        $asset = Get-HermesWindowsAsset
+        Assert-True ($null -ne $asset -and $asset.File -eq 'hermes-desktop-0.7.6-setup.exe') `
+            "the current build is read when the feed arrives as $($shape.What)"
+        # The top-level checksum, not the indented one. They describe the same
+        # file here, but on the Mac feed the indented ones belong to each
+        # processor and the top-level one belongs to whichever is listed first.
+        Assert-True ($null -ne $asset -and $asset.Sha512 -eq 'SUM_TOP_LEVEL') `
+            "and paired with the checksum beside it, not the one above"
+    }
+
+    function Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $TimeoutSec, $OutFile)
+        throw 'no network' }
+    Assert-True ($null -eq (Get-HermesWindowsAsset)) `
+        'an unreachable feed says nothing, so the pinned version is used'
+    Remove-Item -LiteralPath 'function:Invoke-WebRequest' -ErrorAction SilentlyContinue
+
+    Write-Host ''
+    Write-Host 'A default Windows blocks scripts, and the way in must survive it' -ForegroundColor Cyan
+
+    # The bug this guards shipped, and a customer found it.
+    #
+    # Windows is Restricted out of the box: it refuses to run a .ps1 FILE at
+    # all. Text piped into iex is never checked, so the one-line installer ran
+    # perfectly right up to its last line, then died on "running scripts is
+    # disabled on this system" - in red, after everything had downloaded.
+    #
+    # It could not have been caught here by running it: the machine this was
+    # written on is RemoteSigned, so it never met the wall it was creating.
+    # What is checkable is that the instruction is present at all.
+    function Get-InstallerText {
+        param([string]$Published, [string]$Development)
+        foreach ($candidate in @(
+            (Join-Path (Split-Path -Parent $PSScriptRoot) $Published),
+            (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) $Development)
+        )) {
+            if (Test-Path -LiteralPath $candidate) {
+                return (Get-Content -LiteralPath $candidate -Raw)
+            }
+        }
+        return ''
+    }
+
+    foreach ($installer in @(
+        @{ Published = 'install-windows.ps1'
+           Development = 'public-install-windows.ps1'
+           What = 'the one-line installer' },
+        @{ Published = 'install-assistant-windows.ps1'
+           Development = 'public-install-assistant-windows.ps1'
+           What = 'the assistant one-liner' }
+    )) {
+        $text = Get-InstallerText -Published $installer.Published -Development $installer.Development
+        Assert-True ($text -ne '') "$($installer.What) was found to check"
+        # Process scope and no other. CurrentUser or LocalMachine would change
+        # the owner's machine permanently to install one program, which is not
+        # ours to do; Process lasts as long as the window and outranks both.
+        Assert-True ($text -match "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass") `
+            "$($installer.What) lifts the block for its own window only"
+        Assert-True ($text -notmatch "Set-ExecutionPolicy -Scope (CurrentUser|LocalMachine)") `
+            "$($installer.What) never changes the machine's own setting"
+        # And the second way through, for a managed laptop where group policy
+        # refuses even that: read the file and run its text, which no policy
+        # governs. The owner is never told to change a Windows security setting
+        # and never sent to find a file to double-click.
+        Assert-True ($text -match "ScriptBlock\]::Create") `
+            "$($installer.What) still starts where the block cannot be lifted"
+        Assert-True ($text -match "VIMIGO_SETUP_DIR") `
+            "$($installer.What) says where the setup lives, since text has no script root"
+        # Decided by asking the policy, not by catching a failure. Catching
+        # cannot tell "refused" from "the setup stopped", and guessing wrong
+        # runs the whole setup twice on somebody's machine.
+        Assert-True ($text -match "Get-ExecutionPolicy") `
+            "$($installer.What) chooses its route by asking, not by failing first"
+
+        # Pinned to a version, the command printed on the README fetches that
+        # version for ever - so a fix ships and nobody who follows the
+        # instructions receives it. releases/latest/download is a plain
+        # redirect onto the newest release, and finds its asset by name, which
+        # is why the name it asks for carries no version.
+        Assert-True ($text -match "releases/latest/download/") `
+            "$($installer.What) always fetches the newest release"
+        Assert-True ($text -notmatch "releases/download/v[0-9]") `
+            "$($installer.What) is not pinned to one version"
+        # Not the API, which answers the same question and allows sixty calls
+        # an hour per address. A room of a hundred and twenty people shares one
+        # address, so it would serve the first few laptops and refuse the rest.
+        Assert-True ($text -notmatch "api\.github\.com") `
+            "$($installer.What) does not ask an API that a full room would exhaust"
+    }
+
+    # The fallback the setup script needs for that route to work at all.
+    Assert-True ($setupText -match 'function Get-SetupRoot') `
+        'the setup can find its own folder when it is run as text'
+    Assert-True ($setupText -notmatch 'Join-Path \$PSScriptRoot') `
+        'and nothing still builds a path from $PSScriptRoot directly'
+    # Run as text, $PSScriptRoot is empty and every path built from it pointed
+    # at the drive root, so the Zo helper beside the script was never found.
+    $realRoot = $env:VIMIGO_SETUP_DIR
+    try {
+        $env:VIMIGO_SETUP_DIR = $PSScriptRoot
+        Assert-True ((Get-SetupRoot) -eq $PSScriptRoot) `
+            'and it resolves to the real folder either way'
+    } finally { $env:VIMIGO_SETUP_DIR = $realRoot }
+
+    # The double-click path has always had this right, and is the fallback the
+    # installer points people at when both attempts fail.
+    $batPath = @(
+        (Join-Path (Split-Path -Parent $PSScriptRoot) 'Setup-Windows.bat'),
+        (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'setup\Setup-Windows.bat')
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    Assert-True ($null -ne $batPath) 'Setup-Windows.bat was found to check'
+    if ($batPath) {
+        $bat = Get-Content -LiteralPath $batPath -Raw
+        Assert-True (([regex]::Matches($bat, '-ExecutionPolicy Bypass')).Count -ge 2) `
+            'and it still passes the same flag for both PowerShell 7 and 5.1'
+    }
+
+    Write-Host ''
     Write-Host 'The two setups agree on what they offer' -ForegroundColor Cyan
 
     # A Mac and a Windows machine offering different setups is worse than either
@@ -1080,7 +1309,8 @@ try {
         @{ Win = 'AiAssistant'; Mac = 'AI_ASSISTANT'; What = 'the AI Personal Assistant' },
         @{ Win = 'ZoSkills';    Mac = 'ZO_SKILLS';    What = 'the Zo skills' },
         @{ Win = 'SecondBrain'; Mac = 'SECOND_BRAIN'; What = 'the second brain' },
-        @{ Win = 'AiEmployees'; Mac = 'AI_EMPLOYEES'; What = 'AI employees' }
+        @{ Win = 'AiEmployees'; Mac = 'AI_EMPLOYEES'; What = 'AI employees' },
+        @{ Win = 'Hermes';      Mac = 'HERMES';       What = 'Hermes One' }
     )) {
         # ' +=' and not ' =': the declarations are column-aligned, so some carry
         # several spaces before the equals. Insisting on exactly one read those

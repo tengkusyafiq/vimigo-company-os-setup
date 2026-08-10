@@ -39,6 +39,30 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-SetupRoot {
+    <#
+        The folder this script lives in.
+
+        $PSScriptRoot on its own is not enough, and the reason is the whole
+        point of this function.
+
+        A default Windows refuses to run a .ps1 file at all. Where that cannot
+        be lifted - a work laptop whose administrator has forbidden it through
+        group policy - the only remaining way in is to read this file and run
+        its text, because text is never checked. But text has no script root:
+        $PSScriptRoot comes back empty, every path built from it points at the
+        drive root, and the Zo helper beside this file cannot be found.
+
+        So whoever runs it that way says where it came from, and this prefers
+        the real thing whenever there is one.
+    #>
+    if ($PSScriptRoot) { return $PSScriptRoot }
+    if ($env:VIMIGO_SETUP_DIR -and (Test-Path -LiteralPath $env:VIMIGO_SETUP_DIR)) {
+        return $env:VIMIGO_SETUP_DIR
+    }
+    return (Get-Location).Path
+}
+
 # The screen draws box and block characters. Without this the console renders
 # them as mojibake on a machine whose code page is not UTF-8, which is most of
 # them.
@@ -114,7 +138,7 @@ function Reset-Theme {
 # point is "your laptop's AI can now read and act on your business", which is a
 # smaller promise but a whole one.
 #
-# vimigo-setup.sh carries the same four names with the same defaults, and the
+# vimigo-setup.sh carries the same six names with the same defaults, and the
 # acceptance suite fails if they ever disagree - a Mac and a Windows machine
 # offering different setups is worse than either answer on its own.
 $script:FeatureAiAssistant = 'off'
@@ -122,6 +146,10 @@ $script:FeatureZoSkills    = 'off'
 $script:FeatureGoogle      = 'off'
 $script:FeatureSecondBrain = 'off'
 $script:FeatureAiEmployees = 'off'
+# The one switch that ships on. Hermes One is an app on this computer rather
+# than anything on Zo, so it is the only one here that needs no key and no
+# account - which is also why it can safely be last.
+$script:FeatureHermes      = 'on'
 
 # One run, without editing the file - for support, or a demo:
 #     $env:VIMIGO_FEATURE_AI_EMPLOYEES = 'on'
@@ -131,6 +159,7 @@ if ($env:VIMIGO_FEATURE_ZO_SKILLS)    { $script:FeatureZoSkills    = $env:VIMIGO
 if ($env:VIMIGO_FEATURE_GOOGLE)      { $script:FeatureGoogle      = $env:VIMIGO_FEATURE_GOOGLE }
 if ($env:VIMIGO_FEATURE_SECOND_BRAIN) { $script:FeatureSecondBrain = $env:VIMIGO_FEATURE_SECOND_BRAIN }
 if ($env:VIMIGO_FEATURE_AI_EMPLOYEES) { $script:FeatureAiEmployees = $env:VIMIGO_FEATURE_AI_EMPLOYEES }
+if ($env:VIMIGO_FEATURE_HERMES)       { $script:FeatureHermes      = $env:VIMIGO_FEATURE_HERMES }
 
 function Test-FeatureOn {
     <#
@@ -227,6 +256,32 @@ $script:StatePath = Join-Path $env:LOCALAPPDATA 'Vimigo\setup-state.json'
 # Pages the owner is sent to. A browser opens only when they pick an action.
 $script:ZoHomeUrl = 'https://zo.computer'
 $script:ChatGptDownloadUrl = 'https://openai.com/chatgpt/download/'
+
+# ---------------------------------------------------------------------------
+# Hermes One
+# ---------------------------------------------------------------------------
+# The desktop app for Hermes Agent. Note whose it is: Hermes Agent belongs to
+# Nous Research, but this app does not - it is a community build, and its own
+# README says so. It is the one this setup was asked for by name.
+#
+# The product name, the executable name and the installer's own display name
+# are all taken from the project's electron-builder.yml rather than guessed.
+$script:HermesAppName = 'Hermes One'
+$script:HermesExeName = 'hermes-agent.exe'
+$script:HermesDownloadPage = 'https://hermesone.org/download'
+$script:HermesReleases = 'https://github.com/fathah/hermes-desktop/releases'
+
+# Which build to fetch is read from the project's own update feed rather than
+# from GitHub's API. The API allows sixty calls an hour per address, and a room
+# of a hundred and twenty people on one venue wifi shares a single address - so
+# the API would have answered the first few laptops and rate-limited the rest.
+# This file is an ordinary release download and is not counted.
+$script:HermesWindowsFeed = "$script:HermesReleases/latest/download/latest.yml"
+
+# Used only when the feed cannot be reached. It goes stale by design: a pinned
+# version that still installs is better than a setup that cannot install
+# anything because GitHub was slow.
+$script:HermesPinnedVersion = '0.7.6'
 
 # Vimigo's Zo referral link. Anyone signing up as part of this setup goes
 # through it, so new accounts are attributed correctly.
@@ -850,7 +905,7 @@ function Get-ZoVerification {
 
     if (-not (Test-ZoTokenShape -Token $Token)) { return $null }
 
-    $helper = Join-Path $PSScriptRoot 'zo-verify.js'
+    $helper = Join-Path (Get-SetupRoot) 'zo-verify.js'
     if (-not (Test-Path -LiteralPath $helper)) { return $null }
 
     $node = Get-Command -Name 'node' -CommandType Application -ErrorAction SilentlyContinue |
@@ -1158,6 +1213,158 @@ function Test-ChatGptDesktopInstalled {
     return $false
 }
 
+function Get-HermesIconPath {
+    <#
+        The executable out of a DisplayIcon registry value.
+
+        The value is a path with an icon index after it -
+        "...\hermes-agent.exe,0" - and is sometimes quoted. Its own function
+        so it can be tested against the shapes that actually appear, rather
+        than only by installing the app and hoping.
+    #>
+    param([string]$Value)
+    if (-not $Value) { return '' }
+    return ($Value -replace ',\d+\s*$', '').Trim().Trim('"')
+}
+
+function Get-HermesInstallPath {
+    <#
+        Where Hermes One actually is, or '' when it is not installed.
+
+        Its own uninstall entry is asked first, because that is the one record
+        written by the thing that did the installing - it says where it really
+        put the app. Guessing at a folder under Programs is how a check breaks
+        the day a project renames something, which is exactly how Claude
+        Desktop came to be reported missing on machines that had it.
+    #>
+    foreach ($root in @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        foreach ($entry in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+            $props = Get-ItemProperty -LiteralPath $entry.PSPath -ErrorAction SilentlyContinue
+            if (-not $props) { continue }
+            # Checked this way rather than as $props.DisplayName: most uninstall
+            # entries have no such value at all, and under Set-StrictMode
+            # reading one that is absent is an error, not a blank.
+            if (-not $props.PSObject.Properties['DisplayName']) { continue }
+            if ([string]$props.DisplayName -ne $script:HermesAppName) { continue }
+
+            # DisplayIcon first, and InstallLocation second, which is the
+            # opposite of the obvious order.
+            #
+            # A real install of this app writes no InstallLocation at all - the
+            # value was checked on a machine that has it, and the key simply
+            # does not carry one. Asking for it first meant the whole registry
+            # route never once fired, and what actually found the app was a
+            # guessed folder name underneath. That guess is still here, below,
+            # but it is now the last resort rather than the only one working.
+            #
+            # DisplayIcon is the full path to the executable with an icon index
+            # after it - "...\hermes-agent.exe,0" - so the tail comes off.
+            $paths = @()
+            if ($props.PSObject.Properties['DisplayIcon']) {
+                $icon = Get-HermesIconPath -Value ([string]$props.DisplayIcon)
+                if ($icon) { $paths += $icon }
+            }
+            if ($props.PSObject.Properties['InstallLocation']) {
+                $location = [string]$props.InstallLocation
+                if ($location) { $paths += (Join-Path $location $script:HermesExeName) }
+            }
+
+            foreach ($path in $paths) {
+                if (-not $path) { continue }
+                if (Test-Path -LiteralPath $path -PathType Leaf) { return $path }
+                # Registered, and the folder is there, but the executable has
+                # been renamed. The app is plainly installed, so say so.
+                $folder = Split-Path -Parent $path
+                if ($folder -and (Test-Path -LiteralPath $folder -PathType Container)) {
+                    $any = @(Get-ChildItem -LiteralPath $folder -Filter '*.exe' -ErrorAction SilentlyContinue) |
+                        Select-Object -First 1
+                    if ($any) { return $any.FullName }
+                }
+            }
+        }
+    }
+
+    # Then the ordinary places a one-click, per-user Electron installer lands,
+    # for a copy that arrived some other way.
+    $candidates = @()
+    if ($env:LOCALAPPDATA) {
+        $candidates += (Join-Path $env:LOCALAPPDATA "Programs\$($script:HermesAppName)\$($script:HermesExeName)")
+        $candidates += (Join-Path $env:LOCALAPPDATA "Programs\hermes-desktop\$($script:HermesExeName)")
+        $candidates += (Join-Path $env:LOCALAPPDATA "Programs\hermes-one\$($script:HermesExeName)")
+    }
+    if ($env:ProgramFiles) {
+        $candidates += (Join-Path $env:ProgramFiles "$($script:HermesAppName)\$($script:HermesExeName)")
+    }
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    return ''
+}
+
+function Test-HermesInstalled { return [bool](Get-HermesInstallPath) }
+
+function ConvertFrom-HexHash {
+    <#
+        Turns the hex string Get-FileHash returns into the base64 form the
+        project publishes its checksums in. Two spellings of the same number,
+        and comparing them as text without this always disagrees.
+    #>
+    param([string]$Hex)
+    if (-not $Hex -or ($Hex.Length % 2) -ne 0) { return '' }
+    $bytes = New-Object byte[] ($Hex.Length / 2)
+    for ($i = 0; $i -lt $bytes.Length; $i++) {
+        $bytes[$i] = [Convert]::ToByte($Hex.Substring($i * 2, 2), 16)
+    }
+    return [Convert]::ToBase64String($bytes)
+}
+
+function Get-HermesWindowsAsset {
+    <#
+        The current installer's file name and checksum, read from the project's
+        own update feed. Returns $null when it cannot be reached, and the
+        caller then falls back to a pinned version rather than giving up.
+    #>
+    $raw = $null
+    try {
+        $previous = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        try {
+            $raw = (Invoke-WebRequest -Uri $script:HermesWindowsFeed `
+                -UseBasicParsing -TimeoutSec 30).Content
+        } finally { $ProgressPreference = $previous }
+    } catch {
+        Write-SetupLog "Hermes version feed unreachable: $($_.Exception.Message)"
+        return $null
+    }
+    if ($null -eq $raw) { return $null }
+
+    # Decoded by hand, because the two PowerShells disagree about what Content
+    # is. GitHub serves this file as application/octet-stream; Windows
+    # PowerShell 5.1 hands back a string, PowerShell 7 hands back raw bytes.
+    # Matched against as-is, the regexes found nothing on 7 and this quietly
+    # fell back to the pinned version every single time - on the newer of the
+    # two, which is the one the launcher prefers whenever it is installed.
+    $text = if ($raw -is [byte[]]) { [Text.Encoding]::UTF8.GetString($raw) } else { [string]$raw }
+    if (-not $text) { return $null }
+
+    # Two regexes rather than a YAML parser, and anchored to the start of the
+    # line on purpose: the same two names appear again indented underneath a
+    # list, and matching those would pair a file with the wrong checksum.
+    $path = [regex]::Match($text, '(?m)^path:[ \t]*(\S+)[ \t]*$')
+    if (-not $path.Success) { return $null }
+    $sum = [regex]::Match($text, '(?m)^sha512:[ \t]*(\S+)[ \t]*$')
+
+    return @{
+        File   = $path.Groups[1].Value
+        Sha512 = $(if ($sum.Success) { $sum.Groups[1].Value } else { '' })
+    }
+}
+
 function Find-LocalWhatsAppInstall {
     <#
         The WhatsApp bridge belongs on Zo and never on this computer: a laptop
@@ -1391,6 +1598,31 @@ function New-Check {
     }
 }
 
+function Add-HermesCheck {
+    <#
+        The last row, and the only one that asks nothing of Zo.
+
+        It is a function rather than four lines at the bottom of Get-AllChecks
+        because Get-AllChecks has two ends, not one: it returns early when Zo
+        cannot be reached. Written inline at the bottom, this row would have
+        been missing from every machine without a Zo key - which is most of
+        them, at the moment the owner first opens the setup. That exact mistake
+        is why the Zo plan rows sat red for a fortnight.
+    #>
+    param([object]$Checks)
+
+    if (-not (Test-FeatureOn $script:FeatureHermes)) { return }
+    Write-Checking -What 'Hermes One'
+
+    if (Test-HermesInstalled) {
+        $Checks.Add((New-Check -Key 'hermes-app' -Title 'Hermes One' -Status 'ok' `
+            -Detail 'installed'))
+    } else {
+        $Checks.Add((New-Check -Key 'hermes-app' -Title 'Hermes One' -Status 'missing' `
+            -Detail 'not installed' -Note 'a second AI assistant, on this computer'))
+    }
+}
+
 # One line that fills as the machine is checked, redrawn in place. Checking
 # takes several seconds - winget is slow and asking Zo is a network round trip -
 # and a screen that says "Checking..." then sits still reads as hung. A bar that
@@ -1399,8 +1631,11 @@ $script:CheckStage = 0
 $script:CheckSpinner = @('|', '/', '-', '\')
 
 function Get-CheckStageCount {
-    # The three tools, plus the key, both apps, the app configs, and Zo.
-    return ($script:ManagedTools.Count + 5)
+    # The three tools, plus the key, both apps, the app configs, Zo, and
+    # Hermes One. Counted rather than guessed at: the bar is drawn as a
+    # fraction of this, so a stage the count does not know about makes it sit
+    # at full while the machine is still being looked at.
+    return ($script:ManagedTools.Count + 6)
 }
 
 function Write-Checking {
@@ -1721,6 +1956,10 @@ function Get-AllChecks {
         foreach ($row in $offline) {
             $checks.Add((New-Check -Key $row.Key -Title $row.Title -Status 'needs-you' -Detail $why))
         }
+        # Nothing above this line could be answered without Zo. This one can:
+        # it is an app on this computer, so it is checked and offered exactly
+        # as it would be on a machine whose key works.
+        Add-HermesCheck -Checks $checks
         return $checks
     }
 
@@ -1893,7 +2132,10 @@ function Get-AllChecks {
     # build that offered it, or made on the Zo website, keeps working exactly as
     # before - this setup simply stops reporting on them, which is why nothing
     # here removes anything.
-    if (-not (Test-FeatureOn $script:FeatureAiEmployees)) { return $checks }
+    # Wrapped rather than returned from. This used to end the function, and
+    # anything added below it would have been silently dropped on every build
+    # with AI employees switched off - which is every build that ships.
+    if (Test-FeatureOn $script:FeatureAiEmployees) {
 
     $employees = if (Test-ObjectHasProperty $zo 'employees') { $zo.employees } else { $null }
     if ($null -eq $employees) {
@@ -1920,6 +2162,14 @@ function Get-AllChecks {
         $checks.Add((New-Check -Key 'zo-employees' -Title 'Hire AI employees' -Status 'needs-you' `
             -Detail 'nobody hired yet' -Note 'sales, admin, accounts, and more'))
     }
+
+    }
+
+    # Genuinely last, and deliberately so. Everything before it either is the
+    # way the owner reaches their Zo or is something their Zo gains; this is a
+    # separate app that stands on its own, so it goes after the setup's own
+    # promise has been kept rather than in front of it.
+    Add-HermesCheck -Checks $checks
 
     return $checks
 }
@@ -2282,6 +2532,139 @@ function Install-ChatGptDesktop {
         Write-Info 'Install it from that page, then come back and press R to re-check.'
     }
     return $false
+}
+
+function Install-HermesOne {
+    Write-Title "Installing $($script:HermesAppName)"
+
+    if (Test-HermesInstalled) {
+        Write-Good "$($script:HermesAppName) is already installed. Nothing to do."
+        return $true
+    }
+
+    Write-Info 'This one is a big download - about 150 megabytes - so give it a'
+    Write-Info 'few minutes.'
+    Write-Host ''
+
+    $asset = Get-HermesWindowsAsset
+    if ($asset) {
+        $file = $asset.File
+        $url = "$($script:HermesReleases)/latest/download/$file"
+        $wantSum = $asset.Sha512
+    } else {
+        $file = "hermes-desktop-$($script:HermesPinnedVersion)-setup.exe"
+        $url = "$($script:HermesReleases)/download/v$($script:HermesPinnedVersion)/$file"
+        $wantSum = ''
+        Write-Info 'Could not check the current version, so installing a known good one.'
+    }
+
+    $installer = Join-Path $env:TEMP ('hermes-' + [guid]::NewGuid().ToString('N') + '.exe')
+
+    try {
+        # Progress off: the meter repaints the whole line and turns a status
+        # screen into a flickering mess on a slow connection. It also makes
+        # Invoke-WebRequest dramatically slower on a download this size.
+        $previous = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing -TimeoutSec 1800
+        } finally { $ProgressPreference = $previous }
+    } catch {
+        Write-SetupLog "Hermes download failed: $($_.Exception.Message)"
+        Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+        Write-Warn 'The download did not finish.'
+        if (Read-YesNo -Question "Open the $($script:HermesAppName) download page in your browser instead?") {
+            Start-Process $script:HermesDownloadPage
+            Write-Info 'Install it from that page, then come back and press R to re-check.'
+        }
+        return $false
+    }
+
+    # Checked against the figure published beside the download. A file that
+    # arrived short installs an app that opens once and crashes, and the owner
+    # has no way to tell that from a bad app - so it is caught here, where the
+    # answer is simply "run it again".
+    if ($wantSum) {
+        $got = ''
+        try {
+            $got = ConvertFrom-HexHash -Hex (Get-FileHash -LiteralPath $installer -Algorithm SHA512).Hash
+        } catch {
+            Write-SetupLog "Hermes checksum could not be worked out: $($_.Exception.Message)"
+        }
+        # Only when it could actually be worked out. A machine that cannot hash
+        # a file should not be a machine that cannot install anything.
+        if ($got -and $got -ne $wantSum) {
+            Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+            Write-Warn 'The download arrived damaged, so nothing was installed.'
+            Write-Info 'That is nearly always the connection rather than anything'
+            Write-Info 'wrong. Choose this step again to retry it.'
+            return $false
+        }
+    }
+
+    Write-Info 'Installing it...'
+    try {
+        # /S is the silent switch this installer understands. It installs for
+        # this user only, so there is no administrator prompt to explain to
+        # somebody who does not have the password to their own laptop.
+        Start-Process -FilePath $installer -ArgumentList '/S' -Wait -ErrorAction Stop
+    } catch {
+        Write-SetupLog "Hermes installer failed: $($_.Exception.Message)"
+        Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+        Write-Warn "$($script:HermesAppName) would not install."
+        return $false
+    }
+    Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+
+    # Given a moment to finish. The installer returns as soon as it has handed
+    # off, and the registry entry this looks for can land a second or two
+    # later - so checking once, immediately, reports a good install as failed.
+    for ($waited = 0; $waited -lt 20; $waited++) {
+        if (Test-HermesInstalled) {
+            Write-Good "$($script:HermesAppName) is installed."
+            return $true
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    Write-Warn "$($script:HermesAppName) did not appear."
+    if (Read-YesNo -Question "Open the $($script:HermesAppName) download page in your browser instead?") {
+        Start-Process $script:HermesDownloadPage
+        Write-Info 'Install it from that page, then come back and press R to re-check.'
+    }
+    return $false
+}
+
+function Open-HermesToFinish {
+    Write-Title "Opening $($script:HermesAppName)"
+    Write-Info "$($script:HermesAppName) is installed. It asks you for one thing before it"
+    Write-Info 'can answer anything, and it is the same thing for everybody:'
+    Write-Host ''
+    Write-NumberedStep 1 'Pick an AI provider' 'when it asks'
+    Write-NumberedStep 2 'Paste that provider key'
+    Write-Host ''
+    # Said plainly and early, because it is the one thing about this step that
+    # will otherwise be discovered halfway through, on a payment page.
+    Write-Warn 'That key is not your ChatGPT or Claude subscription.'
+    Write-Info 'Paying for ChatGPT or Claude does not include one, and there is'
+    Write-Info 'nothing to paste unless you have signed up for one separately.'
+    Write-Host ''
+    Write-Info 'If you have not got one, just close it. Everything else in this'
+    Write-Info 'setup is already finished and none of it depends on this.'
+    Write-Host ''
+
+    $exe = Get-HermesInstallPath
+    if ($exe) {
+        try {
+            Start-Process -FilePath $exe -ErrorAction Stop
+            Write-Good "$($script:HermesAppName) is opening now."
+            return $true
+        } catch {
+            Write-SetupLog "Could not start Hermes: $($_.Exception.Message)"
+        }
+    }
+    Write-Info "Could not open it from here. Open $($script:HermesAppName) yourself whenever you like."
+    return $true
 }
 
 function Open-DesktopAppToSignIn {
@@ -2768,7 +3151,7 @@ function Invoke-ZoHelper {
     # Node, a missing helper file and a dropped wifi are one symptom with three
     # causes, and on a support call there is nothing to go on. So the reason
     # goes to the log, where it costs the owner nothing.
-    $helper = Join-Path $PSScriptRoot 'zo-verify.js'
+    $helper = Join-Path (Get-SetupRoot) 'zo-verify.js'
     $node = Get-Command -Name 'node' -CommandType Application -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if (-not (Test-Path -LiteralPath $helper)) {
@@ -2900,7 +3283,7 @@ function Install-SecondBrain {
 
 function Get-SkillsFolder {
     # The skill folders travel with the setup, beside this script.
-    return (Join-Path $PSScriptRoot 'skills')
+    return (Join-Path (Get-SetupRoot) 'skills')
 }
 
 function Get-ZoSkills {
@@ -4880,6 +5263,17 @@ function Invoke-Fix {
         'zo-codex'       { return (Connect-ZoAiProvider -Which 'codex') }
         'zo-google'   { return (Open-ZoGoogle) }
         'zo-employees' { return (Invoke-HireEmployee) }
+        # Installed, then opened, and that is where this step ends. It is
+        # deliberately not on OwnerCompletes: everything the setup can verify
+        # here - that the app is on the computer - it has just done itself, and
+        # the part it cannot verify is a provider key it should not be holding.
+        # Asking "have you finished that step?" would be asking a question the
+        # setup already knows the answer to, which is what Tengku had taken out
+        # everywhere else.
+        'hermes-app'  {
+            if (-not (Install-HermesOne)) { return $false }
+            return (Open-HermesToFinish)
+        }
         default       { Write-Bad "Nothing to do for '$Key'."; return $false }
     }
 }
@@ -4923,6 +5317,11 @@ function Test-CheckNow {
         # so neither needs Zo and neither should fall through to the ask below.
         'claude-app'  { $result.Done = ((Test-ClaudeDesktopInstalled) -and (Test-ClaudeDesktopOpened)); return $result }
         'chatgpt-app' { $result.Done = ((Test-ChatGptDesktopInstalled) -and (Test-ChatGptSignedIn)); return $result }
+        # Answered here too, though nothing calls it today - hermes-app is not
+        # a step the owner finishes elsewhere. Listed so that if it ever joins
+        # that list, it cannot fall through to the Zo questions below and come
+        # back "could not tell" on a machine with no key.
+        'hermes-app'  { $result.Done = (Test-HermesInstalled); return $result }
     }
 
     $zo = Get-ZoVerification -Token (Get-ZoToken)

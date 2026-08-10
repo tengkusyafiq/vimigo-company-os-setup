@@ -40,6 +40,14 @@ Notes from the people who built it.
   ChatGPT, sign in to that app and leave it open, and paste their Zo key. If
   they are doing anything else by hand, something has gone wrong.
 
+- **The last step installs Hermes One, and it is finished once it is
+  installed.** The setup opens it, and Hermes One then asks for an AI provider
+  key of its own. **That key is not their ChatGPT or Claude subscription** — a
+  paid ChatGPT or Claude plan does not include one; it is a separate signup with
+  separate billing. Do not send them off to buy one, and do not treat a closed
+  Hermes One window as a failed setup. Nothing else depends on it. If they want
+  it later, they can open the app any time and finish it there.
+
 - **Signing in is the step people skip.** The Zo connection is written into a
   file the app keeps for a signed-in user, so an app nobody has opened looks
   perfectly installed and has no Zo in it. If Zo is missing from the app, ask

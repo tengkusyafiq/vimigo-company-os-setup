@@ -13,7 +13,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/v1.0/vimigo-company-os-setup-windows-v1.0.zip'
+$release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/latest/download/vimigo-company-os-setup-windows.zip'
 $folder = 'Vimigo AI Setup'
 
 function Write-Plain { param([string]$Text) Write-Host $Text }
@@ -102,7 +102,56 @@ Write-Plain '  Starting the setup now...'
 Write-Host ''
 Start-Sleep -Seconds 1
 
-# Run in this window, so the owner answers its questions where they already
-# are. & and not Start-Process: a new window would close on its own the moment
-# anything went wrong, taking the reason with it.
-& $setup
+# Windows will not run a .ps1 file at all on a default install.
+#
+# The policy is Restricted out of the box, and what the owner saw was
+# "running scripts is disabled on this system", in red, after everything had
+# downloaded perfectly. It never appeared in our own testing because a machine
+# that has ever run a script has already been changed - the laptop this was
+# written on is RemoteSigned, so it never met the wall it was creating.
+#
+# Note that none of the above stopped this file: text piped into iex is never
+# checked, only files are. So the one-liner worked right up to its last line.
+#
+# Process scope is the fix. It applies to this PowerShell and nothing else,
+# needs no administrator, outranks both the per-user and per-machine settings,
+# and leaves nothing changed behind. Setup-Windows.bat has always passed
+# -ExecutionPolicy Bypass for exactly this reason, which is why double-clicking
+# that worked while this line did not.
+try {
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+} catch {
+    # A managed work laptop can forbid even that, through group policy. The
+    # second route below is the answer to that, and needs no permission at all.
+}
+
+# Where the setup lives, for the second route. Text has no script root of its
+# own, so without this the setup cannot find the helper file beside it.
+$env:VIMIGO_SETUP_DIR = Split-Path -Parent $setup
+
+# Asked, not attempted-and-caught.
+#
+# Trying it and falling back on failure cannot tell "the policy refused" from
+# "the setup itself stopped", and getting that wrong runs the whole setup twice
+# on somebody's machine. The policy is a question with an answer, so ask it.
+#
+# RemoteSigned belongs on this list because every file was unblocked a few lines
+# above, which is exactly the condition it asks about.
+$policy = try { [string](Get-ExecutionPolicy) } catch { 'Restricted' }
+
+if (@('Bypass', 'Unrestricted', 'RemoteSigned') -contains $policy) {
+    # Run in this window, so the owner answers its questions where they already
+    # are. & and not Start-Process: a new window would close on its own the
+    # moment anything went wrong, taking the reason with it.
+    & $setup
+} else {
+    # Restricted, or AllSigned, and not liftable - so read the file and run its
+    # text instead.
+    #
+    # Nothing can refuse this. The execution policy governs script files and
+    # has never governed text, which is the only reason the one-line command
+    # that fetched this script was able to run in the first place. So the owner
+    # is never told to go and change a Windows security setting, and never sent
+    # off to find a file to double-click. It simply starts.
+    & ([ScriptBlock]::Create((Get-Content -LiteralPath $setup -Raw)))
+}

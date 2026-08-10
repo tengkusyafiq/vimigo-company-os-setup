@@ -49,6 +49,13 @@ STATE_DIR="$SANDBOX/state"
 FAKE_TOKEN="zo_sk_TESTONLY_not_a_real_key"
 get_zo_token() { printf '%s' "$FAKE_TOKEN"; }
 
+# Treated as present throughout, for the same reason Claude and ChatGPT are
+# stubbed further down: most of this suite is about which rows appear and in
+# what order, and a row left outstanding only because the machine running the
+# tests has not got the app would fail every "nothing left to do" check. The
+# section that tests this row in particular sets it both ways itself.
+hermes_installed() { return 0; }
+
 printf '\n\033[36mClaude Desktop config\033[0m\n'
 
 mkdir -p "$(dirname "$CLAUDE_CONFIG")"
@@ -683,6 +690,139 @@ assert $? 'a leading zero is read as text, not as octal'
 [ "$(reset_pick on on '')" = 'Nothing was changed' ]
 assert $? 'Enter goes back without changing anything'
 
+printf '\n\033[36mHermes One, the last step\033[0m\n'
+
+# Stubbed, so what follows tests the checklist rather than whatever happens to
+# be installed on the machine running the suite.
+hermes_installed() { return 1; }
+
+all_keys() {
+    # $1 = 'key' or 'nokey', $2 = FEATURE_HERMES, $3 = FEATURE_AI_EMPLOYEES.
+    # Every row, in order, so the last one can be named.
+    FEATURE_HERMES="$2"
+    FEATURE_AI_EMPLOYEES="$3"
+    FEATURE_AI_ASSISTANT='off'; FEATURE_ZO_SKILLS='off'
+    FEATURE_SECOND_BRAIN='off'; FEATURE_GOOGLE='off'
+    if [ "$1" = 'nokey' ]; then
+        zo_verify() { ZO_ANSWER=''; }
+    else
+        zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
+    fi
+    collect_checks >/dev/null
+    local entry keys=''
+    for entry in "${CHECKS[@]}"; do
+        keys="$keys${keys:+ }${entry%%|*}"
+    done
+    printf '%s' "$keys"
+}
+
+last_key() { printf '%s' "${1##* }"; }
+
+[ "$(last_key "$(all_keys key on off)")" = 'hermes-app' ]
+assert $? 'it is the last row on the list'
+
+# The one that matters most. collect_checks gives up early when Zo cannot be
+# reached, and this row is built after that point - so written in the obvious
+# place it would be missing from every machine without a key, which is every
+# machine the first time it is opened.
+[ "$(last_key "$(all_keys nokey on off)")" = 'hermes-app' ]
+assert $? 'with no Zo key at all it is still offered, and still last'
+
+# The other early exit. Employees used to end the function outright, so
+# anything after it vanished on every build that ships with them switched off.
+[ "$(last_key "$(all_keys key on on)")" = 'hermes-app' ]
+assert $? 'switching AI employees back on does not push it off the end'
+[ "$(last_key "$(all_keys key on off)")" = 'hermes-app' ]
+assert $? 'and switching them off again does not take it with them'
+
+case " $(all_keys key off off) " in *' hermes-app '*) false ;; *) true ;; esac
+assert $? 'switched off, the row disappears completely'
+
+FEATURE_HERMES='on'
+hermes_installed() { return 0; }
+CHECKS=(); add_hermes_check
+printf '%s' "${CHECKS[0]}" | grep -q '^hermes-app|Hermes One|ok|'
+assert $? 'an installed Hermes One reads as done'
+hermes_installed() { return 1; }
+CHECKS=(); add_hermes_check
+printf '%s' "${CHECKS[0]}" | grep -q '^hermes-app|Hermes One|missing|'
+assert $? 'a missing one reads as missing'
+
+# Answered on this Mac. If it ever falls through to the Zo questions it comes
+# back "could not tell" on exactly the machines that have not got a key.
+hermes_installed() { return 0; }
+zo_verify() { ZO_ANSWER=''; }
+[ "$(check_now hermes-app)" = 'true' ]
+assert $? 'its own check answers here, without asking Zo'
+hermes_installed() { return 1; }
+
+case " $OWNER_COMPLETES " in *' hermes-app '*) false ;; *) true ;; esac
+assert $? 'it never asks "have you finished that step?" about work it just did'
+case " $NEEDS_ZO_KEY " in *' hermes-app '*) false ;; *) true ;; esac
+assert $? 'and it does not wait for a Zo key it has no use for'
+
+# Being part of the main setup has one consequence worth stating out loud: the
+# AI Personal Assistant one-liner refuses until the main setup is finished, and
+# Hermes One is now part of what finished means. Named, so somebody who has
+# skipped it is told which step is in the way rather than just "not yet".
+FEATURE_HERMES='on'
+hermes_installed() { return 1; }
+main_setup_unfinished | grep -q 'Hermes One'
+assert $? 'an unfinished Hermes One holds the assistant one-liner back, by name'
+hermes_installed() { return 0; }
+main_setup_unfinished | grep -q 'Hermes One'
+assert_not $? 'and once it is installed it stops holding it back'
+
+printf '\n\033[36mWhich Hermes build this Mac gets\033[0m\n'
+
+# The real feed, as published, checked without going near the network.
+MAC_FEED_FIXTURE="$(cat <<'YML'
+version: 0.7.6
+files:
+  - url: hermes-desktop-0.7.6-x64-mac.zip
+    sha512: SUM_FOR_INTEL
+    size: 194080443
+  - url: hermes-desktop-0.7.6-arm64-mac.zip
+    sha512: SUM_FOR_APPLE_SILICON
+    size: 185737105
+path: hermes-desktop-0.7.6-x64-mac.zip
+sha512: SUM_FOR_INTEL
+releaseDate: '2026-07-22T11:49:43.758Z'
+YML
+)"
+curl() { printf '%s\n' "$MAC_FEED_FIXTURE"; }
+
+# This is the trap. The file ends with a second copy of the Intel checksum, at
+# the top level, describing the release as a whole - so anything that reaches
+# for "the last checksum in the file", or the first one after a match, hands
+# every Apple Silicon Mac a checksum belonging to the Intel build. It would
+# have failed on nothing but real Apple hardware, which is most customers.
+uname() { printf 'arm64\n'; }
+[ "$(hermes_mac_asset)" = 'hermes-desktop-0.7.6-arm64-mac.zip SUM_FOR_APPLE_SILICON' ]
+assert $? 'an Apple Silicon Mac gets the Apple Silicon build, and its own checksum'
+
+uname() { printf 'x86_64\n'; }
+[ "$(hermes_mac_asset)" = 'hermes-desktop-0.7.6-x64-mac.zip SUM_FOR_INTEL' ]
+assert $? 'an Intel Mac gets the Intel build, and its own checksum'
+
+# Anything unrecognised is treated as Intel, which every Mac can run.
+uname() { printf 'something-new\n'; }
+[ "$(hermes_mac_asset)" = 'hermes-desktop-0.7.6-x64-mac.zip SUM_FOR_INTEL' ]
+assert $? 'an unfamiliar processor falls back to the build that runs anywhere'
+
+curl() { return 1; }
+[ -z "$(hermes_mac_asset)" ]
+assert $? 'an unreachable feed says nothing, so the pinned version is used'
+unset -f curl uname
+
+# A regression guard, for a line that shipped.
+#
+# This script never defined a say function, though every other zo-*.sh does -
+# so "say Downloading Node.js" called /usr/bin/say and the Mac read it out
+# through the speakers instead of printing it. Every clean Mac took that path.
+grep -qE '^[[:space:]]*say[[:space:]]+["'"'"']' "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'nothing calls say, which on a Mac speaks the line out loud'
+
 printf '\n\033[36mThe two setups agree on what they offer\033[0m\n'
 
 # A Mac and a Windows machine offering different setups is worse than either
@@ -700,6 +840,11 @@ assert $? 'both scripts ship the same answer for the Zo skills'
 assert $? 'both scripts ship the same answer for the second brain'
 [ -n "$(win_default AiEmployees)" ] && [ "$(win_default AiEmployees)" = "$(mac_default AI_EMPLOYEES)" ]
 assert $? 'both scripts ship the same answer for AI employees'
+[ -n "$(win_default Hermes)" ] && [ "$(win_default Hermes)" = "$(mac_default HERMES)" ]
+assert $? 'both scripts ship the same answer for Hermes One'
+# The only one that ships on, so it is worth stating rather than implying.
+[ "$(mac_default HERMES)" = 'on' ]
+assert $? 'and that answer is on, because it was asked for by name'
 
 printf '\n\033[36mThe switch is generous about what counts as yes\033[0m\n'
 

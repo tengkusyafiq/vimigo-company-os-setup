@@ -37,7 +37,7 @@ set -o pipefail
 # point is "your laptop's AI can now read and act on your business", which is a
 # smaller promise but a whole one.
 #
-# vimigo-setup.ps1 carries the same four names with the same defaults, and the
+# vimigo-setup.ps1 carries the same six names with the same defaults, and the
 # acceptance suite fails if they ever disagree - a Mac and a Windows machine
 # offering different setups is worse than either answer on its own.
 FEATURE_AI_ASSISTANT='off'
@@ -45,6 +45,10 @@ FEATURE_ZO_SKILLS='off'
 FEATURE_GOOGLE='off'
 FEATURE_SECOND_BRAIN='off'
 FEATURE_AI_EMPLOYEES='off'
+# The one switch that ships on. Hermes One is an app on this Mac rather than
+# anything on Zo, so it is the only one here that needs no key and no account -
+# which is also why it can safely be last.
+FEATURE_HERMES='on'
 
 # One run, without editing the file - for support, or a demo:
 #     VIMIGO_FEATURE_AI_EMPLOYEES=on ./vimigo-setup.sh
@@ -63,6 +67,9 @@ if [ -n "${VIMIGO_FEATURE_SECOND_BRAIN:-}" ]; then
 fi
 if [ -n "${VIMIGO_FEATURE_AI_EMPLOYEES:-}" ]; then
     FEATURE_AI_EMPLOYEES="$VIMIGO_FEATURE_AI_EMPLOYEES"
+fi
+if [ -n "${VIMIGO_FEATURE_HERMES:-}" ]; then
+    FEATURE_HERMES="$VIMIGO_FEATURE_HERMES"
 fi
 
 feature_on() {
@@ -97,6 +104,31 @@ STATE_DIR="$HOME/.vimigo-setup"
 ZO_SIGNUP_URL="https://zo-computer.cello.so/0qDXmlEF6Hn"
 CHATGPT_DOWNLOAD_URL="https://openai.com/chatgpt/download/"
 CLAUDE_DOWNLOAD_URL="https://claude.ai/download"
+
+# ---------------------------------------------------------------------------
+# Hermes One
+# ---------------------------------------------------------------------------
+# The desktop app for Hermes Agent. Note whose it is: Hermes Agent belongs to
+# Nous Research, but this app does not - it is a community build, and its own
+# README says so. It is the one this setup was asked for by name.
+#
+# Its product name is "Hermes One" and its executable is called hermes-agent,
+# both taken from the project's electron-builder.yml rather than guessed.
+HERMES_APP_NAME='Hermes One'
+HERMES_DOWNLOAD_PAGE='https://hermesone.org/download'
+HERMES_RELEASES='https://github.com/fathah/hermes-desktop/releases'
+
+# Which build to fetch is read from the project's own update feed rather than
+# from GitHub's API. The API allows sixty calls an hour per address, and a room
+# of a hundred and twenty people on one venue wifi shares a single address -
+# so the API would have answered the first few laptops and rate-limited the
+# rest. This file is an ordinary release download and is not counted.
+HERMES_MAC_FEED="$HERMES_RELEASES/latest/download/latest-mac.yml"
+
+# Used only when the feed cannot be reached. It goes stale by design: a pinned
+# version that still installs is better than a setup that cannot install
+# anything because GitHub was slow.
+HERMES_PINNED_VERSION='0.7.6'
 
 # The token lives in the login keychain, not in a file of ours. It does still
 # end up inside each AI app's own config file, because that is the only shape
@@ -727,6 +759,8 @@ app_installed() {
     [ -d "/Applications/$1.app" ] || [ -d "$HOME/Applications/$1.app" ]
 }
 
+hermes_installed() { app_installed "$HERMES_APP_NAME"; }
+
 claude_mcp_configured() {
     [ -f "$CLAUDE_CONFIG" ] || return 1
     node_bin >/dev/null || return 1
@@ -751,6 +785,23 @@ codex_mcp_configured() {
 # status is one of: ok, missing, needs-you
 
 CHECKS=()
+
+add_hermes_check() {
+    # The last row, and the only one that asks nothing of Zo.
+    #
+    # It is a function rather than four lines at the bottom of collect_checks
+    # because collect_checks has two ends, not one: it returns early when Zo
+    # cannot be reached. Written inline at the bottom, this row would have been
+    # missing from every machine without a Zo key - which is most of them, at
+    # the moment the owner first opens the setup. That exact mistake is why the
+    # Zo plan rows sat red for a fortnight.
+    feature_on "$FEATURE_HERMES" || return 0
+    if hermes_installed; then
+        CHECKS+=("hermes-app|Hermes One|ok|installed|")
+    else
+        CHECKS+=("hermes-app|Hermes One|missing|not installed|a second AI assistant, on this Mac")
+    fi
+}
 
 # Says what is being looked at right now. Checking takes several seconds -
 # Homebrew is slow, and asking Zo is a network round trip - and a screen that
@@ -919,6 +970,10 @@ collect_checks() {
         if feature_on "$FEATURE_AI_EMPLOYEES"; then
             CHECKS+=("zo-employees|Hire AI employees|needs-you|$why|")
         fi
+        # Nothing above this line could be answered without Zo. This one can:
+        # it is an app on this Mac, so it is checked and offered exactly as it
+        # would be on a machine whose key works.
+        add_hermes_check
         return 0
     fi
 
@@ -1079,7 +1134,10 @@ collect_checks() {
     # build that offered it, or made on the Zo website, keeps working exactly as
     # before - this setup simply stops reporting on them, which is why nothing
     # here removes anything.
-    feature_on "$FEATURE_AI_EMPLOYEES" || return 0
+    # Wrapped rather than returned from. This used to end the function, and
+    # anything added below it would have been silently dropped on every build
+    # with AI employees switched off - which is every build that ships.
+    if feature_on "$FEATURE_AI_EMPLOYEES"; then
 
     local employees_known employees_count
     employees_known="$(zo_field 'data.employees ? "yes" : "no"')"
@@ -1091,6 +1149,14 @@ collect_checks() {
     else
         CHECKS+=("zo-employees|Hire AI employees|needs-you|nobody hired yet|sales, admin, accounts, and more")
     fi
+
+    fi
+
+    # Genuinely last, and deliberately so. Everything before it either is the
+    # way the owner reaches their Zo or is something their Zo gains; this is a
+    # separate app that stands on its own, so it goes after the setup's own
+    # promise has been kept rather than in front of it.
+    add_hermes_check
 }
 
 clear_screen() { [ -t 1 ] && clear 2>/dev/null; return 0; }
@@ -1292,7 +1358,11 @@ install_node_directly() {
     fi
 
     local pkg="/tmp/vimigo-node-$version.pkg"
-    say "Downloading Node.js $version..."
+    # info, not say. This script never defined a say function - every other
+    # zo-*.sh does - so on a Mac this called /usr/bin/say, and the laptop read
+    # the line out loud through the speakers instead of printing it. A clean
+    # Mac always takes this path, so every first install announced itself.
+    info "Downloading Node.js $version..."
     if ! curl -fsSL --max-time 300 -o "$pkg" \
         "https://nodejs.org/dist/$version/node-$version.pkg"; then
         rm -f "$pkg"
@@ -1339,7 +1409,7 @@ install_python_directly() {
     }
 
     local pkg="/tmp/vimigo-python-$version.pkg"
-    say "Downloading Python $version..."
+    info "Downloading Python $version..."
     curl -fsSL --max-time 300 -o "$pkg" \
         "https://www.python.org/ftp/python/$version/python-$version-macos11.pkg" || {
         rm -f "$pkg"
@@ -1540,6 +1610,190 @@ install_desktop_app() {
         info 'Install it from that page, then come back and press R to re-check.'
     fi
     return 1
+}
+
+hermes_mac_asset() {
+    # Prints "<filename> <checksum>" for this Mac's processor, read from the
+    # project's own update feed. Prints nothing at all if it cannot be read.
+    local want
+    case "$(uname -m)" in
+        arm64) want='-arm64-mac.zip' ;;
+        *)     want='-x64-mac.zip' ;;
+    esac
+
+    # The feed lists both processors, each followed by its checksum. Taking the
+    # first checksum after the filename we want is what pairs them correctly;
+    # taking the last line of the file would pick up the release-level checksum
+    # instead, which belongs to whichever build happens to be listed first.
+    curl -fsSL --max-time 30 "$HERMES_MAC_FEED" 2>/dev/null | awk -v want="$want" '
+        $1 == "-" && $2 == "url:" { file = $3 }
+        $1 == "sha512:" && file != "" && index(file, want) > 0 { print file " " $2; exit }
+    '
+}
+
+install_hermes_one() {
+    title "Installing $HERMES_APP_NAME"
+
+    if hermes_installed; then
+        good "$HERMES_APP_NAME is already installed. Nothing to do."
+        return 0
+    fi
+
+    info 'This one is a big download - about 190 megabytes - so give it a few'
+    info 'minutes. You will see it counting up.'
+    printf '\n'
+
+    local asset file want_sum url archtag
+    file=''; want_sum=''; url=''
+    asset="$(hermes_mac_asset)"
+    if [ -n "$asset" ]; then
+        file="$(printf '%s' "$asset" | cut -d' ' -f1)"
+        want_sum="$(printf '%s' "$asset" | cut -d' ' -f2)"
+        url="$HERMES_RELEASES/latest/download/$file"
+    else
+        archtag='x64'
+        if [ "$(uname -m)" = 'arm64' ]; then archtag='arm64'; fi
+        file="hermes-desktop-$HERMES_PINNED_VERSION-$archtag-mac.zip"
+        url="$HERMES_RELEASES/download/v$HERMES_PINNED_VERSION/$file"
+        info 'Could not check the current version, so installing a known good one.'
+    fi
+
+    local tmp
+    tmp="$(mktemp -d /tmp/vimigo-hermes.XXXXXX 2>/dev/null)" || tmp=''
+    if [ -z "$tmp" ]; then
+        warn 'Could not make a temporary folder to download into.'
+        return 1
+    fi
+
+    # A visible bar, unlike everything else this script downloads. Two hundred
+    # megabytes of silence on a hotel connection is indistinguishable from a
+    # hung setup, and somebody who thinks it has hung closes the window.
+    if ! curl -fL --progress-bar --max-time 1800 -o "$tmp/$file" "$url"; then
+        rm -rf "$tmp"
+        warn 'The download did not finish.'
+        if ask_yes_no "Open the $HERMES_APP_NAME download page in your browser instead?"; then
+            open "$HERMES_DOWNLOAD_PAGE"
+            info 'Install it from that page, then come back and press R to re-check.'
+        fi
+        return 1
+    fi
+
+    # Checked against the figure published beside the download. A file that
+    # arrived short unpacks into an app that opens once and crashes, and the
+    # owner has no way to tell that from a bad app - so it is caught here,
+    # where the answer is simply "run it again".
+    if [ -n "$want_sum" ]; then
+        local got_sum
+        got_sum="$(shasum -a 512 "$tmp/$file" 2>/dev/null | cut -d' ' -f1 |
+            xxd -r -p 2>/dev/null | base64 2>/dev/null | tr -d '\n')"
+        # Only when it could actually be worked out. A Mac missing xxd should
+        # not be a Mac that cannot install anything.
+        if [ -n "$got_sum" ] && [ "$got_sum" != "$want_sum" ]; then
+            rm -rf "$tmp"
+            warn 'The download arrived damaged, so nothing was installed.'
+            info 'That is nearly always the connection rather than anything'
+            info 'wrong. Choose this step again to retry it.'
+            return 1
+        fi
+    fi
+
+    info 'Unpacking...'
+    # ditto, not unzip. It is the only one that keeps a signed app's insides
+    # intact; unzip flattens the symbolic links inside the bundle and macOS
+    # then refuses to open what comes out.
+    if ! ditto -x -k "$tmp/$file" "$tmp/unpacked" 2>/dev/null; then
+        rm -rf "$tmp"
+        warn 'The download could not be opened.'
+        return 1
+    fi
+
+    local src="$tmp/unpacked/$HERMES_APP_NAME.app"
+    if [ ! -d "$src" ]; then
+        # The name comes from the project's own build settings, but if they
+        # ever rename it, take whatever single app came out rather than fail.
+        src="$(find "$tmp/unpacked" -maxdepth 1 -name '*.app' 2>/dev/null | head -1)"
+    fi
+    if [ -z "$src" ] || [ ! -d "$src" ]; then
+        rm -rf "$tmp"
+        warn 'The download did not contain the app.'
+        return 1
+    fi
+
+    # An owner without an administrator account still gets the app, in their
+    # own Applications folder. app_installed looks in both, so everything after
+    # this point reads the same either way.
+    local dest='/Applications'
+    if [ ! -w "$dest" ]; then dest="$HOME/Applications"; fi
+    mkdir -p "$dest" 2>/dev/null
+
+    # Guarded on the name being non-empty. It is a constant and cannot be
+    # blank, but this line is one empty variable away from erasing the whole
+    # Applications folder, and that is not a risk worth carrying for brevity.
+    if [ -n "$HERMES_APP_NAME" ] && [ -d "$dest/$HERMES_APP_NAME.app" ]; then
+        rm -rf "$dest/$HERMES_APP_NAME.app"
+    fi
+
+    if ! ditto "$src" "$dest/$HERMES_APP_NAME.app" 2>/dev/null; then
+        rm -rf "$tmp"
+        warn "Could not put $HERMES_APP_NAME into $dest."
+        return 1
+    fi
+    rm -rf "$tmp"
+
+    if hermes_installed; then
+        good "$HERMES_APP_NAME is installed."
+        # Worth knowing, because it is the problem that stopped people opening
+        # this setup at all: macOS only asks "are you sure, it is from the
+        # internet" about files a browser downloaded. This one came through
+        # curl, which marks nothing, so the app just opens.
+        return 0
+    fi
+
+    warn "$HERMES_APP_NAME did not appear."
+    if ask_yes_no "Open the $HERMES_APP_NAME download page in your browser instead?"; then
+        open "$HERMES_DOWNLOAD_PAGE"
+        info 'Install it from that page, then come back and press R to re-check.'
+    fi
+    return 1
+}
+
+open_hermes_to_finish() {
+    title "Opening $HERMES_APP_NAME"
+    info "$HERMES_APP_NAME is installed. It asks you for one thing before it can"
+    info 'answer anything, and it is the same thing for everybody:'
+    printf '\n'
+    numbered 1 'Pick an AI provider' 'when it asks'
+    numbered 2 'Paste that provider key' ''
+    printf '\n'
+    # Said plainly and early, because it is the one thing about this step that
+    # will otherwise be discovered halfway through, on a payment page.
+    warn 'That key is not your ChatGPT or Claude subscription.'
+    info 'Paying for ChatGPT or Claude does not include one, and there is'
+    info 'nothing to paste unless you have signed up for one separately.'
+    printf '\n'
+    info 'If you have not got one, just close it. Everything else in this'
+    info 'setup is already finished and none of it depends on this.'
+    printf '\n'
+
+    # By name first, then by path. An app copied into place seconds ago may not
+    # have been noticed by macOS yet, and "open -a" only knows apps it has been
+    # told about - so on the one run where this matters most, the fresh install,
+    # the name alone can fail while the app sits right there.
+    if open -a "$HERMES_APP_NAME" 2>/dev/null; then
+        good "$HERMES_APP_NAME is opening now."
+        return 0
+    fi
+
+    local where
+    for where in "/Applications/$HERMES_APP_NAME.app" "$HOME/Applications/$HERMES_APP_NAME.app"; do
+        if [ -d "$where" ] && open "$where" 2>/dev/null; then
+            good "$HERMES_APP_NAME is opening now."
+            return 0
+        fi
+    done
+
+    info "Could not open it from here. Open $HERMES_APP_NAME yourself whenever you like."
+    return 0
 }
 
 confirm_zo_key_works() {
@@ -3910,6 +4164,16 @@ fix_one() {
                 *)                      set_talk_to_zo ;;
             esac ;;
         zo-employees) hire_employee ;;
+        # Installed, then opened, and that is where this step ends. It is
+        # deliberately not on OWNER_COMPLETES: everything the setup can verify
+        # here - that the app is on the Mac - it has just done itself, and the
+        # part it cannot verify is a provider key it should not be holding.
+        # Asking "have you finished that step?" would be asking a question the
+        # setup already knows the answer to, which is what Tengku had taken out
+        # everywhere else.
+        hermes-app)
+            install_hermes_one || return 1
+            open_hermes_to_finish ;;
         *)           bad "Nothing to do for '$1'."; return 1 ;;
     esac
 }
@@ -3945,6 +4209,11 @@ check_now() {
         # through to the ask below.
         claude-app)  app_installed "Claude"  && printf 'true' || printf 'false'; return 0 ;;
         chatgpt-app) app_installed "ChatGPT" && printf 'true' || printf 'false'; return 0 ;;
+        # Answered here too, though nothing calls it today - hermes-app is not
+        # a step the owner finishes elsewhere. Listed so that if it ever joins
+        # that list, it cannot fall through to the Zo questions below and come
+        # back "could not tell" on a machine with no key.
+        hermes-app)  hermes_installed && printf 'true' || printf 'false'; return 0 ;;
     esac
 
     zo_verify "$(get_zo_token)"
