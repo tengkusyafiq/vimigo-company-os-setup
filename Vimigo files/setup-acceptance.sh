@@ -134,8 +134,25 @@ assert $? 'the existing model setting survived'
 grep -qF '[plugins."github@openai-curated"]' "$CODEX_CONFIG"
 assert $? "the owner's existing plugin section survived"
 
-grep -qE '^command = "([^"]*/)?npx"' "$CODEX_CONFIG"
-assert $? 'the entry launches npx, by a path ChatGPT can actually find'
+# A path, not a bare name - and the slash is the whole assertion.
+#
+# This used to read ^command = "([^"]*/)?npx", where the path in front of npx
+# is optional. So it passed against command = "npx", which is what this file
+# actually wrote: it was handed the resolved path and ignored it. A packaged
+# desktop app does not inherit the shell PATH, so a bare name is one it cannot
+# look up and Zo never starts inside ChatGPT.
+#
+# The same shape of test passed on Windows while customers were reading
+# 'C:\Program' is not recognized. A test that only proves the word "npx"
+# appears somewhere proves nothing worth having.
+grep -qE '^command = "[^"]*/npx"' "$CODEX_CONFIG"
+assert $? 'the entry launches npx by its full path, not a name ChatGPT must look up'
+grep -qE '^command = "npx"' "$CODEX_CONFIG"
+assert_not $? 'and never the bare word, which is what shipped'
+# Claude has always had this right. Both apps must agree, on both platforms.
+CODEX_CMD="$(grep -E '^command = ' "$CODEX_CONFIG" | head -1 | sed 's/^command = "//; s/"$//')"
+[ -x "$CODEX_CMD" ] || [ -f "$CODEX_CMD" ]
+assert $? 'and that path is a real file on this machine'
 
 connect_zo_to_chatgpt >/dev/null 2>&1
 SECTIONS="$(grep -cE '^\[mcp_servers\.zo\]' "$CODEX_CONFIG")"
@@ -143,9 +160,16 @@ SECTIONS="$(grep -cE '^\[mcp_servers\.zo\]' "$CODEX_CONFIG")"
 assert $? 'a second run leaves exactly one Zo section'
 
 # The header count alone is not enough: dropping the header but leaving its
-# body would orphan `command = "npx"` into whichever section came before,
+# body would orphan the command line into whichever section came before,
 # silently corrupting a setting the owner never touched.
-BODY_LINES="$(grep -cF 'command = "npx"' "$CODEX_CONFIG")"
+#
+# Matched by shape rather than by the exact string 'command = "npx"', which is
+# what this counted before. That string only ever appeared because the setup
+# wrote the bare word - the very defect three assertions above now forbid - so
+# fixing the bug turned this count to zero and failed a check about something
+# else entirely. A test written against a value only a bug produces is a test
+# that has to be broken before the bug can be fixed.
+BODY_LINES="$(grep -cE '^command = ".*npx"' "$CODEX_CONFIG")"
 [ "$BODY_LINES" -eq 1 ]
 assert $? 'a second run leaves no orphaned settings behind'
 
@@ -695,6 +719,130 @@ assert $? 'both off, 1 is Everything and reaches neither of the other two'
 assert $? 'a leading zero is read as text, not as octal'
 [ "$(reset_pick on on '')" = 'Nothing was changed' ]
 assert $? 'Enter goes back without changing anything'
+
+printf '\n\033[36mThe Mac restarts the apps itself, as Windows does\033[0m\n'
+
+# These apps read their settings once, at startup. "Quit it completely and open
+# it again" is a small instruction a good number of people will not carry out -
+# some minimise the window and call that closed - and the result is a green tick
+# beside an app that cannot see Zo. Windows has closed and reopened them for a
+# while; the Mac was still asking, which is what made the two setups differ.
+sleep() { return 0; }
+osascript() { return 0; }
+open() { return 0; }
+
+# Every branch out of restart_desktop_app has to leave the owner knowing what
+# to do next, and none of them may claim something that was not checked.
+app_is_running() { return 1; }
+OUT="$(restart_desktop_app 'Claude' 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$OUT" | grep -q 'Open Claude when you like'
+assert $? 'an app that is not running is left alone rather than launched'
+printf '%s' "$OUT" | grep -q 'Closing Claude'
+assert_not $? 'and nothing is closed that was never open'
+
+# Running, and it quits when asked, and it comes back: the ordinary case.
+RESTART_CALLS=0
+app_is_running() {
+    RESTART_CALLS=$((RESTART_CALLS + 1))
+    # open, then gone once asked, then back after being reopened.
+    case "$RESTART_CALLS" in 1) return 0 ;; 2) return 1 ;; *) return 0 ;; esac
+}
+OUT="$(restart_desktop_app 'Claude' 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$OUT" | grep -q 'Closing Claude and opening it again'
+assert $? 'a running app is closed and reopened without asking the owner'
+printf '%s' "$OUT" | grep -q 'Claude is open again'
+assert $? 'and the owner is told it came back'
+
+# Running, and it will not quit - usually an unsaved document behind a dialog.
+app_is_running() { return 0; }
+OUT="$(restart_desktop_app 'ChatGPT' 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$OUT" | grep -q 'did not close on its own'
+assert $? 'an app that refuses to quit is reported, not forced'
+printf '%s' "$OUT" | grep -q 'Quit ChatGPT yourself'
+assert $? 'and the owner is told to quit it themselves'
+printf '%s' "$OUT" | grep -q 'not just the window'
+assert $? 'and told what quitting actually means on a Mac'
+
+# It quit, and then would not come back. Before this was checked, the setup
+# said "open again, with Zo connected" over an app that was not running - so
+# the owner believed the step was finished and stopped looking.
+app_is_running() { return 1; }
+OUT="$(restart_desktop_app 'Claude' 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$OUT" | grep -q 'is open again'
+assert_not $? 'an app that never came back is never reported as open'
+
+RESTART_CALLS=0
+app_is_running() {
+    RESTART_CALLS=$((RESTART_CALLS + 1))
+    # open, then gone, and it never comes back however long we wait.
+    case "$RESTART_CALLS" in 1) return 0 ;; *) return 1 ;; esac
+}
+OUT="$(restart_desktop_app 'Claude' 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$OUT" | grep -q 'Could not open Claude again by itself'
+assert $? 'a failed reopen is admitted rather than reported as success'
+printf '%s' "$OUT" | grep -q 'Open Claude yourself'
+assert $? 'and the owner is told to open it themselves'
+
+# Could not tell. macOS asks permission the first time one program controls
+# another, and somebody who clicks Don't Allow lands exactly here - with an app
+# still open on its old settings that cannot see Zo.
+app_is_running() { return 2; }
+OUT="$(restart_desktop_app 'Claude' 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$OUT" | grep -q 'Could not tell whether Claude is open'
+assert $? 'an unknown answer is never quietly treated as "not running"'
+printf '%s' "$OUT" | grep -q 'quit Claude completely'
+assert $? 'and the owner is asked to restart it themselves instead'
+
+unset -f sleep osascript open app_is_running
+
+# The three answers exist at all, which is what makes the branch above possible.
+awk '/^app_is_running\(\)/,/^\}/' "$SCRIPT_DIR/vimigo-setup.sh" | grep -q 'return 2'
+assert $? 'the check can say "could not tell" rather than guessing'
+
+# The two safety properties, read off the source because no test can prove the
+# absence of a kill by running it.
+awk '/^restart_desktop_app\(\)/,/^\}/' "$SCRIPT_DIR/vimigo-setup.sh" | grep -qE 'pkill|killall|kill -'
+assert_not $? 'nothing force-kills a Mac app, which would take unsaved work with it'
+awk '/^app_is_running\(\)/,/^\}/' "$SCRIPT_DIR/vimigo-setup.sh" | grep -q 'osascript'
+assert $? 'and the application is asked by name, never matched against processes'
+# The reason that matters: Claude Code ships a program called claude, and on
+# Windows closing everything by that name closed the terminal the owner was
+# sitting in. AppleScript only ever addresses the graphical application.
+awk '/^app_is_running\(\)/,/^\}/' "$SCRIPT_DIR/vimigo-setup.sh" | grep -qE 'pgrep|ps -|grep .*claude'
+assert_not $? 'so a Claude Code session in the next tab is never caught by it'
+
+printf '\n\033[36mThe finished screen is the same on both\033[0m\n'
+
+RESTART_PENDING=''
+DONE_SCREEN="$(show_all_done 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$DONE_SCREEN" | grep -q 'A L L   D O N E'
+assert $? 'the Mac finished screen says ALL DONE'
+printf '%s' "$DONE_SCREEN" | grep -q 'Everything above is set up and working'
+assert $? 'and points at the checklist above it, word for word as Windows does'
+grep -q 'Everything above is set up and working' "$SCRIPT_DIR/vimigo-setup.ps1"
+assert $? 'and Windows really does say that sentence, so the two agree'
+printf '%s' "$DONE_SCREEN" | grep -qi 'quit'
+assert_not $? 'and neither asks anybody to quit an app themselves any more'
+
+# It used to clear the screen, throwing away the checklist it was describing.
+awk '/^show_all_done\(\)/,/^\}/' "$SCRIPT_DIR/vimigo-setup.sh" | grep -q 'clear_screen'
+assert_not $? 'and it no longer wipes the list it is the footer of'
+
+# The one case the deleted warning was right about.
+#
+# A restart the setup could not do is mentioned once, in the middle of a long
+# run, to somebody who is not reading closely. Without this it is never said
+# again, and they finish on a screen saying everything works beside an app that
+# cannot see Zo.
+RESTART_PENDING='ChatGPT '
+PENDING_SCREEN="$(show_all_done 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+printf '%s' "$PENDING_SCREEN" | grep -q 'close ChatGPT completely'
+assert $? 'a restart that failed is said again at the end, and names the app'
+printf '%s' "$PENDING_SCREEN" | grep -q 'not just the window'
+assert $? 'and says what closing an app actually means on a Mac'
+printf '%s' "$PENDING_SCREEN" | grep -q 'Claude'
+assert_not $? 'and never names an app that restarted perfectly well'
+RESTART_PENDING=''
 
 printf '\n\033[36mThe finished screen ends the setup, it does not open a menu\033[0m\n'
 

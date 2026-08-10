@@ -1227,6 +1227,25 @@ releaseDate: '2026-07-22T11:44:41.451Z'
             ForEach-Object { [regex]::Replace([string]$_, "$([char]27)\[[0-9;]*m", '') }) -join "`n"))
     }
 
+    # The one case the deleted "quit both apps" warning was right about: a
+    # restart the setup could not do. Said once mid-run to somebody who is not
+    # reading closely, and without this never said again - so they finish on a
+    # screen saying everything works, beside an app that cannot see Zo.
+    $script:RestartPending = @('ChatGPT')
+    $pending = ((@(Show-AllDone -RestartNeeded $false 6>&1 |
+        ForEach-Object { [regex]::Replace([string]$_, "$([char]27)\[[0-9;]*m", '') }) -join "`n"))
+    Assert-True ($pending -match 'close ChatGPT completely') `
+        'a restart that failed is said again at the end, and names the app'
+    Assert-True ($pending -match 'not just the window') `
+        'and says what closing an app actually means'
+    Assert-True ($pending -notmatch 'Claude') `
+        'and never names an app that restarted perfectly well'
+    $script:RestartPending = @()
+    $clean = ((@(Show-AllDone -RestartNeeded $false 6>&1 |
+        ForEach-Object { [regex]::Replace([string]$_, "$([char]27)\[[0-9;]*m", '') }) -join "`n"))
+    Assert-True ($clean -notmatch 'One last thing') `
+        'and says nothing at all when both apps restarted'
+
     Set-Features 'off'
     $plain = Get-FinishedMenuText -FinishedMenu 'off'
     Assert-True ($plain -notmatch 'Start over') 'Start over is gone from the finished screen'

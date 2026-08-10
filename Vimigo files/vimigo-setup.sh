@@ -1275,27 +1275,34 @@ show_step_header() {
 }
 
 show_all_done() {
-    clear_screen
+    # The finished state, printed under the checklist rather than replacing it.
+    #
+    # It used to clear the screen and show a page of its own, which threw away
+    # the one thing the owner actually wants to see - the list of what is set up
+    # - and put a banner where the answer had been. Windows has always printed
+    # it underneath, and the two screens are now the same screen.
+    #
+    # The "quit both apps and open them again" warning is gone because it is no
+    # longer true: the setup closes and reopens them itself once Zo is
+    # connected. It was also wrong in a second way, naming both apps to an owner
+    # who had chosen one - so a man who picked ChatGPT was told to go and quit a
+    # Claude he had never installed.
     printf '\n'
-    printf '    %s╭────────────────────────────────────────────────╮%s\n' "$C_GREEN" "$C_RESET"
-    printf '    %s│                                                │%s\n' "$C_GREEN" "$C_RESET"
-    printf '    %s│              ✓   A L L   D O N E                │%s\n' "$C_GREEN" "$C_RESET"
-    printf '    %s│                                                │%s\n' "$C_GREEN" "$C_RESET"
-    printf '    %s╰────────────────────────────────────────────────╯%s\n\n' "$C_GREEN" "$C_RESET"
-    info '  This Mac is ready.'
-    printf '\n'
-    warn '  One last thing: quit Claude Desktop and ChatGPT completely,'
-    warn '  then open them again. They only read their settings on start.'
+    printf '      %s✓   A L L   D O N E%s\n' "$C_GREEN" "$C_RESET"
+    info 'Everything above is set up and working.'
+
+    # Only when a restart really did not happen. Shown to everybody it was
+    # noise; shown to nobody it lost the one case that needed it.
+    if [ -n "${RESTART_PENDING:-}" ]; then
+        printf '\n'
+        warn "One last thing: close ${RESTART_PENDING%% } completely and open"
+        warn 'it again - not just the window - so it can see Zo.'
+    fi
     printf '\n'
 
-    # Finishing the checklist is not the end of the job. The next real step is
-    # building the team, and a screen that says "all done" and stops is a screen
-    # the owner closes without ever finding it.
-    #
     # The same options as the unfinished screen, from one place. When this
     # screen kept its own shorter copy, finishing the setup quietly took away
-    # "see your AI employees" and "set up your assistant again" - so the only
-    # route back into a finished setup was Start over, which deletes things.
+    # "see your AI employees" and "set up your assistant again".
     show_main_options finished
 }
 
@@ -1824,6 +1831,130 @@ open_hermes_to_finish() {
     return 0
 }
 
+app_is_running() {
+    # $1 = the .app name.
+    #   0 = running, 1 = not running, 2 = could not tell.
+    #
+    # Three answers rather than two, because "could not tell" is a real state
+    # here and treating it as "not running" silently skips the restart. macOS
+    # asks permission the first time one program controls another, and an owner
+    # who clicks "Don't Allow" lands exactly there - with an app still open on
+    # its old settings, looking perfectly installed and unable to see Zo.
+    #
+    # Asked of the application by name rather than matched against process
+    # text, and that is the whole point. On Windows, closing everything called
+    # claude closed the terminal session the owner was sitting in, because
+    # Claude Code ships a program with the same name - it happened mid-run, on
+    # the machine this was written on. AppleScript only ever addresses the
+    # graphical application, so a Claude Code session in the next tab is never
+    # touched.
+    #
+    # "is running" is the one form that answers without launching the app.
+    case "$(osascript -e "application \"$1\" is running" 2>/dev/null)" in
+        true)  return 0 ;;
+        false) return 1 ;;
+        *)     return 2 ;;
+    esac
+}
+
+restart_desktop_app() {
+    # $1 = the .app name. Closes it and opens it again, so a new connection
+    # takes effect without the owner having to do anything.
+    #
+    # These apps read their settings once, at startup. "Quit it completely and
+    # open it again" is a small instruction that a good number of people will
+    # not carry out - some will minimise it and call that closed - and the
+    # result is a green tick beside an app that cannot see Zo. Windows has done
+    # this for itself for a while and the Mac was still asking, which is one of
+    # the two things that made the two setups different at the end.
+    #
+    # Every branch out of here ends with the owner knowing what to do next, and
+    # nothing is ever reported as done without being checked. Claiming an app
+    # came back when it did not is worse than saying nothing at all: they
+    # believe the step is finished and stop looking.
+    local appname="$1" waited state
+
+    app_is_running "$appname"; state=$?
+
+    if [ "$state" -eq 2 ]; then
+        printf '\n'
+        RESTART_PENDING="$RESTART_PENDING$appname "
+        warn "Could not tell whether $appname is open."
+        info "To be safe, quit $appname completely - not just the window -"
+        info 'and open it again. Zo will be there.'
+        return 0
+    fi
+
+    if [ "$state" -eq 1 ]; then
+        info "Open $appname when you like - Zo will be waiting inside it."
+        return 0
+    fi
+
+    printf '\n'
+    # Said out loud before it happens. A window disappearing off the screen
+    # with no warning is alarming, and this is somebody's first minute with the
+    # product.
+    info "Closing $appname and opening it again, so it picks this up."
+
+    # Asked to quit the way the owner would, so it saves whatever it was doing.
+    osascript -e "tell application \"$appname\" to quit" >/dev/null 2>&1 || true
+
+    waited=0
+    while [ "$waited" -lt 10 ]; do
+        app_is_running "$appname"; state=$?
+        [ "$state" -eq 0 ] || break
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if [ "$state" -eq 0 ]; then
+        # Not forced. Windows closes a window that will not shut; a Mac app
+        # that will not quit is usually holding an unsaved document behind a
+        # dialog the owner has not noticed, and taking that away to save them
+        # one keystroke is a bad trade.
+        RESTART_PENDING="$RESTART_PENDING$appname "
+        warn "$appname did not close on its own."
+        info "Quit $appname yourself - not just the window - and open it again."
+        info 'Zo will be there.'
+        return 0
+    fi
+
+    # -g: opened behind this window, not in front of it.
+    #
+    # Without it the app takes the screen at the exact moment the setup carries
+    # on talking, and the Terminal - the window the whole setup lives in -
+    # disappears behind a full-size Claude or ChatGPT. The ChatGPT step then
+    # prints where to find Zo into a window nobody can see, and the next step
+    # that waits on a keypress waits for one the owner does not know is being
+    # asked for. Sitting in front of an app that appears to be doing nothing,
+    # most people conclude it finished and close it.
+    open -g -a "$appname" >/dev/null 2>&1 || true
+
+    # Checked, not assumed. open exits before the app has finished starting, so
+    # this waits for it to actually appear rather than trusting the command.
+    waited=0
+    while [ "$waited" -lt 10 ]; do
+        app_is_running "$appname"; state=$?
+        [ "$state" -eq 0 ] && break
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if [ "$state" -eq 0 ]; then
+        # Says where it went, because it deliberately did not come to the
+        # front and an owner who cannot see it will think it failed to open.
+        good "$appname is open again behind this window, with Zo connected."
+        return 0
+    fi
+
+    printf '\n'
+    RESTART_PENDING="$RESTART_PENDING$appname "
+    warn "Could not open $appname again by itself."
+    info "Open $appname yourself and Zo will be there. If it was already"
+    info 'open, close it completely first - not just the window.'
+    return 0
+}
+
 confirm_zo_key_works() {
     # Uses the key straight away rather than waiting for the next check.
     #
@@ -1967,7 +2098,7 @@ connect_zo_to_claude() {
     fi
 
     good 'Zo is connected to Claude Desktop.'
-    warn 'Quit Claude Desktop completely and open it again for this to take effect.'
+    restart_desktop_app 'Claude'
     return 0
 }
 
@@ -2010,7 +2141,25 @@ connect_zo_to_chatgpt() {
         }
 
         const body = kept.join("\n").replace(/\s+$/, "");
-        const block = header + "\ncommand = \"npx\"\n"
+        // The resolved launcher, not the bare word.
+        //
+        // This wrote command = "npx" while being handed the full path to npx
+        // and ignoring it - the value was destructured above and never used.
+        // A packaged desktop app does not inherit the shell PATH: these apps
+        // launch an MCP server with PATH=/usr/bin:/bin:/usr/sbin:/sbin, and
+        // node from the nodejs.org installer lands in /usr/local/bin, which is
+        // not on that list. So the bare word is a name the app cannot look up
+        // and Zo never starts inside ChatGPT. The same fault shipped on
+        // Windows and the log customers saw there named a truncated path.
+        //
+        // The Claude writer twelve lines above has always used the resolved
+        // path, and so does Windows for both apps. Only this line disagreed,
+        // which is why Claude worked and ChatGPT did not on the same Mac.
+        //
+        // JSON.stringify rather than hand-built quotes: TOML basic strings
+        // take the same escapes as JSON, so a path containing a quote or a
+        // backslash comes out valid instead of breaking the file.
+        const block = header + "\ncommand = " + JSON.stringify(npx) + "\n"
             + "args = [\"" + pkg + "\", \"" + url + "\", \"--header\", "
             + "\"Authorization: Bearer " + token + "\"]\n";
         fs.writeFileSync(path, (body ? body + "\n\n" : "") + block, { mode: 0o600 });
@@ -2023,7 +2172,7 @@ connect_zo_to_chatgpt() {
     fi
 
     good 'Zo is connected to ChatGPT.'
-    warn 'Quit ChatGPT completely and open it again for this to take effect.'
+    restart_desktop_app 'ChatGPT'
     printf '\n'
 
     # Where it actually appears. The Mac never said, and Windows said the wrong
@@ -4227,6 +4376,15 @@ fix_one() {
         *)           bad "Nothing to do for '$1'."; return 1 ;;
     esac
 }
+
+# Apps the setup could not close and reopen for the owner.
+#
+# The finished screen used to warn everybody to quit both apps, which was
+# wrong for nearly all of them and got deleted when the restart went in.
+# But it was right for exactly one case - a restart that did not work -
+# and deleting it took away the only warning that case ever had. The owner
+# was told once, halfway through a long run, and never again.
+RESTART_PENDING=""
 
 # Names of the things that did not finish, one per line. The closing screen
 # reads this so it can be honest rather than claiming success for all of it.

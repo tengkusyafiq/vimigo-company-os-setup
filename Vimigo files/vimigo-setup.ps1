@@ -2508,6 +2508,14 @@ function Show-AllDone {
         Write-Host ''
         Write-Warn '      Windows needs a restart to finish one of these.'
     }
+    # Only when a restart really did not happen. Shown to everybody it was
+    # noise; shown to nobody it lost the one case that needed it.
+    if (@($script:RestartPending).Count -gt 0) {
+        $waiting = (@($script:RestartPending) | Select-Object -Unique) -join ' and '
+        Write-Host ''
+        Write-Warn "      One last thing: close $waiting completely and open"
+        Write-Warn '      it again - not just the window - so it can see Zo.'
+    }
     Write-Host ''
     Show-MainOptions -Finished
 }
@@ -3130,6 +3138,15 @@ function Test-DesktopAppPath {
     return $false
 }
 
+# Apps the setup could not close and reopen for the owner.
+#
+# The finished screen used to warn everybody to quit both apps, which was wrong
+# for nearly all of them and was deleted when the restart went in. But it was
+# right for exactly one case - a restart that did not work - and deleting it
+# took away the only warning that case ever had. The owner was told once,
+# halfway through a long run, and never again.
+$script:RestartPending = @()
+
 function Restart-DesktopApp {
     <#
         Closes the app and opens it again, so the new connection takes effect
@@ -3200,7 +3217,9 @@ function Restart-DesktopApp {
     }
 
     # Never left as "it worked" when it did not. This is the one fallback the
-    # owner can act on without help.
+    # owner can act on without help - and it is repeated at the end of the run,
+    # because said once in the middle it is said to somebody who is not reading.
+    $script:RestartPending += $Which
     Write-Host ''
     Write-Warn "Could not open $Which again by itself."
     Write-Info "Open $Which yourself and Zo will be there. If it was already"
@@ -3260,8 +3279,12 @@ function Connect-ZoToChatGpt {
     }
 
     Write-Good 'Zo is connected to ChatGPT.'
+    # Restart-DesktopApp has just done this, and says so itself - including
+    # when it could not, which is the only case the instruction belonged in.
+    # Printed unconditionally underneath, it told an owner whose ChatGPT had
+    # just closed and reopened in front of them to go and close it again.
+    # Claude's connector never had the line; now neither does.
     Restart-DesktopApp -Which 'ChatGPT'
-    Write-Warn 'Quit ChatGPT completely and open it again for this to take effect.'
     Write-Host ''
 
     # Where it actually appears, checked against the app rather than guessed.
