@@ -156,6 +156,17 @@ $script:FeatureAiEmployees = 'off'
 # than anything on Zo, so it is the only one here that needs no key and no
 # account - which is also why it can safely be last.
 $script:FeatureHermes      = 'on'
+# The event submission command, and it ships on because the event needs it.
+#
+# Puts /compile-data where Claude can find it, so that at the end of the day
+# Shane says "type slash compile-data" and the owner's work goes to Vimigo
+# without anybody pasting a page of instructions into anything. An owner who
+# chose ChatGPT gets the same thing as a file on their Desktop, because ChatGPT
+# has no slash commands to install into.
+#
+# Nothing else depends on it and nothing about it can fail loudly: it is a file
+# copy onto this computer, needing no key, no account and no network.
+$script:FeatureEventSkill  = 'on'
 # On, and it has to be: Cowork is what the training actually uses.
 #
 # This row turns on the Windows virtualisation features behind Claude Desktop's
@@ -189,6 +200,7 @@ if ($env:VIMIGO_FEATURE_GOOGLE)      { $script:FeatureGoogle      = $env:VIMIGO_
 if ($env:VIMIGO_FEATURE_SECOND_BRAIN) { $script:FeatureSecondBrain = $env:VIMIGO_FEATURE_SECOND_BRAIN }
 if ($env:VIMIGO_FEATURE_AI_EMPLOYEES) { $script:FeatureAiEmployees = $env:VIMIGO_FEATURE_AI_EMPLOYEES }
 if ($env:VIMIGO_FEATURE_HERMES)       { $script:FeatureHermes      = $env:VIMIGO_FEATURE_HERMES }
+if ($env:VIMIGO_FEATURE_EVENT_SKILL)  { $script:FeatureEventSkill  = $env:VIMIGO_FEATURE_EVENT_SKILL }
 if ($env:VIMIGO_FEATURE_CLAUDE_FEATURES) { $script:FeatureClaudeFeatures = $env:VIMIGO_FEATURE_CLAUDE_FEATURES }
 if ($env:VIMIGO_FEATURE_FINISHED_MENU) { $script:FeatureFinishedMenu = $env:VIMIGO_FEATURE_FINISHED_MENU }
 
@@ -287,6 +299,27 @@ $script:StatePath = Join-Path $env:LOCALAPPDATA 'Vimigo\setup-state.json'
 # Pages the owner is sent to. A browser opens only when they pick an action.
 $script:ZoHomeUrl = 'https://zo.computer'
 $script:ChatGptDownloadUrl = 'https://openai.com/chatgpt/download/'
+
+# Which AI apps this owner wants. Overwritten from their remembered answer the
+# moment the checklist is built, and true here only so that anything asked
+# before that gets an answer rather than a null. Both, because the cost of
+# guessing wrong that way is one extra file on a Desktop, while guessing the
+# other way is a missing command on the day.
+$script:WantClaudeApp = $true
+$script:WantChatGptApp = $true
+
+# ---------------------------------------------------------------------------
+# The event submission command
+# ---------------------------------------------------------------------------
+# What the owner types into Claude at the end of the event. The name has no
+# brand in it on purpose: a command called /vimigo, typed into somebody else's
+# AI, reads like something that should not be there.
+$script:EventSkillKey = 'compile-data'
+
+# The same instructions, for an owner who chose ChatGPT. Named as a sentence
+# rather than a filename because it lands on their Desktop and has to make
+# sense to somebody who has never deliberately opened a .txt file.
+$script:EventChatgptFile = 'Submit my AI workflow - ChatGPT.txt'
 
 # ---------------------------------------------------------------------------
 # Hermes One
@@ -1755,6 +1788,26 @@ function New-Check {
     }
 }
 
+function Add-EventSkillCheck {
+    <#
+        Sits with Hermes One rather than with the Zo rows, and for the same
+        reason: it is answered on this computer, so it must appear on a machine
+        that has no Zo key yet as readily as on one that does.
+    #>
+    param([object]$Checks)
+
+    if (-not (Test-FeatureOn $script:FeatureEventSkill)) { return }
+    Write-Checking -What 'the /compile-data command'
+
+    if (Test-EventSkillInstalled) {
+        $Checks.Add((New-Check -Key 'event-skill' -Title 'Your /compile-data command' -Status 'ok' `
+            -Detail 'ready'))
+    } else {
+        $Checks.Add((New-Check -Key 'event-skill' -Title 'Your /compile-data command' -Status 'missing' `
+            -Detail 'not installed yet' -Note 'sends your work to Vimigo at the end of the event'))
+    }
+}
+
 function Add-HermesCheck {
     <#
         The last row, and the only one that asks nothing of Zo.
@@ -1788,11 +1841,12 @@ $script:CheckStage = 0
 $script:CheckSpinner = @('|', '/', '-', '\')
 
 function Get-CheckStageCount {
-    # The three tools, plus the key, both apps, the app configs, Zo, and
-    # Hermes One. Counted rather than guessed at: the bar is drawn as a
-    # fraction of this, so a stage the count does not know about makes it sit
-    # at full while the machine is still being looked at.
-    return ($script:ManagedTools.Count + 6)
+    # The three tools, plus the key, both apps, the app configs, Zo, the
+    # /compile-data command, and Hermes One. Counted rather than guessed at:
+    # the bar is drawn as a fraction of this, so a stage the count does not
+    # know about makes it sit at full while the machine is still being looked
+    # at.
+    return ($script:ManagedTools.Count + 7)
 }
 
 function Write-Checking {
@@ -2113,9 +2167,10 @@ function Get-AllChecks {
         foreach ($row in $offline) {
             $checks.Add((New-Check -Key $row.Key -Title $row.Title -Status 'needs-you' -Detail $why))
         }
-        # Nothing above this line could be answered without Zo. This one can:
-        # it is an app on this computer, so it is checked and offered exactly
-        # as it would be on a machine whose key works.
+        # Nothing above this line could be answered without Zo. These two can:
+        # they are a file copy and an app on this computer, so they are checked
+        # and offered exactly as they would be on a machine whose key works.
+        Add-EventSkillCheck -Checks $checks
         Add-HermesCheck -Checks $checks
         return $checks
     }
@@ -2321,6 +2376,10 @@ function Get-AllChecks {
     }
 
     }
+
+    # Second to last. It belongs after everything the setup promises and before
+    # Hermes One, which the CEO asked for as the final step by name.
+    Add-EventSkillCheck -Checks $checks
 
     # Genuinely last, and deliberately so. Everything before it either is the
     # way the owner reaches their Zo or is something their Zo gains; this is a
@@ -2716,6 +2775,76 @@ function Install-ChatGptDesktop {
         Write-Info 'Install it from that page, then come back and press R to re-check.'
     }
     return $false
+}
+
+function Install-EventSkill {
+    <#
+        Two file copies. No network, no key, nothing to sign into, and nothing
+        the owner has to do afterwards - which is the point. On the day, Shane
+        says a command out loud and a hundred and twenty people type it; a step
+        that needed anybody to remember a setting would already have failed.
+
+        Run twice, it overwrites. That is deliberate: it is how a corrected
+        copy reaches a machine that was set up last week.
+    #>
+    $src = Get-EventFolder
+    $ok = $true
+
+    Write-Title 'The command that sends your work to Vimigo'
+    Write-Info 'At the end of the event you will be asked to type one command.'
+    Write-Info 'This puts it ready on this computer. There is nothing to sign into.'
+    Write-Host ''
+
+    if ($script:WantClaudeApp) {
+        $from = Join-Path (Join-Path $src $script:EventSkillKey) 'SKILL.md'
+        $dest = Get-EventSkillDest
+        if (-not (Test-Path -LiteralPath $from)) {
+            $ok = $false
+            Write-Bad 'The command is missing from this setup folder.'
+            Write-Info 'Download the setup again and run it once more.'
+        } else {
+            try {
+                if (-not (Test-Path -LiteralPath $dest)) {
+                    New-Item -ItemType Directory -Path $dest -Force -ErrorAction Stop | Out-Null
+                }
+                Copy-Item -LiteralPath $from -Destination (Join-Path $dest 'SKILL.md') -Force -ErrorAction Stop
+                Write-Good "In Claude, type  /$($script:EventSkillKey)  and press Enter."
+            } catch {
+                $ok = $false
+                Write-Bad 'Could not put the command into Claude.'
+                Write-Info "This computer would not let the setup write to $dest"
+            }
+        }
+    }
+
+    if ($script:WantChatGptApp) {
+        # ChatGPT has no slash commands to install into, so its half is a file
+        # the owner opens and copies. Same instructions, same folder, same
+        # document at the other end.
+        $from = Join-Path $src $script:EventChatgptFile
+        $card = Get-EventChatgptDest
+        if (-not (Test-Path -LiteralPath $from)) {
+            $ok = $false
+            Write-Bad 'The ChatGPT instructions are missing from this setup folder.'
+            Write-Info 'Download the setup again and run it once more.'
+        } else {
+            try {
+                $folder = Split-Path -Parent $card
+                if ($folder -and -not (Test-Path -LiteralPath $folder)) {
+                    New-Item -ItemType Directory -Path $folder -Force -ErrorAction Stop | Out-Null
+                }
+                Copy-Item -LiteralPath $from -Destination $card -Force -ErrorAction Stop
+                Write-Good 'For ChatGPT, there is now a file on your Desktop called'
+                Write-Good "  $($script:EventChatgptFile)"
+                Write-Info 'Open it at the end of the event and follow the first line.'
+            } catch {
+                $ok = $false
+                Write-Bad 'Could not save the ChatGPT instructions to your Desktop.'
+            }
+        }
+    }
+
+    return $ok
 }
 
 function Install-HermesOne {
@@ -3483,6 +3612,62 @@ function Install-SecondBrain {
 function Get-SkillsFolder {
     # The skill folders travel with the setup, beside this script.
     return (Join-Path (Get-SetupRoot) 'skills')
+}
+
+function Get-EventFolder {
+    # The event submission command, and the ChatGPT copy of it. Beside this
+    # script for the same reason the Zo skills are - the zip and the checkout
+    # have the same shape, so a thing that works from one works from the other.
+    return (Join-Path (Get-SetupRoot) 'event')
+}
+
+function Get-EventSkillDest {
+    <#
+        Where Claude looks for a personal skill.
+
+        Not a guess: Claude Desktop resolves its config root to ~/.claude and
+        hands that to the agent behind both the Cowork and the Code tab, so a
+        folder dropped here is a slash command in all of them without Claude
+        Code being installed separately. An owner who has moved that root in
+        Claude's own settings is the one case this misses, and moving it is not
+        something a first-week owner has done.
+    #>
+    return (Join-Path $HOME ".claude\skills\$script:EventSkillKey")
+}
+
+function Get-EventChatgptDest {
+    <#
+        ChatGPT has no skills and no slash commands, so its half of this is a
+        file the owner opens and copies.
+
+        The Desktop is asked for by name rather than assumed to be under the
+        profile: a machine with OneDrive Known Folder Move has its Desktop
+        inside OneDrive, and writing to the guessed path there creates a second
+        folder the owner cannot see. Falls back to the guess only if Windows
+        will not answer.
+    #>
+    $desktop = ''
+    try { $desktop = [Environment]::GetFolderPath('Desktop') } catch { $desktop = '' }
+    if (-not $desktop) { $desktop = (Join-Path $HOME 'Desktop') }
+    return (Join-Path $desktop $script:EventChatgptFile)
+}
+
+function Test-EventSkillInstalled {
+    <#
+        True only for the halves this owner actually needs.
+
+        Somebody who chose Claude has no use for a ChatGPT file on their
+        Desktop, and demanding both would leave a row permanently red on every
+        machine that answered the very first question - which is the same
+        mistake the Zo plan rows made for a fortnight.
+    #>
+    if ($script:WantClaudeApp) {
+        if (-not (Test-Path -LiteralPath (Join-Path (Get-EventSkillDest) 'SKILL.md'))) { return $false }
+    }
+    if ($script:WantChatGptApp) {
+        if (-not (Test-Path -LiteralPath (Get-EventChatgptDest))) { return $false }
+    }
+    return $true
 }
 
 function Get-ZoSkills {
@@ -5462,6 +5647,10 @@ function Invoke-Fix {
         'zo-codex'       { return (Connect-ZoAiProvider -Which 'codex') }
         'zo-google'   { return (Open-ZoGoogle) }
         'zo-employees' { return (Invoke-HireEmployee) }
+        # Nothing follows the copy. There is no app to open, no key to paste,
+        # and nothing for the owner to confirm - so it is not on OwnerCompletes
+        # either.
+        'event-skill' { return (Install-EventSkill) }
         # Installed, then opened, and that is where this step ends. It is
         # deliberately not on OwnerCompletes: everything the setup can verify
         # here - that the app is on the computer - it has just done itself, and
@@ -5521,6 +5710,9 @@ function Test-CheckNow {
         # that list, it cannot fall through to the Zo questions below and come
         # back "could not tell" on a machine with no key.
         'hermes-app'  { $result.Done = (Test-HermesInstalled); return $result }
+        # Same reasoning: answered by looking at this computer, so it must not
+        # fall through to the Zo questions below on a machine with no key.
+        'event-skill' { $result.Done = (Test-EventSkillInstalled); return $result }
     }
 
     $zo = Get-ZoVerification -Token (Get-ZoToken)
@@ -5911,6 +6103,7 @@ function Reset-VimigoSetup {
     Write-NumberedStep 1 'Forget your' 'Zo account key'
     Write-NumberedStep 2 'Forget your remembered' 'phone number and Zo address'
     Write-NumberedStep 3 'Remove the Zo entry from' 'Claude Desktop and ChatGPT'
+    Write-NumberedStep 4 'Take back the' '/compile-data command'
     Write-Host ''
     Write-Info 'Your own settings in those apps are kept. Only the entry this'
     Write-Info 'setup added is taken out.'
@@ -5976,6 +6169,21 @@ function Reset-VimigoSetup {
         } catch {
             Write-Warn "Could not tidy $($client.Name), so it was left as it is."
         }
+    }
+
+    # Only the one folder this setup wrote, by name. ~/.claude/skills belongs to
+    # the owner and may hold skills they made themselves or were given
+    # elsewhere; removing the folder rather than our entry in it would take
+    # those with it.
+    #
+    # Without this, "start over" leaves the row green and the step never runs
+    # again - which defeats the one thing start over is for.
+    $skillDest = Get-EventSkillDest
+    $chatgptCard = Get-EventChatgptDest
+    if ((Test-Path -LiteralPath $skillDest) -or (Test-Path -LiteralPath $chatgptCard)) {
+        Write-Info 'Taking back the /compile-data command...'
+        try { Remove-Item -LiteralPath $skillDest -Recurse -Force -ErrorAction Stop } catch { }
+        try { Remove-Item -LiteralPath $chatgptCard -Force -ErrorAction Stop } catch { }
     }
 
     if ($alsoUninstall) {

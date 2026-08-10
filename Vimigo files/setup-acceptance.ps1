@@ -29,6 +29,10 @@ $ErrorActionPreference = 'Stop'
 # for reasons that have nothing to do with the code - which is exactly what
 # happened before this line existed.
 $script:RealTestHcsServicesPresent = ${function:Test-HcsServicesPresent}
+$script:RealTestEventSkillInstalled = ${function:Test-EventSkillInstalled}
+$script:RealInstallEventSkill = ${function:Install-EventSkill}
+$script:RealGetEventSkillDest = ${function:Get-EventSkillDest}
+$script:RealGetEventChatgptDest = ${function:Get-EventChatgptDest}
 
 $script:Failures = 0
 $script:Ran = 0
@@ -606,6 +610,11 @@ try {
     # outstanding only because the machine running the suite happens not to
     # have the app would fail every "nothing left to do" check below.
     function Test-HermesInstalled { return $true }
+    # And the /compile-data command, for the same reason. Stubbed rather than
+    # really installed: the real one writes into ~/.claude/skills and onto the
+    # Desktop, and a suite that leaves files in either place has changed the
+    # machine it was only supposed to measure.
+    function Test-EventSkillInstalled { return $true }
     function Find-LocalWhatsAppInstall { return @() }
     function Get-Profile { return @{ talkChannel = 'whatsapp'; employees = @() } }
     function Get-HiredEmployees { return @() }
@@ -1089,6 +1098,126 @@ try {
         'Enter goes back without changing anything'
     Assert-True ((Get-ResetScreen -Assistant 'on' -Employees 'on' -Typed '08') -match 'Nothing was changed') `
         'a leading zero is read as text, not as a number'
+
+    Write-Host ''
+    Write-Host 'The /compile-data command' -ForegroundColor Cyan
+
+    # Both halves, as shipped. A row that goes green while the zip is missing
+    # the file it copies is the one failure nobody would find until the event.
+    $eventDir = Join-Path $PSScriptRoot 'event'
+    $skillFile = Join-Path (Join-Path $eventDir 'compile-data') 'SKILL.md'
+    $chatgptFile = Join-Path $eventDir 'Submit my AI workflow - ChatGPT.txt'
+    Assert-True (Test-Path -LiteralPath $skillFile) 'the command ships beside the setup'
+    Assert-True (Test-Path -LiteralPath $chatgptFile) `
+        'and so does the ChatGPT copy of it, for owners with no slash commands'
+
+    $skillText = Get-Content -LiteralPath $skillFile -Raw
+    Assert-True ($skillText -match '(?m)^name: compile-data$') `
+        'the skill is named for the command the owner is told to type'
+
+    # The address the whole thing exists to reach. Both halves carry it, because
+    # a submission that lands in the owner's own Drive and is never shared with
+    # anybody is indistinguishable from one that was never made.
+    Assert-True ($skillText -like '*vimigoai@vimigoapp.com*') `
+        'it knows the address to share the folder with'
+    Assert-True ((Get-Content -LiteralPath $chatgptFile -Raw) -like '*vimigoai@vimigoapp.com*') `
+        'and so does the ChatGPT copy'
+    Assert-True ($skillText -like '*AI Workflow Submission*') `
+        'it knows what the document is called'
+
+    # The instruction most easily lost in an edit, and the one with a real cost:
+    # an invented time saving in a document a CEO will consult on.
+    Assert-True ($skillText -match '(?i)never invent a number') `
+        'it is told not to invent results'
+
+    # The real functions, run against a sandbox rather than the tester's own
+    # home, so nothing here lands in ~/.claude or on anybody's Desktop.
+    ${function:Test-EventSkillInstalled} = $script:RealTestEventSkillInstalled
+    ${function:Install-EventSkill} = $script:RealInstallEventSkill
+    $fakeHome = Join-Path $sandbox 'home'
+    $fakeDesktop = Join-Path $fakeHome 'Desktop'
+    New-Item -ItemType Directory -Path $fakeDesktop -Force | Out-Null
+    function Get-EventSkillDest { return (Join-Path $fakeHome '.claude\skills\compile-data') }
+    function Get-EventChatgptDest { return (Join-Path $fakeDesktop 'Submit my AI workflow - ChatGPT.txt') }
+
+    $script:FeatureEventSkill = 'on'
+    $script:WantClaudeApp = $true
+    $script:WantChatGptApp = $true
+    Assert-True (-not (Test-EventSkillInstalled)) 'with neither half in place it is not done'
+
+    Assert-True (Install-EventSkill 6>$null) 'installing it works with nothing to sign into'
+    Assert-True (Test-Path -LiteralPath (Join-Path (Get-EventSkillDest) 'SKILL.md')) `
+        'the command lands where Claude looks for a personal skill'
+    Assert-True (Test-Path -LiteralPath (Get-EventChatgptDest)) `
+        'and the ChatGPT copy lands on the Desktop, where it can be found'
+    Assert-True (Test-EventSkillInstalled) 'and afterwards it reads as done'
+
+    # An owner who chose one app must not be held back by the other one's half.
+    # This is the mistake the Zo plan rows made: a row that can never go green
+    # on a machine that answered the first question honestly.
+    Remove-Item -LiteralPath (Get-EventChatgptDest) -Force
+    $script:WantChatGptApp = $false
+    Assert-True (Test-EventSkillInstalled) `
+        'a Claude owner is finished without a ChatGPT file they cannot use'
+
+    Remove-Item -LiteralPath (Join-Path $fakeHome '.claude') -Recurse -Force
+    $script:WantClaudeApp = $false
+    $script:WantChatGptApp = $true
+    $null = Install-EventSkill 6>$null
+    Assert-True (-not (Test-Path -LiteralPath (Get-EventSkillDest))) `
+        'a ChatGPT owner is not given a Claude skill they will never type'
+    Assert-True (Test-EventSkillInstalled) 'and the Desktop file alone finishes them'
+
+    $script:WantClaudeApp = $true
+    function Test-EventSkillInstalled { return $true }
+    function Get-EventSkillDest { return (Join-Path $fakeHome '.claude\skills\compile-data') }
+
+    # The row, in the list. Same two ends as Hermes One below it.
+    Set-Features 'off'
+    $script:FeatureEventSkill = 'on'
+    $script:FixtureHasKey = $true
+    $row = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'event-skill' })[0]
+    Assert-True ($row.Status -eq 'ok' -and $row.Title -eq 'Your /compile-data command') `
+        'an installed command reads as done'
+    function Test-EventSkillInstalled { return $false }
+    $row = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'event-skill' })[0]
+    Assert-True ($row.Status -eq 'missing') 'a missing one reads as missing'
+    function Test-EventSkillInstalled { return $true }
+
+    # With no Zo key it must still appear: Get-AllChecks gives up early there,
+    # and this row is built after that point.
+    $script:FixtureHasKey = $false
+    Assert-True (@(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'event-skill' }).Count -eq 1) `
+        'with no Zo key at all it is still offered'
+    Assert-True ((Test-CheckNow -Key 'event-skill').Done -eq $true) `
+        'its own check answers here, without asking Zo'
+    $script:FixtureHasKey = $true
+
+    $script:FeatureEventSkill = 'off'
+    Assert-True (@(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'event-skill' }).Count -eq 0) `
+        'switched off, the row disappears completely'
+    $script:FeatureEventSkill = 'on'
+
+    Assert-True ($script:OwnerCompletes -notcontains 'event-skill') `
+        'it never asks "have you finished that step?" about a file it copied'
+    # Read out of the source rather than out of a variable: on this side the
+    # list is local to the function that walks the outstanding rows, so there is
+    # nothing to inspect at runtime. The Mac keeps the same list as a global and
+    # its suite asserts on that.
+    $setupText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'vimigo-setup.ps1') -Raw
+    $needsZoBlock = [regex]::Match($setupText, '\$needsZo = @\(([^)]*)\)').Groups[1].Value
+    Assert-True ($needsZoBlock -notlike '*event-skill*') `
+        'and it does not wait for a Zo key it has no use for'
+    Assert-True ($needsZoBlock -like '*claude-mcp*') `
+        'and that list was actually found, rather than read as empty'
+
+    # It goes before Hermes One, which the CEO asked for as the final step.
+    Set-Features 'off'
+    $script:FeatureEventSkill = 'on'
+    $script:FeatureHermes = 'on'
+    $keys = @(Get-AllChecks 6>$null | ForEach-Object { $_.Key })
+    Assert-True ([Array]::IndexOf($keys, 'event-skill') -lt [Array]::IndexOf($keys, 'hermes-app')) `
+        'and it sits above Hermes One rather than after it'
 
     Write-Host ''
     Write-Host 'Hermes One, the last step' -ForegroundColor Cyan

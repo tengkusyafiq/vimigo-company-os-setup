@@ -33,4 +33,17 @@ go.sum text eol=lf
 # customer, and the Python inside two of them would arrive with \r on every
 # line. Marked binary, which is the only setting that turns off both the line
 # ending rewrite and any future filter.
-scripts/setup/skills/** -text -diff
+#
+# The path is the one this repository actually has. Copied over from the
+# development repo it read scripts/setup/skills/**, which was wrong there and
+# wrong twice here - this tree has no scripts/setup at all. It has been
+# matching nothing; what kept these files LF was the *.py and *.md rules above.
+"Vimigo files/skills/**" -text -diff
+
+# The /compile-data command and the ChatGPT card. LF, so a Windows clone and a
+# Mac clone hand the customer identical bytes.
+#
+# .txt is not covered by anything above, so on Windows it would come back CRLF.
+# Notepad has read LF since Windows 10, so there is nothing to lose by pinning
+# it.
+"Vimigo files/event/**" text eol=lf

@@ -56,6 +56,20 @@ get_zo_token() { printf '%s' "$FAKE_TOKEN"; }
 # section that tests this row in particular sets it both ways itself.
 hermes_installed() { return 0; }
 
+# And the same for the /compile-data command, for exactly the same reason. Its
+# own section sets it both ways.
+#
+# It is stubbed rather than really installed: the real thing writes into
+# ~/.claude/skills and onto the Desktop, and a test suite that leaves files in
+# either place has changed the machine it was only supposed to measure.
+#
+# The real one is kept first, because bash holds one definition per name and
+# the section that tests it needs the real thing back. unset -f does not undo a
+# stub, it deletes the function outright - which reads as three tests failing
+# on a defect that is entirely the fixture's.
+REAL_EVENT_SKILL_INSTALLED="$(declare -f event_skill_installed)"
+event_skill_installed() { return 0; }
+
 printf '\n\033[36mClaude Desktop config\033[0m\n'
 
 mkdir -p "$(dirname "$CLAUDE_CONFIG")"
@@ -886,6 +900,120 @@ assert_not $? 'as is the Z key'
 # Taken off the screen, not taken away.
 grep -q '"--reset"' "$SCRIPT_DIR/vimigo-setup.sh"
 assert $? 'starting over is still reachable, by asking for it on purpose'
+
+printf '\n\033[36mThe /compile-data command\033[0m\n'
+
+# Both halves, as shipped. A row that goes green while the zip is missing the
+# file it copies is the one failure nobody would find until the event.
+[ -f "$SCRIPT_DIR/event/compile-data/SKILL.md" ]
+assert $? 'the command ships beside the setup'
+[ -f "$SCRIPT_DIR/event/Submit my AI workflow - ChatGPT.txt" ]
+assert $? 'and so does the ChatGPT copy of it, for owners with no slash commands'
+grep -q '^name: compile-data$' "$SCRIPT_DIR/event/compile-data/SKILL.md"
+assert $? 'the skill is named for the command the owner is told to type'
+
+# The address the whole thing exists to reach. Both halves carry it, because a
+# submission that lands in the owner's own Drive and is never shared with
+# anybody is indistinguishable from one that was never made.
+grep -qF 'vimigoai@vimigoapp.com' "$SCRIPT_DIR/event/compile-data/SKILL.md"
+assert $? 'it knows the address to share the folder with'
+grep -qF 'vimigoai@vimigoapp.com' "$SCRIPT_DIR/event/Submit my AI workflow - ChatGPT.txt"
+assert $? 'and so does the ChatGPT copy'
+
+# Named, because a document with no name on it cannot be matched to a company
+# afterwards, and the folder is named for the company alone by instruction.
+grep -qF 'AI Workflow Submission' "$SCRIPT_DIR/event/compile-data/SKILL.md"
+assert $? 'it knows what the document is called'
+
+# The instruction most easily lost in an edit, and the one with a real cost: an
+# invented time saving in a document a CEO will consult on.
+grep -qiF 'never invent a number' "$SCRIPT_DIR/event/compile-data/SKILL.md"
+assert $? 'it is told not to invent results'
+
+# The real thing, run against a sandbox rather than the tester's own home, so
+# nothing here lands in ~/.claude or on anybody's Desktop.
+REAL_HOME="$HOME"
+HOME="$SANDBOX/home"
+mkdir -p "$HOME/Desktop"
+eval "$REAL_EVENT_SKILL_INSTALLED"
+FEATURE_EVENT_SKILL='on'
+
+WANT_CLAUDE='yes'; WANT_CHATGPT='yes'
+event_skill_installed
+assert_not $? 'with neither half in place it is not done'
+
+install_event_skill >/dev/null 2>&1
+assert $? 'installing it works with nothing to sign into'
+[ -f "$HOME/.claude/skills/compile-data/SKILL.md" ]
+assert $? 'the command lands where Claude looks for a personal skill'
+[ -f "$HOME/Desktop/Submit my AI workflow - ChatGPT.txt" ]
+assert $? 'and the ChatGPT copy lands on the Desktop, where it can be found'
+event_skill_installed
+assert $? 'and afterwards it reads as done'
+
+# An owner who chose one app must not be held back by the other one's half.
+# This is the mistake the Zo plan rows made: a row that can never go green on a
+# machine that answered the first question honestly.
+rm -f "$HOME/Desktop/Submit my AI workflow - ChatGPT.txt"
+WANT_CLAUDE='yes'; WANT_CHATGPT='no'
+event_skill_installed
+assert $? 'a Claude owner is finished without a ChatGPT file they cannot use'
+rm -rf "$HOME/.claude"
+WANT_CLAUDE='no'; WANT_CHATGPT='yes'
+install_event_skill >/dev/null 2>&1
+[ ! -d "$HOME/.claude/skills/compile-data" ]
+assert $? 'a ChatGPT owner is not given a Claude skill they will never type'
+event_skill_installed
+assert $? 'and the Desktop file alone finishes them'
+
+# Start over has to take it back, or the row stays green and the step never
+# runs again - which is the one thing start over exists for.
+WANT_CLAUDE='yes'; WANT_CHATGPT='yes'
+install_event_skill >/dev/null 2>&1
+remove_event_skill >/dev/null 2>&1
+event_skill_installed
+assert_not $? 'starting over takes the command back'
+
+# Only ours. ~/.claude/skills is the owner's folder and may hold skills they
+# made themselves.
+mkdir -p "$HOME/.claude/skills/something-they-wrote"
+printf 'theirs\n' > "$HOME/.claude/skills/something-they-wrote/SKILL.md"
+install_event_skill >/dev/null 2>&1
+remove_event_skill >/dev/null 2>&1
+[ -f "$HOME/.claude/skills/something-they-wrote/SKILL.md" ]
+assert $? 'and leaves skills the owner put there themselves alone'
+
+HOME="$REAL_HOME"
+event_skill_installed() { return 0; }
+
+# The row, in the list. Same two ends as Hermes One: it must appear on a machine
+# with no Zo key as readily as on one with a key.
+FEATURE_EVENT_SKILL='on'
+CHECKS=(); add_event_skill_check
+printf '%s' "${CHECKS[0]}" | grep -q '^event-skill|Your /compile-data command|ok|'
+assert $? 'an installed command reads as done'
+event_skill_installed() { return 1; }
+CHECKS=(); add_event_skill_check
+printf '%s' "${CHECKS[0]}" | grep -q '^event-skill|Your /compile-data command|missing|'
+assert $? 'a missing one reads as missing'
+event_skill_installed() { return 0; }
+
+FEATURE_EVENT_SKILL='off'
+CHECKS=(); add_event_skill_check
+[ "${#CHECKS[@]}" -eq 0 ]
+assert $? 'switched off, the row disappears completely'
+FEATURE_EVENT_SKILL='on'
+
+# Answered on this Mac. If it ever falls through to the Zo questions it comes
+# back "could not tell" on exactly the machines that have not got a key.
+zo_verify() { ZO_ANSWER=''; }
+[ "$(check_now event-skill)" = 'true' ]
+assert $? 'its own check answers here, without asking Zo'
+
+case " $OWNER_COMPLETES " in *' event-skill '*) false ;; *) true ;; esac
+assert $? 'it never asks "have you finished that step?" about a file it copied'
+case " $NEEDS_ZO_KEY " in *' event-skill '*) false ;; *) true ;; esac
+assert $? 'and it does not wait for a Zo key it has no use for'
 
 printf '\n\033[36mHermes One, the last step\033[0m\n'
 

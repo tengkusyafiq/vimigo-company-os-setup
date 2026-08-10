@@ -49,6 +49,17 @@ FEATURE_AI_EMPLOYEES='off'
 # anything on Zo, so it is the only one here that needs no key and no account -
 # which is also why it can safely be last.
 FEATURE_HERMES='on'
+# The event submission command, and it ships on because the event needs it.
+#
+# Puts /compile-data where Claude can find it, so that at the end of the day
+# Shane says "type slash compile-data" and the owner's work goes to Vimigo
+# without anybody pasting a page of instructions into anything. An owner who
+# chose ChatGPT gets the same thing as a file on their Desktop, because ChatGPT
+# has no slash commands to install into.
+#
+# Nothing else depends on it and nothing about it can fail loudly: it is a file
+# copy onto this Mac, needing no key, no account and no network.
+FEATURE_EVENT_SKILL='on'
 # Carried here, and does nothing here yet.
 #
 # On Windows this is the row that switches on virtualisation so Claude Desktop's
@@ -92,6 +103,9 @@ if [ -n "${VIMIGO_FEATURE_AI_EMPLOYEES:-}" ]; then
 fi
 if [ -n "${VIMIGO_FEATURE_HERMES:-}" ]; then
     FEATURE_HERMES="$VIMIGO_FEATURE_HERMES"
+fi
+if [ -n "${VIMIGO_FEATURE_EVENT_SKILL:-}" ]; then
+    FEATURE_EVENT_SKILL="$VIMIGO_FEATURE_EVENT_SKILL"
 fi
 if [ -n "${VIMIGO_FEATURE_CLAUDE_FEATURES:-}" ]; then
     FEATURE_CLAUDE_FEATURES="$VIMIGO_FEATURE_CLAUDE_FEATURES"
@@ -162,6 +176,19 @@ HERMES_PINNED_VERSION='0.7.6'
 # end up inside each AI app's own config file, because that is the only shape
 # those apps accept today. The status screen says so plainly.
 KEYCHAIN_SERVICE="vimigo-setup-zo-token"
+
+# ---------------------------------------------------------------------------
+# The event submission command
+# ---------------------------------------------------------------------------
+# What the owner types into Claude at the end of the event. The name has no
+# brand in it on purpose: a command called /vimigo, typed into somebody else's
+# AI, reads like something that should not be there.
+EVENT_SKILL_KEY='compile-data'
+
+# The same instructions, for an owner who chose ChatGPT. Named as a sentence
+# rather than a filename because it lands on their Desktop and has to make
+# sense to somebody who has never deliberately opened a .txt file.
+EVENT_CHATGPT_FILE='Submit my AI workflow - ChatGPT.txt'
 
 # ---------------------------------------------------------------------------
 # The Zo skills worth having on every customer's Zo
@@ -613,6 +640,33 @@ skills_folder() {
     printf '%s/skills' "$SCRIPT_DIR"
 }
 
+event_folder() {
+    # The event submission command, and the ChatGPT copy of it. Beside this
+    # script for the same reason the Zo skills are - the zip and the checkout
+    # have the same shape, so a thing that works from one works from the other.
+    printf '%s/event' "$SCRIPT_DIR"
+}
+
+event_skill_dest() {
+    # Where Claude looks for a personal skill.
+    #
+    # Not a guess: Claude Desktop resolves its config root to ~/.claude and
+    # hands that to the agent behind both the Cowork and the Code tab, so a
+    # folder dropped here is a slash command in all of them without Claude Code
+    # being installed separately. An owner who has moved that root in Claude's
+    # own settings is the one case this misses, and moving it is not something
+    # a first-week owner has done.
+    printf '%s/.claude/skills/%s' "$HOME" "$EVENT_SKILL_KEY"
+}
+
+event_chatgpt_dest() {
+    # ChatGPT has no skills and no slash commands, so its half of this is a file
+    # the owner opens and copies. The Desktop rather than a tidier folder
+    # because it has to be findable by somebody being told where it is over a
+    # microphone, in a room of a hundred and twenty people.
+    printf '%s/Desktop/%s' "$HOME" "$EVENT_CHATGPT_FILE"
+}
+
 # ---------------------------------------------------------------------------
 
 get_zo_token() {
@@ -789,6 +843,22 @@ app_installed() {
 
 hermes_installed() { app_installed "$HERMES_APP_NAME"; }
 
+event_skill_installed() {
+    # True only for the halves this owner actually needs.
+    #
+    # Somebody who chose Claude has no use for a ChatGPT file on their Desktop,
+    # and demanding both would leave a row permanently red on every machine
+    # that answered the very first question - which is the same mistake the Zo
+    # plan rows made for a fortnight.
+    if [ "$WANT_CLAUDE" != 'no' ]; then
+        [ -f "$(event_skill_dest)/SKILL.md" ] || return 1
+    fi
+    if [ "$WANT_CHATGPT" != 'no' ]; then
+        [ -f "$(event_chatgpt_dest)" ] || return 1
+    fi
+    return 0
+}
+
 claude_mcp_configured() {
     [ -f "$CLAUDE_CONFIG" ] || return 1
     node_bin >/dev/null || return 1
@@ -813,6 +883,18 @@ codex_mcp_configured() {
 # status is one of: ok, missing, needs-you
 
 CHECKS=()
+
+add_event_skill_check() {
+    # Sits with Hermes One rather than with the Zo rows, and for the same
+    # reason: it is answered on this Mac, so it must appear on a machine that
+    # has no Zo key yet as readily as on one that does.
+    feature_on "$FEATURE_EVENT_SKILL" || return 0
+    if event_skill_installed; then
+        CHECKS+=("event-skill|Your /compile-data command|ok|ready|")
+    else
+        CHECKS+=("event-skill|Your /compile-data command|missing|not installed yet|sends your work to Vimigo at the end of the event")
+    fi
+}
 
 add_hermes_check() {
     # The last row, and the only one that asks nothing of Zo.
@@ -998,9 +1080,10 @@ collect_checks() {
         if feature_on "$FEATURE_AI_EMPLOYEES"; then
             CHECKS+=("zo-employees|Hire AI employees|needs-you|$why|")
         fi
-        # Nothing above this line could be answered without Zo. This one can:
-        # it is an app on this Mac, so it is checked and offered exactly as it
-        # would be on a machine whose key works.
+        # Nothing above this line could be answered without Zo. These two can:
+        # they are a file copy and an app on this Mac, so they are checked and
+        # offered exactly as they would be on a machine whose key works.
+        add_event_skill_check
         add_hermes_check
         return 0
     fi
@@ -1179,6 +1262,10 @@ collect_checks() {
     fi
 
     fi
+
+    # Second to last. It belongs after everything the setup promises and before
+    # Hermes One, which the CEO asked for as the final step by name.
+    add_event_skill_check
 
     # Genuinely last, and deliberately so. Everything before it either is the
     # way the owner reaches their Zo or is something their Zo gains; this is a
@@ -1664,6 +1751,65 @@ hermes_mac_asset() {
         $1 == "-" && $2 == "url:" { file = $3 }
         $1 == "sha512:" && file != "" && index(file, want) > 0 { print file " " $2; exit }
     '
+}
+
+install_event_skill() {
+    # Two file copies. No network, no key, nothing to sign into, and nothing
+    # the owner has to do afterwards - which is the point. On the day, Shane
+    # says a command out loud and a hundred and twenty people type it; a step
+    # that needed anybody to remember a setting would already have failed.
+    #
+    # Run twice, it overwrites. That is deliberate: it is how a corrected copy
+    # reaches a machine that was set up last week.
+    local src ok
+    src="$(event_folder)"
+    ok='yes'
+
+    title 'The command that sends your work to Vimigo'
+    info 'At the end of the event you will be asked to type one command.'
+    info 'This puts it ready on this Mac. There is nothing to sign into.'
+    printf '\n'
+
+    if [ "$WANT_CLAUDE" != 'no' ]; then
+        local dest
+        dest="$(event_skill_dest)"
+        if [ ! -f "$src/$EVENT_SKILL_KEY/SKILL.md" ]; then
+            ok='no'
+            bad 'The command is missing from this setup folder.'
+            info 'Download the setup again and run it once more.'
+        elif mkdir -p "$dest" 2>/dev/null &&
+             cp "$src/$EVENT_SKILL_KEY/SKILL.md" "$dest/SKILL.md" 2>/dev/null; then
+            good "In Claude, type  /$EVENT_SKILL_KEY  and press Enter."
+        else
+            ok='no'
+            bad 'Could not put the command into Claude.'
+            info "This Mac would not let the setup write to $dest"
+        fi
+    fi
+
+    if [ "$WANT_CHATGPT" != 'no' ]; then
+        # ChatGPT has no slash commands to install into, so its half is a file
+        # the owner opens and copies. Same instructions, same folder, same
+        # document at the other end.
+        local card
+        card="$(event_chatgpt_dest)"
+        if [ ! -f "$src/$EVENT_CHATGPT_FILE" ]; then
+            ok='no'
+            bad 'The ChatGPT instructions are missing from this setup folder.'
+            info 'Download the setup again and run it once more.'
+        elif mkdir -p "$HOME/Desktop" 2>/dev/null &&
+             cp "$src/$EVENT_CHATGPT_FILE" "$card" 2>/dev/null; then
+            good 'For ChatGPT, there is now a file on your Desktop called'
+            good "  $EVENT_CHATGPT_FILE"
+            info 'Open it at the end of the event and follow the first line.'
+        else
+            ok='no'
+            bad 'Could not save the ChatGPT instructions to your Desktop.'
+        fi
+    fi
+
+    [ "$ok" = 'yes' ] || return 1
+    return 0
 }
 
 install_hermes_one() {
@@ -4370,6 +4516,10 @@ fix_one() {
         # Asking "have you finished that step?" would be asking a question the
         # setup already knows the answer to, which is what Tengku had taken out
         # everywhere else.
+        # Nothing follows the copy. There is no app to open, no key to paste,
+        # and nothing for the owner to confirm - so it is not on
+        # OWNER_COMPLETES either.
+        event-skill) install_event_skill ;;
         hermes-app)
             install_hermes_one || return 1
             open_hermes_to_finish ;;
@@ -4422,6 +4572,9 @@ check_now() {
         # that list, it cannot fall through to the Zo questions below and come
         # back "could not tell" on a machine with no key.
         hermes-app)  hermes_installed && printf 'true' || printf 'false'; return 0 ;;
+        # Same reasoning: answered by looking at this Mac, so it must not fall
+        # through to the Zo questions below on a machine with no key.
+        event-skill) event_skill_installed && printf 'true' || printf 'false'; return 0 ;;
     esac
 
     zo_verify "$(get_zo_token)"
@@ -4971,6 +5124,7 @@ reset_vimigo_setup() {
     numbered 1 'Forget your' 'Zo account key'
     numbered 2 'Forget your remembered' 'phone number and Zo address'
     numbered 3 'Remove the Zo entry from' 'Claude Desktop and ChatGPT'
+    numbered 4 'Take back the' '/compile-data command'
     printf '\n'
     info 'Your own settings in those apps are kept. Only the entry this'
     info 'setup added is taken out.'
@@ -5015,6 +5169,7 @@ reset_vimigo_setup() {
     ZO_WORKSPACE_URL=""
 
     remove_zo_from_configs
+    remove_event_skill
 
     if [ "$also_uninstall" = "yes" ]; then
         load_homebrew_env
@@ -5030,6 +5185,25 @@ reset_vimigo_setup() {
     info 'Nothing on your Zo was changed: WhatsApp, Google and your plans'
     info 'are all still connected there.'
     printf '\n'
+    return 0
+}
+
+remove_event_skill() {
+    # Only the one folder this setup wrote, by name. ~/.claude/skills belongs to
+    # the owner and may hold skills they made themselves or were given
+    # elsewhere; removing the folder rather than our entry in it would take
+    # those with it.
+    #
+    # Without this, "start over" leaves the row green and the step never runs
+    # again - which defeats the one thing start over is for.
+    local dest card
+    dest="$(event_skill_dest)"
+    card="$(event_chatgpt_dest)"
+    if [ -d "$dest" ] || [ -f "$card" ]; then
+        info 'Taking back the /compile-data command...'
+        rm -rf "$dest" 2>/dev/null || true
+        rm -f "$card" 2>/dev/null || true
+    fi
     return 0
 }
 
