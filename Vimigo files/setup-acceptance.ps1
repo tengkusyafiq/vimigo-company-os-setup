@@ -1130,6 +1130,24 @@ try {
     Assert-True ($skillText -match '(?i)never invent a number') `
         'it is told not to invent results'
 
+    # The batch and the dates, pinned in both halves and checked against each
+    # other.
+    #
+    # Step 1 of the skill filters the owner's files by the programme dates, so a
+    # stale window matches nothing and the review comes back empty - which reads
+    # as a broken command rather than a wrong date. This has been wrong twice:
+    # shipped as V001 / July, corrected to V002 / August. Pinned here so the
+    # third time is a failing test rather than a hundred and twenty empty
+    # submissions.
+    $chatgptText = Get-Content -LiteralPath $chatgptFile -Raw
+    foreach ($half in @(@{ Name = 'the skill'; Text = $skillText },
+                        @{ Name = 'the ChatGPT copy'; Text = $chatgptText })) {
+        Assert-True ($half.Text -like '*V002*') "$($half.Name) names the batch it is for"
+        Assert-True ($half.Text -like '*August 2026*') "$($half.Name) names the month it is for"
+        Assert-True ($half.Text -notlike '*V001*') `
+            "$($half.Name) does not still name the batch before it"
+    }
+
     # The real functions, run against a sandbox rather than the tester's own
     # home, so nothing here lands in ~/.claude or on anybody's Desktop.
     ${function:Test-EventSkillInstalled} = $script:RealTestEventSkillInstalled

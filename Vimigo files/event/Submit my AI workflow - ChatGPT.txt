@@ -20,8 +20,8 @@ person, so no jargon and no commands to type.
 
 PROGRAMME
 - Programme: Vimigo for AI Team
-- Batch: V001
-- Programme dates: 8-11 July 2026
+- Batch: V002
+- Programme dates: 15-17 August 2026
 - Vimigo submission email: vimigoai@vimigoapp.com
 
 You cannot see my computer or my files, so you will have to ask me. Ask in

@@ -31,8 +31,8 @@ Malaysian English is fine. Match how they write to you.
 ## Programme information
 
 - **Programme:** Vimigo for AI Team
-- **Batch:** V001
-- **Programme dates:** 8–11 July 2026
+- **Batch:** V002
+- **Programme dates:** 15–17 August 2026
 - **Delivery:** upload to their own Google Drive, then grant access to Vimigo
 - **Vimigo submission email:** `vimigoai@vimigoapp.com`
 - **Access to grant:** Editor, or Viewer if Editor is not available — the whole

@@ -930,6 +930,25 @@ assert $? 'it knows what the document is called'
 grep -qiF 'never invent a number' "$SCRIPT_DIR/event/compile-data/SKILL.md"
 assert $? 'it is told not to invent results'
 
+# The batch and the dates, pinned in both halves and checked against each other.
+#
+# Step 1 of the skill filters the owner's files by the programme dates, so a
+# stale window matches nothing and the review comes back empty - which reads as
+# a broken command rather than a wrong date. This has been wrong twice: shipped
+# as V001 / July, corrected to V002 / August. Pinned here so the third time is
+# a failing test rather than a hundred and twenty empty submissions.
+EVENT_BATCH='V002'
+EVENT_MONTH='August 2026'
+for half in "$SCRIPT_DIR/event/compile-data/SKILL.md" \
+            "$SCRIPT_DIR/event/Submit my AI workflow - ChatGPT.txt"; do
+    grep -qF "$EVENT_BATCH" "$half"
+    assert $? "$(basename "$half") names the batch it is for"
+    grep -qF "$EVENT_MONTH" "$half"
+    assert $? "$(basename "$half") names the month it is for"
+    grep -qF 'V001' "$half"
+    assert_not $? "$(basename "$half") does not still name the batch before it"
+done
+
 # The real thing, run against a sandbox rather than the tester's own home, so
 # nothing here lands in ~/.claude or on anybody's Desktop.
 REAL_HOME="$HOME"
