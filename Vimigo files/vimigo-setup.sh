@@ -49,6 +49,18 @@ FEATURE_AI_EMPLOYEES='off'
 # anything on Zo, so it is the only one here that needs no key and no account -
 # which is also why it can safely be last.
 FEATURE_HERMES='on'
+# Carried here, and does nothing here yet.
+#
+# On Windows this hides the row that switches on virtualisation so Claude
+# Desktop's Cowork tab works - a row that asked for administrator permission and
+# a restart, and sent one customer into her laptop's BIOS. A Mac has no
+# equivalent row today; whether it needs one is still waiting on a customer's
+# actual error text.
+#
+# The name is declared anyway so the two files carry the same switches and the
+# acceptance suites can hold them to it. A switch that exists in one file only
+# is how the two setups drift apart without anybody noticing.
+FEATURE_CLAUDE_FEATURES='off'
 
 # One run, without editing the file - for support, or a demo:
 #     VIMIGO_FEATURE_AI_EMPLOYEES=on ./vimigo-setup.sh
@@ -70,6 +82,9 @@ if [ -n "${VIMIGO_FEATURE_AI_EMPLOYEES:-}" ]; then
 fi
 if [ -n "${VIMIGO_FEATURE_HERMES:-}" ]; then
     FEATURE_HERMES="$VIMIGO_FEATURE_HERMES"
+fi
+if [ -n "${VIMIGO_FEATURE_CLAUDE_FEATURES:-}" ]; then
+    FEATURE_CLAUDE_FEATURES="$VIMIGO_FEATURE_CLAUDE_FEATURES"
 fi
 
 feature_on() {

@@ -150,6 +150,21 @@ $script:FeatureAiEmployees = 'off'
 # than anything on Zo, so it is the only one here that needs no key and no
 # account - which is also why it can safely be last.
 $script:FeatureHermes      = 'on'
+# Switched off after a customer went into her laptop's BIOS over it.
+#
+# This row turns on Windows' virtualisation features so Claude Desktop's Cowork
+# tab works. Everything v1 promises - Claude and ChatGPT reaching the owner's Zo
+# - works without any of it, and Cowork is a Claude feature we do not sell.
+#
+# Against that: it is the most invasive thing this setup can do. It asks for
+# administrator permission, switches on the hypervisor, and restarts the
+# computer. On the machine it was reported from it did not work even then,
+# because those services cannot start at all unless virtualisation is enabled
+# in the laptop's own firmware - which no amount of restarting changes.
+#
+# So it is off. Nothing about it is deleted: switch it on and it behaves as it
+# always did, now with a firmware check in front of it.
+$script:FeatureClaudeFeatures = 'off'
 
 # One run, without editing the file - for support, or a demo:
 #     $env:VIMIGO_FEATURE_AI_EMPLOYEES = 'on'
@@ -160,6 +175,7 @@ if ($env:VIMIGO_FEATURE_GOOGLE)      { $script:FeatureGoogle      = $env:VIMIGO_
 if ($env:VIMIGO_FEATURE_SECOND_BRAIN) { $script:FeatureSecondBrain = $env:VIMIGO_FEATURE_SECOND_BRAIN }
 if ($env:VIMIGO_FEATURE_AI_EMPLOYEES) { $script:FeatureAiEmployees = $env:VIMIGO_FEATURE_AI_EMPLOYEES }
 if ($env:VIMIGO_FEATURE_HERMES)       { $script:FeatureHermes      = $env:VIMIGO_FEATURE_HERMES }
+if ($env:VIMIGO_FEATURE_CLAUDE_FEATURES) { $script:FeatureClaudeFeatures = $env:VIMIGO_FEATURE_CLAUDE_FEATURES }
 
 function Test-FeatureOn {
     <#
@@ -1418,14 +1434,45 @@ function Show-LocalWhatsAppInstall {
     return $false
 }
 
+function Test-VirtualisationInFirmware {
+    <#
+        Whether the laptop's own firmware has virtualisation switched on.
+
+        Nothing below works without it. The Windows features can be enabled,
+        the computer restarted, and vmcompute still will not start - which is
+        exactly what one customer saw, and why she ended up in her BIOS looking
+        for something to change.
+
+        Unknown counts as yes. This decides whether to offer a fix, and a
+        machine that cannot answer should not be refused one.
+    #>
+    try {
+        $cpu = Get-CimInstance Win32_Processor -ErrorAction Stop | Select-Object -First 1
+        if (-not $cpu.PSObject.Properties['VirtualizationFirmwareEnabled']) { return $true }
+        if ($null -eq $cpu.VirtualizationFirmwareEnabled) { return $true }
+        return [bool]$cpu.VirtualizationFirmwareEnabled
+    } catch {
+        return $true
+    }
+}
+
 function Test-HcsServicesPresent {
     <#
         Claude Desktop's shell sandbox needs the Windows Host Compute Services.
         They ship with the container/virtualization features, which are off by
         default, and their absence shows up as "Missing HCS services: HNS,
         vmcompute, vfpext" with no hint about what to do next.
+
+        All three of those, not two of them. This asked for vmcompute and hns
+        and never mentioned vfpext, so a machine with the first two and not the
+        third was reported as working while Claude went on showing the same
+        error - the row green, the tooltip unchanged, and nothing to do about
+        it. The list here is now exactly the list Claude prints.
+
+        vfpext is a driver rather than a service, and Get-Service returns it
+        anyway, so one lookup answers for all three.
     #>
-    foreach ($service in @('vmcompute', 'hns')) {
+    foreach ($service in @('vmcompute', 'hns', 'vfpext')) {
         if (-not (Get-Service -Name $service -ErrorAction SilentlyContinue)) { return $false }
     }
     return $true
@@ -1439,10 +1486,38 @@ function Repair-HcsServices {
         return $true
     }
 
+    # Asked before anything is offered, because when the answer is no there is
+    # nothing on this computer that can be done about it.
+    #
+    # Without this the setup asked for administrator permission, switched
+    # features on, restarted the machine, and left the owner exactly where she
+    # started - with Claude showing the same error and no idea why. She went
+    # looking in her laptop's BIOS on her own, which is the last place a setup
+    # for non-technical owners should ever send somebody.
+    if (-not (Test-VirtualisationInFirmware)) {
+        Write-Warn 'This computer has virtualisation switched off in its own'
+        Write-Warn 'start-up settings, and only you can change that.'
+        Write-Host ''
+        Write-Info 'Until it is on, these Windows features cannot start no matter'
+        Write-Info 'how many times the computer restarts - so nothing was changed'
+        Write-Info 'and no restart is needed.'
+        Write-Host ''
+        Write-Info 'This affects only the Cowork tab in Claude Desktop. Everything'
+        Write-Info 'this setup installed works without it, including your Zo.'
+        Write-Host ''
+        Write-Info 'If you want Cowork, ask whoever looks after your computer to'
+        Write-Info 'turn on virtualisation. It is worth nobody guessing at it.'
+        Write-Host ''
+        return $false
+    }
+
     Write-Info 'Claude Desktop needs two Windows features that are switched off'
     Write-Info 'on this computer. Without them its tools cannot run.'
     Write-Host ''
     Write-Warn 'Windows will ask for permission, and the computer must restart afterwards.'
+    Write-Host ''
+    Write-Info 'This affects only the Cowork tab. Everything else, including your'
+    Write-Info 'Zo, already works without it - so skipping this is perfectly fine.'
     Write-Host ''
 
     if (-not (Read-YesNo -Question 'Turn those Windows features on now?' -YesLabel 'Yes, turn them on' -NoLabel 'Skip this for now')) {
@@ -1867,7 +1942,7 @@ function Get-AllChecks {
 
     # Only worth showing once Claude Desktop is actually here: on a machine
     # without it, the missing features are not a problem to solve.
-    if (Test-ClaudeDesktopInstalled) {
+    if ((Test-FeatureOn $script:FeatureClaudeFeatures) -and (Test-ClaudeDesktopInstalled)) {
         if (Test-HcsServicesPresent) {
             $checks.Add((New-Check -Key 'claude-hcs' -Title 'Claude Desktop features' -Status 'ok' -Detail 'working'))
         } else {

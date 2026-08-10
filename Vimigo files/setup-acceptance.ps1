@@ -1199,6 +1199,65 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     Remove-Item -LiteralPath 'function:Invoke-WebRequest' -ErrorAction SilentlyContinue
 
     Write-Host ''
+    Write-Host 'Claude Desktop features: off, and honest when it is on' -ForegroundColor Cyan
+
+    # This row asked for administrator permission, switched on the hypervisor,
+    # and restarted the computer - to make Claude Desktop's Cowork tab work,
+    # which v1 does not promise. On the machine it was reported from it did not
+    # work even after the restart, because the services cannot start unless
+    # virtualisation is on in the laptop's own firmware.
+    # Claude present, said here rather than inherited. An earlier block left
+    # $script:WantClaude false, and Test-ClaudeDesktopInstalled follows it - so
+    # this measured "no Claude, therefore no row" and read as the switch
+    # working. A test that passes for the wrong reason is worse than one that
+    # fails.
+    $script:WantClaude = $true
+    Set-Features 'off'
+    $script:FixtureHasKey = $true
+    function Test-HcsServicesPresent { return $false }
+
+    $script:FeatureClaudeFeatures = 'off'
+    Assert-True (@(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'claude-hcs' }).Count -eq 0) `
+        'switched off, the row is gone even with Claude installed and the features missing'
+
+    $script:FeatureClaudeFeatures = 'on'
+    Assert-True (@(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'claude-hcs' }).Count -eq 1) `
+        'switched on, it comes back exactly as it was'
+    $script:FeatureClaudeFeatures = 'off'
+
+    # All three names Claude prints, not two of them. With vfpext missing and
+    # the other two present this reported "working" while Claude went on showing
+    # "Missing HCS services: HNS, vmcompute, vfpext" - a green row and an
+    # unchanged error, which is worse than a red one.
+    $hcsCheck = [regex]::Match($setupText, "foreach \(\`$service in @\(([^)]*)\)\) \{")
+    Assert-True ($hcsCheck.Success -and $hcsCheck.Groups[1].Value -match 'vfpext') `
+        'the check asks for vfpext, which Claude names and this used to ignore'
+    foreach ($name in @('vmcompute', 'hns')) {
+        Assert-True ($hcsCheck.Success -and $hcsCheck.Groups[1].Value -match $name) `
+            "and still asks for $name"
+    }
+
+    # Firmware is asked about before any of it is offered.
+    Assert-True ($setupText -match 'function Test-VirtualisationInFirmware') `
+        'it can tell whether virtualisation is on in the firmware'
+    $repair = [regex]::Match($setupText,
+        '(?s)function Repair-HcsServices \{(.*?)\n\}')
+    Assert-True ($repair.Success) 'the repair step was found to check'
+    if ($repair.Success) {
+        $body = $repair.Groups[1].Value
+        $firmwareAt = $body.IndexOf('Test-VirtualisationInFirmware')
+        $elevateAt = $body.IndexOf('RunAs')
+        Assert-True ($firmwareAt -ge 0 -and $elevateAt -ge 0 -and $firmwareAt -lt $elevateAt) `
+            'and asks the firmware before asking the owner for permission'
+        Assert-True ($body -match 'Cowork') `
+            'and says out loud that this only affects Cowork'
+    }
+    # Unknown must count as yes: a machine that cannot answer should not be
+    # refused a fix it might well need.
+    Assert-True ($setupText -match '(?s)Test-VirtualisationInFirmware.*?catch \{\s*return \$true') `
+        'a machine that cannot answer is given the benefit of the doubt'
+
+    Write-Host ''
     Write-Host 'A default Windows blocks scripts, and the way in must survive it' -ForegroundColor Cyan
 
     # The bug this guards shipped, and a customer found it.

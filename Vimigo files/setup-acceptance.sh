@@ -842,6 +842,12 @@ assert $? 'both scripts ship the same answer for the second brain'
 assert $? 'both scripts ship the same answer for AI employees'
 [ -n "$(win_default Hermes)" ] && [ "$(win_default Hermes)" = "$(mac_default HERMES)" ]
 assert $? 'both scripts ship the same answer for Hermes One'
+# Carried on this side without doing anything yet, so that the pair cannot
+# drift. A switch present in one file only is how the two setups come apart.
+[ -n "$(win_default ClaudeFeatures)" ] && [ "$(win_default ClaudeFeatures)" = "$(mac_default CLAUDE_FEATURES)" ]
+assert $? 'both scripts ship the same answer for the Claude Desktop features'
+[ "$(mac_default CLAUDE_FEATURES)" = 'off' ]
+assert $? 'and that answer is off, after it sent a customer into her BIOS'
 # The only one that ships on, so it is worth stating rather than implying.
 [ "$(mac_default HERMES)" = 'on' ]
 assert $? 'and that answer is on, because it was asked for by name'
