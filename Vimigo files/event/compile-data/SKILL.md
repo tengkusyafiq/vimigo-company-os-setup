@@ -13,8 +13,13 @@ it to **their own Google Drive**, and then **share access with the Vimigo
 submission email**.
 
 Do the work directly. Do not ask them to describe their workflow by hand unless
-you have already searched the relevant Claude Code sessions and project files
-and still cannot work it out.
+you have already searched the relevant past sessions and project files and still
+cannot work it out.
+
+The same file is installed into Claude and into Codex, so "sessions" below means
+whichever of those you are — Claude Code sessions if you are Claude, Codex
+sessions if you are Codex. Read the ones you have and do not report the others
+as missing.
 
 ## Who you are talking to
 
@@ -45,7 +50,7 @@ Review the work done during the programme. Look at:
 1. The current project directory.
 2. Relevant subfolders and project files.
 3. Files created or changed during the programme dates.
-4. Claude Code sessions to do with the current project.
+4. Your own past sessions to do with the current project.
 5. Sessions mentioning Vimigo for AI Team, AI workflow, AI project, automation,
    dashboard, Agent, MCP, application, prototype or business workflow.
 6. `CLAUDE.md`, README files, planning files and notes.
@@ -60,10 +65,10 @@ on that laptop is their business and their clients'.
 
 Use the evidence to reconstruct what they built.
 
-If you are running somewhere that cannot read past sessions — Cowork keeps its
-own transcripts closed on purpose — then this conversation and the project files
-in front of you are your evidence. Say so plainly rather than reporting an empty
-review, and fall back to asking.
+If you are running somewhere that cannot read past sessions — Claude's Cowork
+keeps its own transcripts closed on purpose — then this conversation and the
+project files in front of you are your evidence. Say so plainly rather than
+reporting an empty review, and fall back to asking.
 
 ## Step 2 — Their name and company
 
@@ -180,8 +185,9 @@ That is the normal case, not a fault: finish the upload, then hand them the
 sharing step from Step 10 to do themselves.
 
 If no Drive tool is connected at all, tell them in one line and walk them
-through it — Settings → Connectors → Google Drive → Connect — then carry on from
-where you stopped.
+through connecting it in whichever app they are in — it is under Settings, then
+Connectors — then carry on from where you stopped. Do not name a menu path you
+are not sure of; ask them what they can see instead.
 
 ## Step 7 — Make the company folder in their Drive
 

@@ -970,25 +970,35 @@ install_event_skill >/dev/null 2>&1
 assert $? 'installing it works with nothing to sign into'
 [ -f "$HOME/.claude/skills/compile-data/SKILL.md" ]
 assert $? 'the command lands where Claude looks for a personal skill'
+[ -f "$HOME/.codex/skills/compile-data/SKILL.md" ]
+assert $? 'and where ChatGPT looks, so both apps get the same command'
+cmp -s "$HOME/.claude/skills/compile-data/SKILL.md" "$HOME/.codex/skills/compile-data/SKILL.md"
+assert $? 'and it is the same file in both, so the two cannot drift apart'
 [ -f "$HOME/Desktop/Submit my AI workflow - ChatGPT.txt" ]
-assert $? 'and the ChatGPT copy lands on the Desktop, where it can be found'
+assert $? 'the Desktop fallback is there too, for a Codex too old for skills'
 event_skill_installed
 assert $? 'and afterwards it reads as done'
 
 # An owner who chose one app must not be held back by the other one's half.
 # This is the mistake the Zo plan rows made: a row that can never go green on a
 # machine that answered the first question honestly.
-rm -f "$HOME/Desktop/Submit my AI workflow - ChatGPT.txt"
+rm -rf "$HOME/.codex" "$HOME/Desktop/Submit my AI workflow - ChatGPT.txt"
 WANT_CLAUDE='yes'; WANT_CHATGPT='no'
 event_skill_installed
-assert $? 'a Claude owner is finished without a ChatGPT file they cannot use'
+assert $? 'a Claude owner is finished without the ChatGPT half they cannot use'
 rm -rf "$HOME/.claude"
 WANT_CLAUDE='no'; WANT_CHATGPT='yes'
 install_event_skill >/dev/null 2>&1
 [ ! -d "$HOME/.claude/skills/compile-data" ]
 assert $? 'a ChatGPT owner is not given a Claude skill they will never type'
 event_skill_installed
-assert $? 'and the Desktop file alone finishes them'
+assert $? 'and the Codex command alone finishes them'
+
+# The card is a spare, not a requirement. Held to that here, because a row that
+# stays red over an unused copy of some instructions is a row nobody can fix.
+rm -f "$HOME/Desktop/Submit my AI workflow - ChatGPT.txt"
+event_skill_installed
+assert $? 'losing the Desktop fallback does not hold the row open'
 
 # Start over has to take it back, or the row stays green and the step never
 # runs again - which is the one thing start over exists for.
@@ -997,6 +1007,8 @@ install_event_skill >/dev/null 2>&1
 remove_event_skill >/dev/null 2>&1
 event_skill_installed
 assert_not $? 'starting over takes the command back'
+[ ! -d "$HOME/.codex/skills/compile-data" ]
+assert $? 'out of ChatGPT as well as Claude, not just the one it started with'
 
 # Only ours. ~/.claude/skills is the owner's folder and may hold skills they
 # made themselves.

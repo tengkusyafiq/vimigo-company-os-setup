@@ -2818,29 +2818,44 @@ function Install-EventSkill {
     }
 
     if ($script:WantChatGptApp) {
-        # ChatGPT has no slash commands to install into, so its half is a file
-        # the owner opens and copies. Same instructions, same folder, same
-        # document at the other end.
-        $from = Join-Path $src $script:EventChatgptFile
-        $card = Get-EventChatgptDest
+        # The same file again, into Codex. ChatGPT's desktop app reads skills
+        # from here in exactly the format Claude uses, so both apps end up with
+        # the same command rather than one of them getting a page of text to
+        # paste into a chat window.
+        $from = Join-Path (Join-Path $src $script:EventSkillKey) 'SKILL.md'
+        $codex = Get-EventCodexDest
         if (-not (Test-Path -LiteralPath $from)) {
             $ok = $false
-            Write-Bad 'The ChatGPT instructions are missing from this setup folder.'
+            Write-Bad 'The command is missing from this setup folder.'
             Write-Info 'Download the setup again and run it once more.'
         } else {
+            try {
+                if (-not (Test-Path -LiteralPath $codex)) {
+                    New-Item -ItemType Directory -Path $codex -Force -ErrorAction Stop | Out-Null
+                }
+                Copy-Item -LiteralPath $from -Destination (Join-Path $codex 'SKILL.md') -Force -ErrorAction Stop
+                Write-Good "In ChatGPT, type  /$($script:EventSkillKey)  and press Enter."
+                Write-Info 'It appears the next time you open ChatGPT.'
+            } catch {
+                $ok = $false
+                Write-Bad 'Could not put the command into ChatGPT.'
+                Write-Info "This computer would not let the setup write to $codex"
+            }
+        }
+
+        # The fallback, written whatever happened above. A Codex old enough to
+        # have no skills shows no command and no error, and the owner would have
+        # nothing at all to fall back on. It costs one file on a Desktop.
+        $cardFrom = Join-Path $src $script:EventChatgptFile
+        $card = Get-EventChatgptDest
+        if (Test-Path -LiteralPath $cardFrom) {
             try {
                 $folder = Split-Path -Parent $card
                 if ($folder -and -not (Test-Path -LiteralPath $folder)) {
                     New-Item -ItemType Directory -Path $folder -Force -ErrorAction Stop | Out-Null
                 }
-                Copy-Item -LiteralPath $from -Destination $card -Force -ErrorAction Stop
-                Write-Good 'For ChatGPT, there is now a file on your Desktop called'
-                Write-Good "  $($script:EventChatgptFile)"
-                Write-Info 'Open it at the end of the event and follow the first line.'
-            } catch {
-                $ok = $false
-                Write-Bad 'Could not save the ChatGPT instructions to your Desktop.'
-            }
+                Copy-Item -LiteralPath $cardFrom -Destination $card -Force -ErrorAction Stop
+            } catch { }
         }
     }
 
@@ -3635,10 +3650,24 @@ function Get-EventSkillDest {
     return (Join-Path $HOME ".claude\skills\$script:EventSkillKey")
 }
 
+function Get-EventCodexDest {
+    <#
+        ChatGPT's desktop app carries Codex, and Codex reads skills the same way
+        Claude does: a folder holding a SKILL.md, with the same name and
+        description frontmatter. Checked against a real install rather than
+        assumed - its own built-ins sit beside this under .system, each one a
+        SKILL.md.
+
+        So the identical file installs into both, and both give /compile-data.
+        This was very nearly shipped as a paste-a-page-of-text-into-a-chat
+        workaround for want of asking whether Codex had skills too.
+    #>
+    return (Join-Path $HOME ".codex\skills\$script:EventSkillKey")
+}
+
 function Get-EventChatgptDest {
     <#
-        ChatGPT has no skills and no slash commands, so its half of this is a
-        file the owner opens and copies.
+        The fallback, for a Codex too old to have skills.
 
         The Desktop is asked for by name rather than assumed to be under the
         profile: a machine with OneDrive Known Folder Move has its Desktop
@@ -3665,7 +3694,11 @@ function Test-EventSkillInstalled {
         if (-not (Test-Path -LiteralPath (Join-Path (Get-EventSkillDest) 'SKILL.md'))) { return $false }
     }
     if ($script:WantChatGptApp) {
-        if (-not (Test-Path -LiteralPath (Get-EventChatgptDest))) { return $false }
+        # The command itself is what matters. The Desktop card is a fallback for
+        # a Codex too old to read skills, so it is written but not required - a
+        # row held red by a spare copy of instructions the owner does not need
+        # would be a row that never goes green for a reason nobody can see.
+        if (-not (Test-Path -LiteralPath (Join-Path (Get-EventCodexDest) 'SKILL.md'))) { return $false }
     }
     return $true
 }
@@ -6179,10 +6212,13 @@ function Reset-VimigoSetup {
     # Without this, "start over" leaves the row green and the step never runs
     # again - which defeats the one thing start over is for.
     $skillDest = Get-EventSkillDest
+    $codexDest = Get-EventCodexDest
     $chatgptCard = Get-EventChatgptDest
-    if ((Test-Path -LiteralPath $skillDest) -or (Test-Path -LiteralPath $chatgptCard)) {
+    if ((Test-Path -LiteralPath $skillDest) -or (Test-Path -LiteralPath $codexDest) -or
+        (Test-Path -LiteralPath $chatgptCard)) {
         Write-Info 'Taking back the /compile-data command...'
         try { Remove-Item -LiteralPath $skillDest -Recurse -Force -ErrorAction Stop } catch { }
+        try { Remove-Item -LiteralPath $codexDest -Recurse -Force -ErrorAction Stop } catch { }
         try { Remove-Item -LiteralPath $chatgptCard -Force -ErrorAction Stop } catch { }
     }
 

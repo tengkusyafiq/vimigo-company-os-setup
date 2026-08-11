@@ -659,11 +659,22 @@ event_skill_dest() {
     printf '%s/.claude/skills/%s' "$HOME" "$EVENT_SKILL_KEY"
 }
 
+event_codex_dest() {
+    # ChatGPT's desktop app carries Codex, and Codex reads skills the same way
+    # Claude does: a folder holding a SKILL.md, with the same name/description
+    # frontmatter. Checked against a real install rather than assumed - its own
+    # built-ins sit beside this in .system, each one a SKILL.md.
+    #
+    # So the identical file installs into both, and both give /compile-data.
+    # This was very nearly shipped as a paste-a-page-of-text-into-a-chat
+    # workaround for want of asking whether Codex had skills too.
+    printf '%s/.codex/skills/%s' "$HOME" "$EVENT_SKILL_KEY"
+}
+
 event_chatgpt_dest() {
-    # ChatGPT has no skills and no slash commands, so its half of this is a file
-    # the owner opens and copies. The Desktop rather than a tidier folder
-    # because it has to be findable by somebody being told where it is over a
-    # microphone, in a room of a hundred and twenty people.
+    # The fallback, for a Codex too old to have skills. The Desktop rather than
+    # a tidier folder because it has to be findable by somebody being told
+    # where it is over a microphone, in a room of a hundred and twenty people.
     printf '%s/Desktop/%s' "$HOME" "$EVENT_CHATGPT_FILE"
 }
 
@@ -854,7 +865,11 @@ event_skill_installed() {
         [ -f "$(event_skill_dest)/SKILL.md" ] || return 1
     fi
     if [ "$WANT_CHATGPT" != 'no' ]; then
-        [ -f "$(event_chatgpt_dest)" ] || return 1
+        # The command itself is what matters. The Desktop card is a fallback
+        # for a Codex too old to read skills, so it is written but not required
+        # - a row held red by a spare copy of instructions the owner does not
+        # need would be a row that never goes green for a reason nobody can see.
+        [ -f "$(event_codex_dest)/SKILL.md" ] || return 1
     fi
     return 0
 }
@@ -1788,23 +1803,34 @@ install_event_skill() {
     fi
 
     if [ "$WANT_CHATGPT" != 'no' ]; then
-        # ChatGPT has no slash commands to install into, so its half is a file
-        # the owner opens and copies. Same instructions, same folder, same
-        # document at the other end.
-        local card
-        card="$(event_chatgpt_dest)"
-        if [ ! -f "$src/$EVENT_CHATGPT_FILE" ]; then
+        # The same file again, into Codex. ChatGPT's desktop app reads skills
+        # from here in exactly the format Claude uses, so both apps end up with
+        # the same command rather than one of them getting a page of text to
+        # paste into a chat window.
+        local codex
+        codex="$(event_codex_dest)"
+        if [ ! -f "$src/$EVENT_SKILL_KEY/SKILL.md" ]; then
             ok='no'
-            bad 'The ChatGPT instructions are missing from this setup folder.'
+            bad 'The command is missing from this setup folder.'
             info 'Download the setup again and run it once more.'
-        elif mkdir -p "$HOME/Desktop" 2>/dev/null &&
-             cp "$src/$EVENT_CHATGPT_FILE" "$card" 2>/dev/null; then
-            good 'For ChatGPT, there is now a file on your Desktop called'
-            good "  $EVENT_CHATGPT_FILE"
-            info 'Open it at the end of the event and follow the first line.'
+        elif mkdir -p "$codex" 2>/dev/null &&
+             cp "$src/$EVENT_SKILL_KEY/SKILL.md" "$codex/SKILL.md" 2>/dev/null; then
+            good "In ChatGPT, type  /$EVENT_SKILL_KEY  and press Enter."
+            info 'It appears the next time you open ChatGPT.'
         else
             ok='no'
-            bad 'Could not save the ChatGPT instructions to your Desktop.'
+            bad 'Could not put the command into ChatGPT.'
+            info "This Mac would not let the setup write to $codex"
+        fi
+
+        # The fallback, written whatever happened above. A Codex old enough to
+        # have no skills shows no command and no error, and the owner would
+        # have nothing at all to fall back on. It costs one file on a Desktop.
+        local card
+        card="$(event_chatgpt_dest)"
+        if [ -f "$src/$EVENT_CHATGPT_FILE" ]; then
+            mkdir -p "$HOME/Desktop" 2>/dev/null &&
+                cp "$src/$EVENT_CHATGPT_FILE" "$card" 2>/dev/null || true
         fi
     fi
 
@@ -5196,12 +5222,14 @@ remove_event_skill() {
     #
     # Without this, "start over" leaves the row green and the step never runs
     # again - which defeats the one thing start over is for.
-    local dest card
+    local dest codex card
     dest="$(event_skill_dest)"
+    codex="$(event_codex_dest)"
     card="$(event_chatgpt_dest)"
-    if [ -d "$dest" ] || [ -f "$card" ]; then
+    if [ -d "$dest" ] || [ -d "$codex" ] || [ -f "$card" ]; then
         info 'Taking back the /compile-data command...'
         rm -rf "$dest" 2>/dev/null || true
+        rm -rf "$codex" 2>/dev/null || true
         rm -f "$card" 2>/dev/null || true
     fi
     return 0

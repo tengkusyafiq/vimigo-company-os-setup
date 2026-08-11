@@ -33,6 +33,7 @@ $script:RealTestEventSkillInstalled = ${function:Test-EventSkillInstalled}
 $script:RealInstallEventSkill = ${function:Install-EventSkill}
 $script:RealGetEventSkillDest = ${function:Get-EventSkillDest}
 $script:RealGetEventChatgptDest = ${function:Get-EventChatgptDest}
+$script:RealGetEventCodexDest = ${function:Get-EventCodexDest}
 
 $script:Failures = 0
 $script:Ran = 0
@@ -1161,7 +1162,9 @@ try {
     $fakeHome = Join-Path $sandbox 'home'
     $fakeDesktop = Join-Path $fakeHome 'Desktop'
     New-Item -ItemType Directory -Path $fakeDesktop -Force | Out-Null
+    ${function:Get-EventCodexDest} = $script:RealGetEventCodexDest
     function Get-EventSkillDest { return (Join-Path $fakeHome '.claude\skills\compile-data') }
+    function Get-EventCodexDest { return (Join-Path $fakeHome '.codex\skills\compile-data') }
     function Get-EventChatgptDest { return (Join-Path $fakeDesktop 'Submit my AI workflow - ChatGPT.txt') }
 
     $script:FeatureEventSkill = 'on'
@@ -1170,19 +1173,26 @@ try {
     Assert-True (-not (Test-EventSkillInstalled)) 'with neither half in place it is not done'
 
     Assert-True (Install-EventSkill 6>$null) 'installing it works with nothing to sign into'
-    Assert-True (Test-Path -LiteralPath (Join-Path (Get-EventSkillDest) 'SKILL.md')) `
+    $claudeCopy = Join-Path (Get-EventSkillDest) 'SKILL.md'
+    $codexCopy = Join-Path (Get-EventCodexDest) 'SKILL.md'
+    Assert-True (Test-Path -LiteralPath $claudeCopy) `
         'the command lands where Claude looks for a personal skill'
+    Assert-True (Test-Path -LiteralPath $codexCopy) `
+        'and where ChatGPT looks, so both apps get the same command'
+    Assert-True ((Get-FileHash -LiteralPath $claudeCopy).Hash -eq (Get-FileHash -LiteralPath $codexCopy).Hash) `
+        'and it is the same file in both, so the two cannot drift apart'
     Assert-True (Test-Path -LiteralPath (Get-EventChatgptDest)) `
-        'and the ChatGPT copy lands on the Desktop, where it can be found'
+        'the Desktop fallback is there too, for a Codex too old for skills'
     Assert-True (Test-EventSkillInstalled) 'and afterwards it reads as done'
 
     # An owner who chose one app must not be held back by the other one's half.
     # This is the mistake the Zo plan rows made: a row that can never go green
     # on a machine that answered the first question honestly.
+    Remove-Item -LiteralPath (Get-EventCodexDest) -Recurse -Force
     Remove-Item -LiteralPath (Get-EventChatgptDest) -Force
     $script:WantChatGptApp = $false
     Assert-True (Test-EventSkillInstalled) `
-        'a Claude owner is finished without a ChatGPT file they cannot use'
+        'a Claude owner is finished without the ChatGPT half they cannot use'
 
     Remove-Item -LiteralPath (Join-Path $fakeHome '.claude') -Recurse -Force
     $script:WantClaudeApp = $false
@@ -1190,11 +1200,19 @@ try {
     $null = Install-EventSkill 6>$null
     Assert-True (-not (Test-Path -LiteralPath (Get-EventSkillDest))) `
         'a ChatGPT owner is not given a Claude skill they will never type'
-    Assert-True (Test-EventSkillInstalled) 'and the Desktop file alone finishes them'
+    Assert-True (Test-EventSkillInstalled) 'and the Codex command alone finishes them'
+
+    # The card is a spare, not a requirement. Held to that here, because a row
+    # that stays red over an unused copy of some instructions is a row nobody
+    # can fix.
+    Remove-Item -LiteralPath (Get-EventChatgptDest) -Force
+    Assert-True (Test-EventSkillInstalled) `
+        'losing the Desktop fallback does not hold the row open'
 
     $script:WantClaudeApp = $true
     function Test-EventSkillInstalled { return $true }
     function Get-EventSkillDest { return (Join-Path $fakeHome '.claude\skills\compile-data') }
+    function Get-EventCodexDest { return (Join-Path $fakeHome '.codex\skills\compile-data') }
 
     # The row, in the list. Same two ends as Hermes One below it.
     Set-Features 'off'

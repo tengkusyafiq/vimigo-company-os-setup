@@ -60,7 +60,18 @@ summary table.
 
 Then give me the document to download and save.
 
-STEP 3 - Then walk me through this, one step at a time, and wait for me after
+STEP 3 - First check whether you have a Google Drive tool connected that can
+create files.
+
+If you do, use it: make the folder and put the document in, following the
+naming rules below, and tell me when it is done. Then skip to the sharing step,
+because sharing is something I have to do myself either way.
+
+If you do not have one, or it is only allowed to read my files, just say so in
+one line and walk me through it myself. Do not try to talk me into connecting
+anything - the browser way works fine and takes two minutes.
+
+Either way, walk me through this one step at a time, and wait for me after
 each one:
 
   1. Open my Google Drive in my browser
@@ -72,7 +83,8 @@ each one:
      same name is already in there from a previous batch, tell me to add
      " (V002)" to the new one rather than replacing the old one.
   4. Right-click that folder, choose Share, and share it with
-     vimigoai@vimigoapp.com as an Editor
+     vimigoai@vimigoapp.com as an Editor. I have to do this one myself even if
+     you made the folder for me, so do not skip it.
   5. Copy the folder link and paste it back to you
 
 Tell me plainly not to upload anything with passwords, API keys or customer
