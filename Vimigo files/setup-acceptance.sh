@@ -930,6 +930,17 @@ assert $? 'it knows what the document is called'
 grep -qiF 'never invent a number' "$SCRIPT_DIR/event/compile-data/SKILL.md"
 assert $? 'it is told not to invent results'
 
+# Where the owner's real work is. They are told to run this in Claude Code, and
+# Cowork - where most of the event happens - keeps its transcripts somewhere
+# Claude Code would never think to look. Losing this line in an edit would not
+# break anything visibly; it would just quietly return a thinner review.
+grep -qF 'local-agent-mode-sessions' "$SCRIPT_DIR/event/compile-data/SKILL.md"
+assert $? 'it knows where Cowork keeps the conversations it must review'
+grep -qF 'Library/Application Support/Claude' "$SCRIPT_DIR/event/compile-data/SKILL.md"
+assert $? 'and where to find them on a Mac'
+grep -qF 'LOCALAPPDATA' "$SCRIPT_DIR/event/compile-data/SKILL.md"
+assert $? 'and on Windows'
+
 # The batch and the dates, pinned in both halves and checked against each other.
 #
 # Step 1 of the skill filters the owner's files by the programme dates, so a

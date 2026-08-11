@@ -1131,6 +1131,17 @@ try {
     Assert-True ($skillText -match '(?i)never invent a number') `
         'it is told not to invent results'
 
+    # Where the owner's real work is. They are told to run this in Claude Code,
+    # and Cowork - where most of the event happens - keeps its transcripts
+    # somewhere Claude Code would never think to look. Losing this line in an
+    # edit would not break anything visibly; it would just quietly return a
+    # thinner review.
+    Assert-True ($skillText -like '*local-agent-mode-sessions*') `
+        'it knows where Cowork keeps the conversations it must review'
+    Assert-True ($skillText -like '*Library/Application Support/Claude*') `
+        'and where to find them on a Mac'
+    Assert-True ($skillText -like '*LOCALAPPDATA*') 'and on Windows'
+
     # The batch and the dates, pinned in both halves and checked against each
     # other.
     #

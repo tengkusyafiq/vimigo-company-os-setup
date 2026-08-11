@@ -65,10 +65,32 @@ on that laptop is their business and their clients'.
 
 Use the evidence to reconstruct what they built.
 
-If you are running somewhere that cannot read past sessions — Claude's Cowork
-keeps its own transcripts closed on purpose — then this conversation and the
-project files in front of you are your evidence. Say so plainly rather than
-reporting an empty review, and fall back to asking.
+### Most of their work was done in Cowork, and it is not where you expect
+
+They are told to run this in **Claude Code**, because Cowork cannot be given a
+command like this one. So the conversations you most want are Cowork's, and
+Cowork keeps them somewhere else entirely.
+
+They are ordinary JSONL files, in the same shape as your own, under a folder
+called `local-agent-mode-sessions`:
+
+- **Windows:** `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`
+  or, on a non-Store install, `%APPDATA%\Claude\`
+- **Mac:** `~/Library/Application Support/Claude/`
+
+Inside, each session is `local_<id>/`, holding `audit.jsonl` and
+`.claude/projects/**/*.jsonl`. Read the recent ones that match this project.
+Match on the work, not on the folder name — the folder names are generated ids
+and mean nothing.
+
+If you are Cowork yourself, you cannot read these; Claude Desktop closes them on
+purpose. Then this conversation and the project files in front of you are your
+evidence. Say so plainly rather than reporting an empty review, and fall back to
+asking.
+
+Either way, **the files they built matter more than the conversation**. Working
+code, a dashboard and a README are better evidence of what somebody made than a
+chat about making it.
 
 ## Step 2 — Their name and company
 
