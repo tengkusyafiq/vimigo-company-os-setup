@@ -1139,6 +1139,16 @@ try {
     # somewhere Claude Code would never think to look. Losing this line in an
     # edit would not break anything visibly; it would just quietly return a
     # thinner review.
+    # The way a correction reaches a machine set up weeks ago. The installed
+    # copy is frozen; this URL is not, so the command checks it before doing
+    # anything. If the address here and the file the publisher puts at that
+    # address ever part company, late fixes reach nobody and nothing looks
+    # wrong.
+    Assert-True ($skillText -like '*raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/compile-data.md*') `
+        'it knows where to find a newer copy of itself'
+    Assert-True ($skillText -match '(?i)not a gate') `
+        'and is told never to make the owner wait on that check'
+
     Assert-True ($skillText -like '*local-agent-mode-sessions*') `
         'it knows where Cowork keeps the conversations it must review'
     Assert-True ($skillText -like '*Library/Application Support/Claude*') `
