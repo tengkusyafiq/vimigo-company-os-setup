@@ -909,6 +909,8 @@ printf '\n\033[36mThe /compile-data command\033[0m\n'
 assert $? 'the command ships beside the setup'
 [ -f "$SCRIPT_DIR/event/Submit my AI workflow - ChatGPT.txt" ]
 assert $? 'and so does the ChatGPT copy of it, for owners with no slash commands'
+[ -f "$SCRIPT_DIR/event/codex-prompts/compile-data.md" ]
+assert $? 'and the Codex prompt that makes it typable rather than merely available'
 grep -q '^name: compile-data$' "$SCRIPT_DIR/event/compile-data/SKILL.md"
 assert $? 'the skill is named for the command the owner is told to type'
 
@@ -983,6 +985,11 @@ assert $? 'installing it works with nothing to sign into'
 assert $? 'the command lands where Claude looks for a personal skill'
 [ -f "$HOME/.codex/skills/compile-data/SKILL.md" ]
 assert $? 'and where ChatGPT looks, so both apps get the same command'
+# Verified on a real Codex: ~/.codex/skills makes it a skill the model can pick,
+# and ~/.codex/prompts makes /compile-data a command the owner can type. Shane
+# says the command out loud, so the typed one is not optional.
+[ -f "$HOME/.codex/prompts/compile-data.md" ]
+assert $? 'and ChatGPT gets the typed command too, not just a skill it may choose'
 cmp -s "$HOME/.claude/skills/compile-data/SKILL.md" "$HOME/.codex/skills/compile-data/SKILL.md"
 assert $? 'and it is the same file in both, so the two cannot drift apart'
 [ -f "$HOME/Desktop/Submit my AI workflow - ChatGPT.txt" ]
@@ -1020,6 +1027,8 @@ event_skill_installed
 assert_not $? 'starting over takes the command back'
 [ ! -d "$HOME/.codex/skills/compile-data" ]
 assert $? 'out of ChatGPT as well as Claude, not just the one it started with'
+[ ! -f "$HOME/.codex/prompts/compile-data.md" ]
+assert $? 'and the typed command goes with it, rather than pointing at nothing'
 
 # Only ours. ~/.claude/skills is the owner's folder and may hold skills they
 # made themselves.

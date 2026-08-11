@@ -671,6 +671,15 @@ event_codex_dest() {
     printf '%s/.codex/skills/%s' "$HOME" "$EVENT_SKILL_KEY"
 }
 
+event_codex_prompt_dest() {
+    # The other half of Codex. ~/.codex/skills makes the skill something the
+    # model can choose; ~/.codex/prompts makes /compile-data something the owner
+    # can type. Both, because Shane says the command out loud and a hundred and
+    # twenty people type it - a skill the model has to decide to use on its own
+    # is not the same promise.
+    printf '%s/.codex/prompts/%s.md' "$HOME" "$EVENT_SKILL_KEY"
+}
+
 event_chatgpt_dest() {
     # The fallback, for a Codex too old to have skills. The Desktop rather than
     # a tidier folder because it has to be findable by somebody being told
@@ -1815,6 +1824,16 @@ install_event_skill() {
             info 'Download the setup again and run it once more.'
         elif mkdir -p "$codex" 2>/dev/null &&
              cp "$src/$EVENT_SKILL_KEY/SKILL.md" "$codex/SKILL.md" 2>/dev/null; then
+            # And the typed command, which is a separate folder in Codex.
+            # Written after the skill and not required by the check: without it
+            # the model can still be asked for the skill by name, so a failure
+            # here is a worse command rather than no command.
+            local prompt
+            prompt="$(event_codex_prompt_dest)"
+            if [ -f "$src/codex-prompts/$EVENT_SKILL_KEY.md" ]; then
+                mkdir -p "$(dirname "$prompt")" 2>/dev/null &&
+                    cp "$src/codex-prompts/$EVENT_SKILL_KEY.md" "$prompt" 2>/dev/null || true
+            fi
             good "In ChatGPT, type  /$EVENT_SKILL_KEY  and press Enter."
             info 'It appears the next time you open ChatGPT.'
         else
@@ -5222,14 +5241,16 @@ remove_event_skill() {
     #
     # Without this, "start over" leaves the row green and the step never runs
     # again - which defeats the one thing start over is for.
-    local dest codex card
+    local dest codex prompt card
     dest="$(event_skill_dest)"
     codex="$(event_codex_dest)"
+    prompt="$(event_codex_prompt_dest)"
     card="$(event_chatgpt_dest)"
-    if [ -d "$dest" ] || [ -d "$codex" ] || [ -f "$card" ]; then
+    if [ -d "$dest" ] || [ -d "$codex" ] || [ -f "$prompt" ] || [ -f "$card" ]; then
         info 'Taking back the /compile-data command...'
         rm -rf "$dest" 2>/dev/null || true
         rm -rf "$codex" 2>/dev/null || true
+        rm -f "$prompt" 2>/dev/null || true
         rm -f "$card" 2>/dev/null || true
     fi
     return 0

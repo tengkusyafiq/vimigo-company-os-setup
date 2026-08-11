@@ -1419,9 +1419,16 @@ function Get-HermesWindowsAsset {
     # Two regexes rather than a YAML parser, and anchored to the start of the
     # line on purpose: the same two names appear again indented underneath a
     # list, and matching those would pair a file with the wrong checksum.
-    $path = [regex]::Match($text, '(?m)^path:[ \t]*(\S+)[ \t]*$')
+    #
+    # \r is allowed before the end of the line. Without it a feed with Windows
+    # line endings matches nothing and this falls back to the pinned version in
+    # silence - the same failure the byte-array decode above was written for,
+    # arriving by a different route. Found when a checkout gave the acceptance
+    # suite CRLF and four tests went red on code nobody had touched; a fresh
+    # clone does exactly that, since .gitattributes checks .ps1 out as CRLF.
+    $path = [regex]::Match($text, '(?m)^path:[ \t]*(\S+)[ \t\r]*$')
     if (-not $path.Success) { return $null }
-    $sum = [regex]::Match($text, '(?m)^sha512:[ \t]*(\S+)[ \t]*$')
+    $sum = [regex]::Match($text, '(?m)^sha512:[ \t]*(\S+)[ \t\r]*$')
 
     return @{
         File   = $path.Groups[1].Value
@@ -2834,6 +2841,23 @@ function Install-EventSkill {
                     New-Item -ItemType Directory -Path $codex -Force -ErrorAction Stop | Out-Null
                 }
                 Copy-Item -LiteralPath $from -Destination (Join-Path $codex 'SKILL.md') -Force -ErrorAction Stop
+
+                # And the typed command, which is a separate folder in Codex.
+                # Written after the skill and not required by the check: without
+                # it the model can still be asked for the skill by name, so a
+                # failure here is a worse command rather than no command.
+                $promptFrom = Join-Path (Join-Path $src 'codex-prompts') "$($script:EventSkillKey).md"
+                $promptTo = Get-EventCodexPromptDest
+                if (Test-Path -LiteralPath $promptFrom) {
+                    try {
+                        $promptDir = Split-Path -Parent $promptTo
+                        if (-not (Test-Path -LiteralPath $promptDir)) {
+                            New-Item -ItemType Directory -Path $promptDir -Force -ErrorAction Stop | Out-Null
+                        }
+                        Copy-Item -LiteralPath $promptFrom -Destination $promptTo -Force -ErrorAction Stop
+                    } catch { }
+                }
+
                 Write-Good "In ChatGPT, type  /$($script:EventSkillKey)  and press Enter."
                 Write-Info 'It appears the next time you open ChatGPT.'
             } catch {
@@ -3663,6 +3687,17 @@ function Get-EventCodexDest {
         workaround for want of asking whether Codex had skills too.
     #>
     return (Join-Path $HOME ".codex\skills\$script:EventSkillKey")
+}
+
+function Get-EventCodexPromptDest {
+    <#
+        The other half of Codex. ~/.codex/skills makes the skill something the
+        model can choose; ~/.codex/prompts makes /compile-data something the
+        owner can type. Both, because Shane says the command out loud and a
+        hundred and twenty people type it - a skill the model has to decide to
+        use on its own is not the same promise.
+    #>
+    return (Join-Path $HOME ".codex\prompts\$script:EventSkillKey.md")
 }
 
 function Get-EventChatgptDest {
@@ -6213,12 +6248,14 @@ function Reset-VimigoSetup {
     # again - which defeats the one thing start over is for.
     $skillDest = Get-EventSkillDest
     $codexDest = Get-EventCodexDest
+    $codexPrompt = Get-EventCodexPromptDest
     $chatgptCard = Get-EventChatgptDest
     if ((Test-Path -LiteralPath $skillDest) -or (Test-Path -LiteralPath $codexDest) -or
-        (Test-Path -LiteralPath $chatgptCard)) {
+        (Test-Path -LiteralPath $codexPrompt) -or (Test-Path -LiteralPath $chatgptCard)) {
         Write-Info 'Taking back the /compile-data command...'
         try { Remove-Item -LiteralPath $skillDest -Recurse -Force -ErrorAction Stop } catch { }
         try { Remove-Item -LiteralPath $codexDest -Recurse -Force -ErrorAction Stop } catch { }
+        try { Remove-Item -LiteralPath $codexPrompt -Force -ErrorAction Stop } catch { }
         try { Remove-Item -LiteralPath $chatgptCard -Force -ErrorAction Stop } catch { }
     }
 

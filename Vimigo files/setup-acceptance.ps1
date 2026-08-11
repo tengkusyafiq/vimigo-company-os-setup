@@ -34,6 +34,7 @@ $script:RealInstallEventSkill = ${function:Install-EventSkill}
 $script:RealGetEventSkillDest = ${function:Get-EventSkillDest}
 $script:RealGetEventChatgptDest = ${function:Get-EventChatgptDest}
 $script:RealGetEventCodexDest = ${function:Get-EventCodexDest}
+$script:RealGetEventCodexPromptDest = ${function:Get-EventCodexPromptDest}
 
 $script:Failures = 0
 $script:Ran = 0
@@ -1111,6 +1112,8 @@ try {
     Assert-True (Test-Path -LiteralPath $skillFile) 'the command ships beside the setup'
     Assert-True (Test-Path -LiteralPath $chatgptFile) `
         'and so does the ChatGPT copy of it, for owners with no slash commands'
+    Assert-True (Test-Path -LiteralPath (Join-Path (Join-Path $eventDir 'codex-prompts') 'compile-data.md')) `
+        'and the Codex prompt that makes it typable rather than merely available'
 
     $skillText = Get-Content -LiteralPath $skillFile -Raw
     Assert-True ($skillText -match '(?m)^name: compile-data$') `
@@ -1176,6 +1179,7 @@ try {
     ${function:Get-EventCodexDest} = $script:RealGetEventCodexDest
     function Get-EventSkillDest { return (Join-Path $fakeHome '.claude\skills\compile-data') }
     function Get-EventCodexDest { return (Join-Path $fakeHome '.codex\skills\compile-data') }
+    function Get-EventCodexPromptDest { return (Join-Path $fakeHome '.codex\prompts\compile-data.md') }
     function Get-EventChatgptDest { return (Join-Path $fakeDesktop 'Submit my AI workflow - ChatGPT.txt') }
 
     $script:FeatureEventSkill = 'on'
@@ -1190,6 +1194,11 @@ try {
         'the command lands where Claude looks for a personal skill'
     Assert-True (Test-Path -LiteralPath $codexCopy) `
         'and where ChatGPT looks, so both apps get the same command'
+    # Verified on a real Codex: ~/.codex/skills makes it a skill the model can
+    # pick, and ~/.codex/prompts makes /compile-data a command the owner can
+    # type. Shane says the command out loud, so the typed one is not optional.
+    Assert-True (Test-Path -LiteralPath (Get-EventCodexPromptDest)) `
+        'and ChatGPT gets the typed command too, not just a skill it may choose'
     Assert-True ((Get-FileHash -LiteralPath $claudeCopy).Hash -eq (Get-FileHash -LiteralPath $codexCopy).Hash) `
         'and it is the same file in both, so the two cannot drift apart'
     Assert-True (Test-Path -LiteralPath (Get-EventChatgptDest)) `
@@ -1224,6 +1233,7 @@ try {
     function Test-EventSkillInstalled { return $true }
     function Get-EventSkillDest { return (Join-Path $fakeHome '.claude\skills\compile-data') }
     function Get-EventCodexDest { return (Join-Path $fakeHome '.codex\skills\compile-data') }
+    function Get-EventCodexPromptDest { return (Join-Path $fakeHome '.codex\prompts\compile-data.md') }
 
     # The row, in the list. Same two ends as Hermes One below it.
     Set-Features 'off'
