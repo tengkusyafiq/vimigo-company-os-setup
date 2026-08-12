@@ -3602,9 +3602,21 @@ show_main_options() {
     fi
     printf '\n'
 
-    if [ "${1:-}" != 'finished' ]; then
+    # 'starting' is the first pass, which no longer waits to be told to begin.
+    #
+    # Asking an owner to press Enter to start the thing they just started is a
+    # question with one answer, and every one of them answers it the same way.
+    # The box still appears, saying what is happening rather than asking - a
+    # screen that jumps straight into installing with no line about it reads as
+    # something going wrong on its own.
+    if [ "${1:-}" = 'starting' ]; then
         printf '        %s┌──────────────────────────────────────┐%s\n' "$C_GREEN" "$C_RESET"
-        printf '        %s│%s   %sPress ENTER to set everything up%s   %s│%s\n' \
+        printf '        %s│%s   %sSetting everything up for you...%s   %s│%s\n' \
+            "$C_GREEN" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREEN" "$C_RESET"
+        printf '        %s└──────────────────────────────────────┘%s\n\n' "$C_GREEN" "$C_RESET"
+    elif [ "${1:-}" != 'finished' ]; then
+        printf '        %s┌──────────────────────────────────────┐%s\n' "$C_GREEN" "$C_RESET"
+        printf '        %s│%s   %sPress ENTER to carry on%s            %s│%s\n' \
             "$C_GREEN" "$C_RESET" "$C_WHITE" "$C_RESET" "$C_GREEN" "$C_RESET"
         printf '        %s└──────────────────────────────────────┘%s\n\n' "$C_GREEN" "$C_RESET"
     fi
@@ -4579,6 +4591,11 @@ fix_one() {
 # But it was right for exactly one case - a restart that did not work -
 # and deleting it took away the only warning that case ever had. The owner
 # was told once, halfway through a long run, and never again.
+# Whether the setup has already begun on its own. The first pass over an
+# unfinished checklist starts without being asked; every pass after it waits, so
+# a step that cannot succeed cannot spin unattended.
+AUTO_STARTED=''
+
 RESTART_PENDING=""
 
 # Names of the things that did not finish, one per line. The closing screen
@@ -5474,15 +5491,30 @@ while true; do
     #
     # The letters are for afterwards: changing something already set up, not
     # building it in a different sequence.
-    show_main_options
+    # The first pass starts on its own; every pass after it asks.
+    #
+    # Asking is not ceremony the second time round. A machine that cannot
+    # finish a step - an owner who has not signed in yet, a website still open
+    # in front of them - comes back here with work still outstanding, and a
+    # screen that begins again without being asked would retry the same failing
+    # step forever with no way to stop it. The keypress is what makes that loop
+    # escapable, so it is kept exactly where it is needed and dropped where it
+    # was only a formality.
+    if [ -z "$AUTO_STARTED" ]; then
+        AUTO_STARTED='yes'
+        show_main_options starting
+        choice=''
+    else
+        show_main_options
 
-    printf '      %s> %s' "$C_PURPLE" "$C_RESET"
-    read -r choice || break
-    choice="$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')"
+        printf '      %s> %s' "$C_PURPLE" "$C_RESET"
+        read -r choice || break
+        choice="$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')"
 
-    case "$choice" in
-        q|quit) printf '\n'; info 'Nothing was changed. Bye.'; printf '\n'; break ;;
-    esac
+        case "$choice" in
+            q|quit) printf '\n'; info 'Nothing was changed. Bye.'; printf '\n'; break ;;
+        esac
+    fi
 
     if handle_main_choice "$choice"; then
         clear_screen; show_banner

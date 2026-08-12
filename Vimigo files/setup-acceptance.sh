@@ -901,6 +901,28 @@ assert_not $? 'as is the Z key'
 grep -q '"--reset"' "$SCRIPT_DIR/vimigo-setup.sh"
 assert $? 'starting over is still reachable, by asking for it on purpose'
 
+printf '\n\033[36mThe setup starts without being asked to\033[0m\n'
+
+# The first screen no longer asks permission to do the thing it was opened to
+# do. It still says what it is doing, because a screen that starts installing in
+# silence reads as a fault.
+show_main_options starting | grep -q 'Setting everything up for you'
+assert $? 'the first pass says it is starting, rather than asking'
+show_main_options starting | grep -q 'Press ENTER'
+assert_not $? 'and does not ask for a keypress it no longer needs'
+
+# But only the first. A step that cannot succeed - an owner who has not signed
+# in, a website still open - brings the loop back here, and a screen that began
+# again unasked would retry it forever with nothing able to stop it.
+show_main_options | grep -q 'Press ENTER'
+assert $? 'a later pass asks again, so a failing step cannot spin unattended'
+
+# The finished screen has never had the box and still must not.
+show_main_options finished | grep -q 'Press ENTER'
+assert_not $? 'and a finished setup offers no such box at all'
+show_main_options finished | grep -q 'Setting everything up'
+assert_not $? 'nor claims to be starting something'
+
 printf '\n\033[36mThe /compile-data command\033[0m\n'
 
 # Both halves, as shipped. A row that goes green while the zip is missing the

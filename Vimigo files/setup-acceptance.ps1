@@ -1417,6 +1417,33 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     Remove-Item -LiteralPath 'function:Invoke-WebRequest' -ErrorAction SilentlyContinue
 
     Write-Host ''
+    Write-Host 'The setup starts without being asked to' -ForegroundColor Cyan
+
+    # The first screen no longer asks permission to do the thing it was opened
+    # to do. It still says what it is doing, because a screen that starts
+    # installing in silence reads as a fault.
+    $starting = (Show-MainOptions -Starting 6>&1 | Out-String)
+    Assert-True ($starting -like '*Setting everything up for you*') `
+        'the first pass says it is starting, rather than asking'
+    Assert-True ($starting -notlike '*Press ENTER*') `
+        'and does not ask for a keypress it no longer needs'
+
+    # But only the first. A step that cannot succeed - an owner who has not
+    # signed in, a website still open - brings the loop back here, and a screen
+    # that began again unasked would retry it forever with nothing able to stop
+    # it.
+    $again = (Show-MainOptions 6>&1 | Out-String)
+    Assert-True ($again -like '*Press ENTER*') `
+        'a later pass asks again, so a failing step cannot spin unattended'
+
+    # The finished screen has never had the box and still must not.
+    $done = (Show-MainOptions -Finished 6>&1 | Out-String)
+    Assert-True ($done -notlike '*Press ENTER*') `
+        'and a finished setup offers no such box at all'
+    Assert-True ($done -notlike '*Setting everything up*') `
+        'nor claims to be starting something'
+
+    Write-Host ''
     Write-Host 'The finished screen ends the setup, it does not open a menu' -ForegroundColor Cyan
 
     # "ALL DONE" is the screen an owner is most likely to be tapping at idly,

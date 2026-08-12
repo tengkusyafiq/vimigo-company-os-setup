@@ -2609,7 +2609,7 @@ function Show-MainOptions {
         finished yesterday and came back to hire a second employee met a
         different, shorter menu than the one they used the first time.
     #>
-    param([switch]$Finished)
+    param([switch]$Finished, [switch]$Starting)
 
     # The header only when there is something under it. With every switch off
     # the finished screen offers Close and nothing else, and "What you can do:"
@@ -2619,10 +2619,15 @@ function Show-MainOptions {
         Write-Host ''
     }
 
-    if (-not $Finished) {
+    # The box still appears on the first pass, saying what is happening rather
+    # than asking. A screen that jumps straight into installing with no line
+    # about it reads as something going wrong on its own.
+    if ($Starting -or (-not $Finished)) {
+        $label = if ($Starting) { '   Setting everything up for you...   ' }
+                 else           { '   Press ENTER to carry on             ' }
         Write-Host '        ┌──────────────────────────────────────┐' -ForegroundColor $script:Ink.Good
         Write-Host '        │' -ForegroundColor $script:Ink.Good -NoNewline
-        Write-Host '   Press ENTER to set everything up   ' -ForegroundColor $script:Ink.Strong -NoNewline
+        Write-Host $label -ForegroundColor $script:Ink.Strong -NoNewline
         Write-Host '│' -ForegroundColor $script:Ink.Good
         Write-Host '        └──────────────────────────────────────┘' -ForegroundColor $script:Ink.Good
         Write-Host ''
@@ -3313,6 +3318,11 @@ function Test-DesktopAppPath {
 # right for exactly one case - a restart that did not work - and deleting it
 # took away the only warning that case ever had. The owner was told once,
 # halfway through a long run, and never again.
+# Whether the setup has already begun on its own. The first pass over an
+# unfinished checklist starts without being asked; every pass after it waits, so
+# a step that cannot succeed cannot spin unattended.
+$script:AutoStarted = $false
+
 $script:RestartPending = @()
 
 function Restart-DesktopApp {
@@ -6489,6 +6499,23 @@ function Read-StartChoice {
         for building it in a different sequence.
     #>
     param([int]$RowCount)
+
+    # The first pass starts on its own; every pass after it asks.
+    #
+    # Asking an owner to press Enter to start the thing they just started is a
+    # question with one answer, and every one of them answers it the same way.
+    #
+    # Asking is not ceremony the second time round, though. A machine that
+    # cannot finish a step - an owner who has not signed in yet, a website
+    # still open in front of them - comes back here with work outstanding, and
+    # a screen that began again unasked would retry the same failing step
+    # forever with no way to stop it. So the keypress is kept exactly where it
+    # is needed and dropped where it was only a formality.
+    if (-not $script:AutoStarted) {
+        $script:AutoStarted = $true
+        Show-MainOptions -Starting
+        return ''
+    }
 
     Show-MainOptions
     return (Read-Host -Prompt '     ').Trim()
