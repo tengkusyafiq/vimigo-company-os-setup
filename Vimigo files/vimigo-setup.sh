@@ -4421,8 +4421,13 @@ show_zo_model_step() {
     numbered 4 'Scroll back up to' 'Models'
     numbered 5 'Change the selected models to the ones below'
     printf '\n'
-    info 'Signing in only tells Zo who you are. Until the provider is'
-    info 'switched on there, Zo will not actually use the plan you pay for.'
+    # Warned rather than mentioned. This is the half nothing here can check -
+    # Zo reports whether a plan is signed in and nothing about whether it is
+    # switched on - so the only thing standing between an owner and paying
+    # twice is whether this sentence was read.
+    warn 'Signing in only tells Zo who you are. Until the provider is'
+    warn 'switched on there, Zo keeps charging you per use for a plan you'
+    warn 'are already paying for.'
     printf '\n'
     info 'What we suggest setting as the default, in this order:'
     printf '\n'
@@ -4534,6 +4539,12 @@ connect_zo_ai_provider() {
 
     printf '\n'
     info 'Finish signing in on that page, then come back here.'
+    # This path had no model step at all, and it is the path a ChatGPT plan
+    # takes: only Claude hands a code back, so a Mac owner linking ChatGPT was
+    # never told to switch the provider on. Their row went green on the strength
+    # of being signed in, and Zo carried on charging them per use for a plan they
+    # were already paying for. Windows has always shown it here.
+    show_zo_model_step "$friendly"
     return 0
 }
 
@@ -4760,6 +4771,13 @@ wait_for_owner_step() {
     local no_label='No, I will wait'
     case "$1" in
         claude-app|chatgpt-app) question='Have you signed in?' ;;
+        # Both halves in one question, rather than a second question after it.
+        # Signing in is the half that can be checked from here, and it is not the
+        # half that stops the charging: until the provider is switched on in Zo's
+        # own settings, a signed-in plan sits there unused and Zo bills per use.
+        # Asking only about the sign-in would pass somebody who is still paying
+        # twice.
+        zo-claude-code|zo-codex) question='Have you signed in and switched it on?' ;;
     esac
 
     printf '\n'
@@ -4833,6 +4851,11 @@ EOF
             claude-mcp|chatgpt-mcp)
                 info 'The app only reads its settings when it starts, so it has'
                 info 'to be closed completely and opened again.' ;;
+            zo-claude-code|zo-codex)
+                info 'Sign in first, then find Providers on the Zo website,'
+                info 'click Connect, and turn every model on. Both halves are'
+                info 'needed - a plan that is signed in but not switched on is'
+                info 'a plan you pay for while Zo charges you per use anyway.' ;;
         esac
         # It used to say "these are recommendations, not requirements" here and
         # offer a key to move on. That was true of an earlier build and is not

@@ -1523,6 +1523,20 @@ releaseDate: '2026-07-22T11:44:41.451Z'
         'and permission for an admin prompt and a restart is still asked for'
 
     Write-Host ''
+    Write-Host 'A signed-in plan is not yet a plan Zo uses' -ForegroundColor Cyan
+
+    # Zo reports whether a plan is signed in and nothing about whether the
+    # provider is switched on, and it is the switching on that stops the per-use
+    # charging. So the sign-in alone turns the row green, and an owner can finish
+    # this setup paying for a plan and paying again per use.
+    Assert-True ($setupSource -like "*Write-Warn 'Signing in only tells Zo who you are*") `
+        'the half that cannot be checked is warned about, not mentioned in passing'
+    Assert-True ($setupSource -like '*Zo keeps charging you per use*') `
+        'in money, which is what an owner will act on'
+    Assert-True ($setupSource -like "*'Have you signed in and switched it on?'*") `
+        'and the plan step asks about both halves, not only the one it can check'
+
+    Write-Host ''
     Write-Host 'The setup starts without being asked to' -ForegroundColor Cyan
 
     # The first screen no longer asks permission to do the thing it was opened

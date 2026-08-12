@@ -1034,6 +1034,36 @@ assert $? 'and the models page opens, since five instructions were just given fo
 grep -q "ask_yes_no 'Do you already have a Zo account?'" "$SCRIPT_DIR/vimigo-setup.sh"
 assert $? 'a real choice - account or no account - is still put to the owner'
 
+printf '\n\033[36mA signed-in plan is not yet a plan Zo uses\033[0m\n'
+
+# Zo reports whether a plan is signed in and nothing about whether the provider
+# is switched on, and it is the switching on that stops the per-use charging. So
+# the sign-in alone turns the row green, and an owner can finish this setup
+# paying for a plan and paying again per use.
+#
+# Which is exactly what happened on the Mac to anybody linking ChatGPT. Only
+# Claude hands a code back, so the ChatGPT sign-in took a third path out of this
+# function - and that path showed no model step at all. Windows always did.
+PROVIDER_BODY="$(sed -n '/^connect_zo_ai_provider() {/,/^}/p' "$SCRIPT_DIR/vimigo-setup.sh")"
+[ -n "$PROVIDER_BODY" ]
+assert $? 'the plan step was found to check'
+[ "$(printf '%s\n' "$PROVIDER_BODY" | grep -c 'show_zo_model_step')" \
+  = "$(printf '%s\n' "$PROVIDER_BODY" | grep -c 'return 0')" ]
+assert $? 'every way the step can succeed shows the switch-it-on instructions'
+printf '%s\n' "$PROVIDER_BODY" | grep -A6 "info 'Finish signing in on that page" |
+    grep -q 'show_zo_model_step'
+assert $? 'including the ChatGPT path, which hands back no code and had none'
+
+# Said as a warning, because it is the half nothing can check.
+grep -q "warn 'Signing in only tells Zo who you are" "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'and it is warned about rather than mentioned in passing'
+grep -q 'Zo keeps charging you per use' "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'in money, which is what an owner will act on'
+
+# One question covering both halves, rather than a second question after it.
+grep -q "question='Have you signed in and switched it on?'" "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'the plan step asks about both halves, not only the one it can check'
+
 printf '\n\033[36mThe setup starts without being asked to\033[0m\n'
 
 # The first screen no longer asks permission to do the thing it was opened to

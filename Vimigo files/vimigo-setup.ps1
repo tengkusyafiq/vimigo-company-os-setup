@@ -5650,8 +5650,13 @@ function Show-ZoModelStep {
     Write-NumberedStep 4 'Scroll back up to' 'Models'
     Write-NumberedStep 5 'Change the selected models to the ones below'
     Write-Host ''
-    Write-Info 'Signing in only tells Zo who you are. Until the provider is'
-    Write-Info 'switched on there, Zo will not actually use the plan you pay for.'
+    # Warned rather than mentioned. This is the half nothing here can check - Zo
+    # reports whether a plan is signed in and nothing about whether it is
+    # switched on - so the only thing standing between an owner and paying twice
+    # is whether this sentence was read.
+    Write-Warn 'Signing in only tells Zo who you are. Until the provider is'
+    Write-Warn 'switched on there, Zo keeps charging you per use for a plan'
+    Write-Warn 'you are already paying for.'
     Write-Host ''
     Write-Info 'What we suggest setting as the default, in this order:'
     Write-Host ''
@@ -5939,7 +5944,14 @@ function Wait-ForOwnerStep {
     #
     # The way out is closing the window, not a key that quietly moves on.
     # Nothing is lost by that: the setup re-checks everything when it restarts.
+    # Both halves in one question for the plan rows, rather than a second
+    # question after it. Signing in is the half that can be checked from here,
+    # and it is not the half that stops the charging: until the provider is
+    # switched on in Zo's own settings, a signed-in plan sits there unused and Zo
+    # bills per use. Asking only about the sign-in would pass somebody who is
+    # still paying twice.
     $question = if ($Check.Key -in @('claude-app', 'chatgpt-app')) { 'Have you signed in?' }
+                elseif ($Check.Key -in @('zo-claude-code', 'zo-codex')) { 'Have you signed in and switched it on?' }
                 else { 'Have you finished that step?' }
 
     Write-Host ''
@@ -5994,6 +6006,14 @@ function Wait-ForOwnerStep {
         if ($Check.Key -eq 'claude-mcp' -or $Check.Key -eq 'chatgpt-mcp') {
             Write-Info 'The app only reads its settings when it starts, so it has'
             Write-Info 'to be closed completely and opened again.'
+            Write-Host ''
+        }
+
+        if ($Check.Key -eq 'zo-claude-code' -or $Check.Key -eq 'zo-codex') {
+            Write-Info 'Sign in first, then find Providers on the Zo website,'
+            Write-Info 'click Connect, and turn every model on. Both halves are'
+            Write-Info 'needed - a plan that is signed in but not switched on is'
+            Write-Info 'a plan you pay for while Zo charges you per use anyway.'
             Write-Host ''
         }
 
