@@ -1487,6 +1487,42 @@ releaseDate: '2026-07-22T11:44:41.451Z'
         'and No means waiting, not moving on'
 
     Write-Host ''
+    Write-Host 'Questions with only one answer are not asked' -ForegroundColor Cyan
+
+    # A question the owner can only answer one way is not a choice, it is a
+    # keypress - and several of these were worse than that, because the wrong
+    # answer printed a reassurance that was no longer true.
+    #
+    # Matched on the call, never on the phrase. Every one of these removals left
+    # a comment behind saying what used to be there and why it went, so matching
+    # the wording alone would fail against the explanation - a test that can only
+    # pass by deleting its own reasoning. That mistake has been made twice here
+    # already.
+    Assert-True ($setupSource -notlike '*Read-YesNo -Question "Do you have a paid*') `
+        'the plan step stops asking whether they pay for a plan'
+    Assert-True ($setupSource -like "*Write-Info 'Starting the sign-in*") `
+        'and starts the sign-in on its own instead'
+
+    # Pages the owner cannot get past without: opened, not offered.
+    Assert-True ($setupSource -notlike '*-Question "Open the*download page*') `
+        'a failed install opens the download page rather than offering to'
+    Assert-True ($setupSource -notlike "*-Question 'Open the Zo sign-up page now*") `
+        'and no account means the sign-up page opens'
+    # Asserted on what the models step now does, not on the absence of its old
+    # question: an optional offer to open an employee's page is worded
+    # identically, so the wording alone cannot tell a removal from a survivor.
+    Assert-True ($setupSource -like "*Write-Info 'Opening that page for you now.'*") `
+        'and the models page opens, since five instructions were just given for it'
+
+    # The other side of it, so this stays a sweep of pointless questions rather
+    # than of questions. Anything that genuinely forks is still asked, and so is
+    # the one step that wants administrator permission and a restart.
+    Assert-True ($setupSource -like "*-Question 'Do you already have a Zo account?'*") `
+        'a real choice - account or no account - is still put to the owner'
+    Assert-True ($setupSource -like "*-Question 'Turn those Windows features on now?'*") `
+        'and permission for an admin prompt and a restart is still asked for'
+
+    Write-Host ''
     Write-Host 'The setup starts without being asked to' -ForegroundColor Cyan
 
     # The first screen no longer asks permission to do the thing it was opened

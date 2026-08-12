@@ -2848,10 +2848,12 @@ function Install-ChatGptDesktop {
     }
 
     Write-Warn 'The Store install did not finish.'
-    if (Read-YesNo -Question 'Open the ChatGPT download page in your browser instead?') {
-        Start-Process $script:ChatGptDownloadUrl
-        Write-Info 'Install it from that page, then come back and press R to re-check.'
-    }
+    # Opened, not offered. The automatic install has just failed, so that page
+    # is the only way this step finishes. "No" would leave the owner looking at
+    # a screen with nothing on it to do next, which is not a choice.
+    Write-Info 'Opening the download page instead.'
+    try { Start-Process $script:ChatGptDownloadUrl } catch { Write-Info 'Could not open your browser.' }
+    Write-Info 'Install it from that page, then come back and press R to re-check.'
     return $false
 }
 
@@ -2996,10 +2998,10 @@ function Install-HermesOne {
         Write-SetupLog "Hermes download failed: $($_.Exception.Message)"
         Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
         Write-Warn 'The download did not finish.'
-        if (Read-YesNo -Question "Open the $($script:HermesAppName) download page in your browser instead?") {
-            Start-Process $script:HermesDownloadPage
-            Write-Info 'Install it from that page, then come back and press R to re-check.'
-        }
+        # Opened, not offered - see Install-ChatGptDesktop.
+        Write-Info 'Opening the download page instead.'
+        try { Start-Process $script:HermesDownloadPage } catch { Write-Info 'Could not open your browser.' }
+        Write-Info 'Install it from that page, then come back and press R to re-check.'
         return $false
     }
 
@@ -3051,10 +3053,10 @@ function Install-HermesOne {
     }
 
     Write-Warn "$($script:HermesAppName) did not appear."
-    if (Read-YesNo -Question "Open the $($script:HermesAppName) download page in your browser instead?") {
-        Start-Process $script:HermesDownloadPage
-        Write-Info 'Install it from that page, then come back and press R to re-check.'
-    }
+    # Opened, not offered - see Install-ChatGptDesktop.
+    Write-Info 'Opening the download page instead.'
+    try { Start-Process $script:HermesDownloadPage } catch { Write-Info 'Could not open your browser.' }
+    Write-Info 'Install it from that page, then come back and press R to re-check.'
     return $false
 }
 
@@ -3170,9 +3172,11 @@ function Set-ZoTokenInteractive {
     # a key and would otherwise sit on the settings page hunting for one.
     if (-not (Read-YesNo -Question 'Do you already have a Zo account?' -YesLabel 'Yes, I have one' -NoLabel 'No, make one')) {
         Write-Host ''
-        Write-Info 'No problem. Let us make one first.'
-        if (Read-YesNo -Question 'Open the Zo sign-up page now?') {
-            Start-Process $script:ZoSignUpUrl
+        Write-Info 'No problem. Let us make one first. Opening the sign-up page.'
+        # Opened, not offered. They have just said they have no account, so
+        # there is one thing to do next and it happens on that page.
+        try { Start-Process $script:ZoSignUpUrl } catch {
+            Write-Info "Could not open your browser. The address is $($script:ZoSignUpUrl)"
         }
         Write-Host ''
         # Waited for, not sent away.
@@ -5544,14 +5548,28 @@ function Connect-ZoAiProvider {
 
     $friendly = if ($Which -eq 'claude') { 'Claude' } else { 'ChatGPT' }
     Write-Title "Using your $friendly plan on Zo"
-    Write-Info "If you already pay for $friendly, your Zo can use that plan"
-    Write-Info 'instead of charging you separately each time.'
+    # Said plainly, because from the owner's chair this looks like being asked
+    # to sign in to something they signed in to two steps ago. It is not the
+    # same thing - that sign-in was on this computer, this one is on the Zo -
+    # and a step that looks like a repeat is a step people click through.
+    Write-Info "You signed in to $friendly on this computer earlier. This"
+    Write-Info 'connects that same plan to your Zo, so Zo uses what you already'
+    Write-Info 'pay for instead of charging you separately each time.'
     Write-Host ''
 
-    if (-not (Read-YesNo -Question "Do you have a paid $friendly plan?")) {
-        Write-Info 'That is fine. Zo will just bill per use. Skipping this.'
-        return $false
-    }
+    # There was a "Do you have a paid $friendly plan?" here, and No answered it
+    # with "Zo will just bill per use. Skipping this."
+    #
+    # That was honest while the row was marked skipped. It stopped being honest
+    # when the row became required: No printed the word skipping and then listed
+    # the step as unfinished, on this run and on every run after it. Nothing was
+    # skipped and nothing could be.
+    #
+    # Participants register and pay before they arrive, so the question had one
+    # correct answer, and the other answer cost a keypress and a false promise.
+    # The sign-in starts on its own now. An owner whose plan is already linked
+    # never reaches this function at all - Zo is asked directly, and the row
+    # reads ok.
 
     # The scripts have to be on the Zo before one of them can answer.
     Install-ZoScriptsOnce
@@ -5646,8 +5664,12 @@ function Show-ZoModelStep {
     Write-Host '        ' -NoNewline
     Write-Brand -Text (Get-ZoAiSettingsUrl -WorkspaceUrl $script:ZoWorkspaceUrl) -Colour Teal
 
-    if (Read-YesNo -Question 'Open that page now?' -YesLabel 'Open it' -NoLabel 'Not now') {
-        Start-Process (Get-ZoAiSettingsUrl -WorkspaceUrl $script:ZoWorkspaceUrl)
+    # Opened, not offered. Five numbered instructions were just given for a page
+    # nobody is looking at yet, so opening it is the point of the step.
+    Write-Host ''
+    Write-Info 'Opening that page for you now.'
+    try { Start-Process (Get-ZoAiSettingsUrl -WorkspaceUrl $script:ZoWorkspaceUrl) } catch {
+        Write-Info 'Could not open your browser. The address is above.'
     }
 }
 

@@ -1652,17 +1652,15 @@ install_git_directly() {
     printf '\n'
     warn 'It is around a gigabyte, so it is worth being on wifi.'
     printf '\n'
-    # Asked until it is agreed to, rather than offered as a choice. Git is one
-    # of the three tools the rest of the setup is built on, so declining it
-    # does not produce a smaller setup - it produces one that cannot finish.
-    # Closing the window is still the way out, and costs nothing: the setup
-    # re-checks everything when it starts again.
-    while ! ask_yes_no 'Ask your Mac to install it now?' 'Yes' 'Not yet'; do
-        printf '\n'
-        info 'This one is needed - the setup cannot finish without it.'
-        info 'Close this window if you would rather do it another time.'
-    done
-
+    # Asked, then asked again by Apple. This used to put "Ask your Mac to
+    # install it now?" here and loop until Yes, which is a question with one
+    # accepted answer - and macOS then shows its own window with Install and a
+    # licence to agree to. Two prompts for one decision, and the first of them
+    # could only be answered wrongly.
+    #
+    # Apple's window is the consent, and it is the one that can actually decline
+    # the download. Closing this window is still the way out, and costs nothing:
+    # the setup re-checks everything when it starts again.
     xcode-select --install >/dev/null 2>&1
 
     printf '\n'
@@ -1698,27 +1696,25 @@ install_homebrew() {
         return 0
     fi
 
-    info 'Homebrew is the tool macOS uses to install developer software.'
+    info 'Homebrew is the tool macOS uses to install developer software. It is'
+    info 'how Claude Desktop and ChatGPT get onto this Mac, so it goes on'
+    info 'first and the rest follows.'
     printf '\n'
     warn 'This one is big: a gigabyte or more, and it will ask for your Mac'
     warn 'password. On a phone connection it can take a long while.'
     printf '\n'
-    # Said plainly, because it is true and because somebody who thinks this is
-    # compulsory will sit through a gigabyte on a hotspot for nothing.
-    # Honest about the cost and about the order, without calling these
-    # optional. They are needed - just not before the assistant works, and
-    # somebody on a phone hotspot should be told they can do this later rather
-    # than sit through a gigabyte now.
-    info 'Your assistant already works without this. The two tools it brings'
-    info 'are for the bigger jobs later - code and spreadsheets - so you can'
-    info 'do this now, or come back to it on better wifi.'
-    printf '\n'
-    if ! ask_yes_no 'Install Homebrew now?'; then
-        warn 'Skipped for now. Everything else carries on, and you can come'
-        warn 'back to this whenever you like.'
-        return 1
-    fi
 
+    # There was an "Install Homebrew now?" here, answered No with "Skipped for
+    # now. Everything else carries on."
+    #
+    # Nothing else carried on. This function is never a step of its own - it is
+    # reached only because installing Claude Desktop, ChatGPT, Node or Python
+    # needed it, and every one of those callers returns straight away on a No.
+    # So the question offered a choice that did not exist, and the reassurance
+    # after it was false.
+    #
+    # Homebrew's own installer asks for the password and waits on a keypress of
+    # its own, which is where this can still be stopped.
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     load_homebrew_env
 
@@ -1814,10 +1810,12 @@ install_desktop_app() {
     fi
 
     warn "$friendly did not appear."
-    if ask_yes_no "Open the $friendly download page in your browser instead?"; then
-        open "$download"
-        info 'Install it from that page, then come back and press R to re-check.'
-    fi
+    # Opened, not offered. The automatic install has just failed, so that page
+    # is the only way this step finishes. "No" would leave the owner looking at
+    # a screen with nothing on it to do next, which is not a choice.
+    info 'Opening the download page instead.'
+    open "$download" 2>/dev/null || info 'Could not open your browser.'
+    info 'Install it from that page, then come back and press R to re-check.'
     return 1
 }
 
@@ -1960,10 +1958,10 @@ install_hermes_one() {
     if ! curl -fL --progress-bar --max-time 1800 -o "$tmp/$file" "$url"; then
         rm -rf "$tmp"
         warn 'The download did not finish.'
-        if ask_yes_no "Open the $HERMES_APP_NAME download page in your browser instead?"; then
-            open "$HERMES_DOWNLOAD_PAGE"
-            info 'Install it from that page, then come back and press R to re-check.'
-        fi
+        # Opened, not offered - see install_desktop_app.
+        info 'Opening the download page instead.'
+        open "$HERMES_DOWNLOAD_PAGE" 2>/dev/null || info 'Could not open your browser.'
+        info 'Install it from that page, then come back and press R to re-check.'
         return 1
     fi
 
@@ -2039,10 +2037,10 @@ install_hermes_one() {
     fi
 
     warn "$HERMES_APP_NAME did not appear."
-    if ask_yes_no "Open the $HERMES_APP_NAME download page in your browser instead?"; then
-        open "$HERMES_DOWNLOAD_PAGE"
-        info 'Install it from that page, then come back and press R to re-check.'
-    fi
+    # Opened, not offered - see install_desktop_app.
+    info 'Opening the download page instead.'
+    open "$HERMES_DOWNLOAD_PAGE" 2>/dev/null || info 'Could not open your browser.'
+    info 'Install it from that page, then come back and press R to re-check.'
     return 1
 }
 
@@ -2246,10 +2244,11 @@ set_zo_token_interactive() {
     # and would otherwise sit on the settings page hunting for one.
     if ! ask_yes_no 'Do you already have a Zo account?'; then
         printf '\n'
-        info 'No problem. Let us make one first.'
-        if ask_yes_no 'Open the Zo sign-up page now?'; then
-            open "$ZO_SIGNUP_URL"
-        fi
+        info 'No problem. Let us make one first. Opening the sign-up page.'
+        # Opened, not offered. They have just said they have no account, so
+        # there is one thing to do next and it happens on that page.
+        open "$ZO_SIGNUP_URL" 2>/dev/null ||
+            info "Could not open your browser. The address is $ZO_SIGNUP_URL"
         printf '\n'
         info 'Sign up, then come back here and choose this step again.'
         return 1
@@ -4435,9 +4434,12 @@ show_zo_model_step() {
     info 'back to. You can change either whenever you like, on this page:'
     printf '        %s%s%s\n' "$C_TEAL" "$(zo_ai_settings_url)" "$C_RESET"
 
-    if ask_yes_no 'Open that page now?'; then
-        open "$(zo_ai_settings_url)" 2>/dev/null || true
-    fi
+    # Opened, not offered. Five numbered instructions were just given for a page
+    # nobody is looking at yet, so opening it is the point of the step.
+    printf '\n'
+    info 'Opening that page for you now.'
+    open "$(zo_ai_settings_url)" 2>/dev/null ||
+        info 'Could not open your browser. The address is above.'
     return 0
 }
 
@@ -4448,13 +4450,28 @@ connect_zo_ai_provider() {
     if [ "$which" = "claude" ]; then friendly="Claude"; else friendly="ChatGPT"; fi
 
     title "Using your $friendly plan on Zo"
-    info "If you already pay for $friendly, your Zo can use that plan"
-    info 'instead of charging you separately each time.'
+    # Said plainly, because from the owner's chair this looks like being asked
+    # to sign in to something they signed in to two steps ago. It is not the
+    # same thing - that sign-in was on this Mac, this one is on the Zo - and a
+    # step that looks like a repeat is a step people click through.
+    info "You signed in to $friendly on this Mac earlier. This connects that"
+    info 'same plan to your Zo, so Zo uses what you already pay for instead'
+    info 'of charging you separately each time.'
+    printf '\n'
 
-    if ! ask_yes_no "Do you have a paid $friendly plan?"; then
-        info 'That is fine. Zo will just bill per use. Skipping this.'
-        return 1
-    fi
+    # There was a "Do you have a paid $friendly plan?" here, and No answered it
+    # with "Zo will just bill per use. Skipping this."
+    #
+    # That was honest while the row was marked skipped. It stopped being honest
+    # when the row became required: No printed the word skipping and then listed
+    # the step as unfinished, on this run and on every run after it. Nothing was
+    # skipped and nothing could be.
+    #
+    # Participants register and pay before they arrive, so the question had one
+    # correct answer, and the other answer cost a keypress and a false promise.
+    # The sign-in starts on its own now. An owner whose plan is already linked
+    # never reaches this function at all - Zo is asked directly, and the row
+    # reads ok.
 
     # The scripts have to be on the Zo before one of them can answer.
     #
@@ -4491,7 +4508,9 @@ connect_zo_ai_provider() {
         info '        Type that into the page when it asks.'
     fi
 
-    if ask_yes_no 'Open that page in your browser now?'; then open "$url"; fi
+    # Opened, not offered - the same as Windows already does. The sign-in only
+    # happens on that page.
+    open "$url" 2>/dev/null || info 'Could not open your browser. The address is above.'
 
     if [ "$(json_field "$answer" 'data.needsCodeBack === true')" = "true" ]; then
         # Claude hands a code back through the browser, which has to reach the

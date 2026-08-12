@@ -995,6 +995,45 @@ assert $? 'the sign-in steps ask whether they have signed in'
 grep -q "no_label='No, I will wait'" "$SCRIPT_DIR/vimigo-setup.sh"
 assert $? 'and No means waiting, not moving on'
 
+printf '\n\033[36mQuestions with only one answer are not asked\033[0m\n'
+
+# A question the owner can only answer one way is not a choice, it is a keypress
+# - and several of these were worse than that, because the wrong answer printed
+# a reassurance that was no longer true.
+#
+# Matched on the call, never on the phrase. Every one of these removals left a
+# comment behind saying what used to be there and why it went, so grepping for
+# the wording alone would fail against the explanation - a test that can only
+# pass by deleting its own reasoning. That mistake has been made twice here
+# already.
+grep -q 'ask_yes_no "Do you have a paid' "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'the plan step stops asking whether they pay for a plan'
+grep -q "info 'Starting the sign-in" "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'and starts the sign-in on its own instead'
+
+grep -q "ask_yes_no 'Ask your Mac to install it now" "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'Git is not asked about, because Apple asks in its own window'
+grep -q "ask_yes_no 'Install Homebrew now" "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'nor Homebrew, which every caller needed anyway'
+
+# Pages the owner cannot get past without: opened, not offered.
+grep -q 'ask_yes_no "Open the .* download page' "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'a failed install opens the download page rather than offering to'
+grep -q "ask_yes_no 'Open the Zo sign-up page now" "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'and no account means the sign-up page opens'
+grep -q "ask_yes_no 'Open that page in your browser now" "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'and the plan sign-in page opens, as it already did on Windows'
+# Asserted on what the models step now does, not on the absence of its old
+# question: an optional offer to open an employee's page is worded identically,
+# so the wording alone cannot tell a removal from a survivor.
+grep -q "info 'Opening that page for you now.'" "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'and the models page opens, since five instructions were just given for it'
+
+# The other side of it, so this stays a sweep of pointless questions rather than
+# of questions. A real fork with two different outcomes is still asked.
+grep -q "ask_yes_no 'Do you already have a Zo account?'" "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'a real choice - account or no account - is still put to the owner'
+
 printf '\n\033[36mThe setup starts without being asked to\033[0m\n'
 
 # The first screen no longer asks permission to do the thing it was opened to
