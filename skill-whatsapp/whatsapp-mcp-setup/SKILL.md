@@ -27,7 +27,11 @@ line comes straight back as "command not found".
 irm https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-whatsapp-windows.ps1 | iex
 ```
 
-Not ready for Mac yet. Ask Vimigo, and we will send you the line as soon as it is.
+**Mac — in Terminal**, under bash or zsh.
+
+```
+curl -fsSL https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-whatsapp-mac.sh | bash
+```
 
 A page opens in their browser with a square to scan. Tell them:
 
