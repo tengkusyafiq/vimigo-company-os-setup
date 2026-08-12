@@ -1,0 +1,283 @@
+# Builds the macOS WhatsApp release zip on a GitHub-hosted Mac, so that
+# shipping the macOS half never waits on a physical Mac being switched on.
+#
+# WHERE THIS BELONGS. This file is authored here, but it is meant to run in
+# the PUBLIC repository tengkusyafiq/vimigo-company-os-setup, where macOS
+# runner minutes are free. scripts/publish-release.py copies both this file and
+# scripts/build-whatsapp.sh into dist/public, so they arrive there together.
+# The build script looks for the setup script in both this repository's layout
+# ("scripts/setup/Vimigo files/") and the published one ("Vimigo files/"), and
+# for the repair skill in both "scripts/public-skill-whatsapp/" and the
+# published "skill-whatsapp/", so the same two files work in either place.
+#
+# WHAT IT DOES NOT DO. It does not create a release and it does not upload an
+# asset: permissions stay read-only and no secret beyond the default
+# GITHUB_TOKEN is involved. It produces a build artifact; publishing it is
+# Task 13's job.
+name: Build macOS WhatsApp binaries
+
+# workflow_dispatch and NOTHING else. No push, no pull_request, no schedule.
+#
+# A trigger that fires by itself rebuilds the zip, which changes the zip's
+# SHA256, which silently invalidates the pin baked into the published
+# one-liners - and nobody finds out until a participant's install refuses the
+# download it just fetched. Audit 13.2 calls that a total event failure that
+# stays invisible until Friday morning. One trigger, pressed on purpose.
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_sha:
+        description: 'Upstream commit to build. Leave blank to use the pin in this file.'
+        required: false
+        default: ''
+      upstream_repo:
+        description: 'Upstream clone URL. Leave blank to use the pin in this file. Use this to build the fork.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  # -------------------------------------------------------------------------
+  # THE UPSTREAM PIN - the single obvious place, for this workflow.
+  #
+  # KEEP IN STEP WITH:
+  #   scripts/build-whatsapp.ps1   lines 38-39  ($UpstreamSha / $UpstreamUrl)
+  #   scripts/build-whatsapp.sh    the UPSTREAM_SHA / UPSTREAM_URL constants
+  #
+  # A fork of whatsapp-mcp-go is expected, to land OWNER_MODE. When it does,
+  # the URL changes in all three places or the Windows and macOS halves of the
+  # same release get built from different source. The `upstream_repo` and
+  # `upstream_sha` inputs above exist so a one-off build can be pointed at the
+  # fork WITHOUT editing a file - but the day the fork becomes the real
+  # upstream, edit all three.
+  # -------------------------------------------------------------------------
+  UPSTREAM_URL: 'https://github.com/tengkusyafiq/whatsapp-mcp-go.git'
+  UPSTREAM_SHA: '913934ab801d44327fe3eeb94d89a96d318183e9'
+
+  # Both modules declare `go 1.25.0`. Pinned exactly, like ci.yml does, so a
+  # toolchain bump is a visible edit rather than something that happens to the
+  # release on a Tuesday.
+  GO_VERSION: '1.25.0'
+
+  # The name scripts/public-install-whatsapp-mac.sh downloads. If this ever
+  # stops matching the RELEASE line in that file, every Mac participant gets a
+  # 404 from the one command they were given.
+  ASSET_NAME: 'vimigo-whatsapp-mac-v1.0.zip'
+
+jobs:
+  build:
+    # macos-latest is the free Apple Silicon image. That is deliberate, not
+    # incidental:
+    #
+    #   - Both Go modules pin mattn/go-sqlite3, which is cgo, so CGO_ENABLED=1
+    #     and a real Apple toolchain are non-negotiable. A Linux runner with a
+    #     fake cross-compiler is not an option.
+    #   - arm64 is built natively here. x86_64 is CROSS-compiled with
+    #     `clang -arch x86_64`: the macOS SDK ships both slices, so Apple's
+    #     clang targets Intel with nothing extra installed. GitHub's Intel
+    #     images exist under their own x64 labels, but using one would mean two
+    #     jobs, an artifact hand-off between them and a third job to lipo the
+    #     halves together - for a result this job produces on its own.
+    #   - The two slices are then lipo'd into one universal binary, because a
+    #     participant must never be asked which Mac they own.
+    #
+    # The x86_64 slice therefore cannot be EXECUTED on this runner (arm64
+    # runners have no Rosetta). lipo -archs, otool and codesign --verify are
+    # what prove it is sound here; a human on an Intel Mac is what finally runs
+    # it, in Task 11 Step 6, against THIS artifact and not a local rebuild.
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Before Go is even installed, let alone before a ten-minute cgo build.
+      #
+      # The release zip is the only thing the one-liner downloads. A zip
+      # without vimigo-whatsapp.sh in it means every participant waits through
+      # a ~28 MB download and then reads "That download did not contain the
+      # setup." - the highest-risk finding in the whole audit, because it is a
+      # 100% failure at the door with nothing to fall back to. build-whatsapp.sh
+      # refuses this too; this step exists so the Actions UI names the problem
+      # in its step title instead of burying it in build output.
+      - name: The setup script must be in the tree
+        run: |
+          set -eu
+          for candidate in \
+            "scripts/setup/Vimigo files/vimigo-whatsapp.sh" \
+            "Vimigo files/vimigo-whatsapp.sh"
+          do
+            if [ -f "$candidate" ]; then
+              echo "found: $candidate"
+              exit 0
+            fi
+          done
+          echo "STOPPED: vimigo-whatsapp.sh is not in this checkout." >&2
+          echo "" >&2
+          echo "Shipping the zip without it gives every Mac participant a ~28 MB" >&2
+          echo "download and then 'That download did not contain the setup.'" >&2
+          echo "Nothing is built until the setup script is here (Task 11)." >&2
+          exit 1
+
+      # The other file that only reaches a laptop by riding inside the zip.
+      # The setup copies it into the folder every AI app on the Mac reads, and
+      # it is what stops an assistant improvising at an owner whose WhatsApp
+      # has stopped working. build-whatsapp.sh refuses without it too; this
+      # step exists so the Actions UI names it in the step title.
+      - name: The repair skill must be in the tree
+        run: |
+          set -eu
+          for candidate in \
+            "scripts/public-skill-whatsapp/whatsapp-mcp-setup/SKILL.md" \
+            "skill-whatsapp/whatsapp-mcp-setup/SKILL.md"
+          do
+            if [ -f "$candidate" ]; then
+              echo "found: $candidate"
+              exit 0
+            fi
+          done
+          echo "STOPPED: the repair skill is not in this checkout." >&2
+          echo "" >&2
+          echo "Without it an owner whose WhatsApp breaks is talking to an" >&2
+          echo "assistant that has never heard of the repair verbs." >&2
+          exit 1
+
+      # The inputs are optional; blank means "use the pin at the top of this
+      # file". Written to $GITHUB_ENV under the names build-whatsapp.sh already
+      # reads, so no later step has to interpolate a value into a shell script.
+      - name: Resolve the upstream pin
+        env:
+          INPUT_SHA: ${{ inputs.upstream_sha }}
+          INPUT_REPO: ${{ inputs.upstream_repo }}
+        run: |
+          set -eu
+          sha="${INPUT_SHA:-$UPSTREAM_SHA}"
+          url="${INPUT_REPO:-$UPSTREAM_URL}"
+
+          # A short sha, a branch name or a tag would all clone and check out
+          # happily, and then be written into the manifest as if it were the
+          # full pin. build-whatsapp.sh re-checks HEAD against this after the
+          # checkout; this catches the typo before the clone.
+          case "$sha" in
+            *[!0-9a-f]* | "") echo "not a full lowercase sha: $sha" >&2; exit 1 ;;
+          esac
+          if [ ${#sha} -ne 40 ]; then
+            echo "a commit sha is 40 characters; got ${#sha}: $sha" >&2
+            exit 1
+          fi
+          case "$url" in
+            https://github.com/*.git) : ;;
+            *) echo "refusing an upstream that is not an https github clone url: $url" >&2; exit 1 ;;
+          esac
+
+          echo "UPSTREAM_SHA_OVERRIDE=$sha" >> "$GITHUB_ENV"
+          echo "UPSTREAM_URL_OVERRIDE=$url" >> "$GITHUB_ENV"
+          echo "building $url at $sha"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          # setup-go caches by default and looks for a go.sum next to the
+          # workflow's working directory. There is none: the Go modules are
+          # cloned into dist/whatsapp/src by the build script, which has not
+          # run yet, so leaving the default on fails the step outright.
+          cache: false
+
+      - name: Build universal binaries
+        run: bash scripts/build-whatsapp.sh
+
+      # Hashes match the manifest, both architectures are present in every
+      # binary, nothing outside /usr/lib and /System is imported, the ad-hoc
+      # signature is intact, and the zip carries the setup script and the
+      # repair skill.
+      - name: Verify
+        run: bash scripts/build-whatsapp.sh --verify
+
+      # Proves the arm64 slice genuinely executes on a Mac - the thing lipo
+      # and otool cannot tell you.
+      #
+      # NOT asserted: a non-zero exit status. At the pinned commit the bridge
+      # handles a bad config with `logger.Errorf(...)` followed by a plain
+      # `return` out of main(), so it exits ZERO. Asserting non-zero here would
+      # fail a perfectly good binary; asserting on exit status alone would
+      # anyway prove nothing, since a crash and a clean refusal look the same
+      # from outside. What is asserted is that it got far enough to print its
+      # own startup line AND far enough to reject the empty environment by
+      # name.
+      #
+      # Run from a temp directory: the bridge creates ./store before it reads
+      # any config, and that must not land in the workspace and get zipped.
+      - name: Prove the binary runs
+        timeout-minutes: 3
+        run: |
+          set -eu
+          # The project's mktemp idiom: BSD mktemp is not GNU mktemp, and a
+          # bare -d is not portable across every macOS this has to survive.
+          work="$(mktemp -d 2>/dev/null || mktemp -d -t vimigo-wa)"
+          cp dist/whatsapp/stage-mac/whatsapp-bridge "$work/whatsapp-bridge"
+          cd "$work"
+
+          # env -i so a stray WHATSAPP_* on the runner cannot let it past the
+          # config check and leave it waiting on a socket forever.
+          set +e
+          env -i HOME="$HOME" PATH="$PATH" ./whatsapp-bridge > out.txt 2>&1
+          status=$?
+          set -e
+          echo "exit status: $status"
+          cat out.txt
+
+          grep -q 'Starting WhatsApp client' out.txt || {
+            echo "the bridge never printed its own startup line - it did not run" >&2
+            exit 1
+          }
+          grep -q 'Failed to load config: missing WHATSAPP_' out.txt || {
+            echo "the bridge did not refuse an empty environment by name" >&2
+            exit 1
+          }
+          echo "the arm64 slice runs and refuses an empty environment cleanly"
+
+      # The zip's SHA256 is what Task 13 pins into both published one-liners.
+      # Printed into the run summary so it is readable without downloading
+      # anything, and so a rebuild that forgets to re-pin is obvious.
+      - name: Summary
+        run: |
+          set -eu
+          zip_sha="$(shasum -a 256 "dist/whatsapp/$ASSET_NAME" | awk '{print $1}')"
+          {
+            echo "## macOS WhatsApp build"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| upstream | \`$UPSTREAM_URL_OVERRIDE\` |"
+            echo "| commit | \`$UPSTREAM_SHA_OVERRIDE\` |"
+            echo "| asset | \`$ASSET_NAME\` |"
+            echo "| zip sha256 | \`$zip_sha\` |"
+            echo ""
+            echo "Pin that sha256 into \`ZIP_SHA256\` in the published mac one-liner."
+            echo ""
+            echo "**Downloading this artifact gives you a wrapper zip.** GitHub zips"
+            echo "every artifact, so you get \`vimigo-whatsapp-mac-build.zip\` with"
+            echo "\`$ASSET_NAME\` inside it. The release asset is the FILE INSIDE."
+            echo "Uploading the wrapper hands every participant a zip containing a zip,"
+            echo "and the one-liner finds no setup in it."
+            echo ""
+            echo '```json'
+            cat dist/whatsapp/manifest-mac.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Named so it can never be mistaken for the release asset itself. See the
+      # wrapper-zip warning in the summary above.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vimigo-whatsapp-mac-build
+          path: |
+            dist/whatsapp/${{ env.ASSET_NAME }}
+            dist/whatsapp/manifest-mac.json
+          if-no-files-found: error
+          retention-days: 30
+          # The payload is already a zip. Recompressing it inside the artifact
+          # wrapper buys nothing and costs minutes on ~28 MB.
+          compression-level: 0
