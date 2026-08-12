@@ -1642,9 +1642,21 @@ function Repair-HcsServices {
     Write-Warn 'Windows will ask for permission, and the computer must restart afterwards.'
     Write-Host ''
 
-    if (-not (Read-YesNo -Question 'Turn those Windows features on now?' -YesLabel 'Yes, turn them on' -NoLabel 'Skip this for now')) {
-        Write-Info 'Skipped. Cowork will stay greyed out until this is done.'
-        return $false
+    # Asked until it is agreed to, rather than offered as a choice. The training
+    # runs in Cowork, and an owner who arrives with the button greyed out cannot
+    # take part - so "no" here means "not this second", not "carry on without
+    # it".
+    #
+    # It still has to be asked rather than assumed: this is the one step that
+    # wants administrator permission and a restart, and taking that without a
+    # yes would be worse than any amount of rigidity. Closing the window remains
+    # the way out, and costs nothing.
+    while (-not (Read-YesNo -Question 'Turn those Windows features on now?' `
+            -YesLabel 'Yes, turn them on' -NoLabel 'Not yet')) {
+        Write-Host ''
+        Write-Info 'This one is needed - Cowork is what the training uses, and'
+        Write-Info 'its button stays greyed out until these are on.'
+        Write-Info 'Close this window if you would rather do it another time.'
     }
 
     # One elevated run for all three, so the owner sees a single prompt rather
@@ -1705,6 +1717,44 @@ function Test-ChatGptSignedIn {
     } catch {
         return $false
     }
+}
+
+function Test-ClaudeSignedIn {
+    <#
+        Whether an account has ever been attached to this copy of Claude
+        Desktop, which is as close to "signed in" as this can honestly get -
+        the session itself is encrypted and cannot be read from here.
+
+        Signing in registers the device against an account id, and neither of
+        these files exists before that happens. "Has it been opened" was the
+        old answer and is not the same question: an owner can open the app,
+        look at the login screen, and press Yes.
+
+        Undocumented files, so a miss is possible, and a miss is treated as
+        "not yet" rather than as a failure. That costs the owner a keypress.
+        Believing them instead costs the whole setup: the Zo connection is
+        written into a config the app only keeps for a logged-in user, so an
+        unsigned app looks perfectly done and has no Zo in it.
+    #>
+    $dir = Split-Path -Parent (Get-ClaudeConfigPath)
+    if (-not (Test-Path -LiteralPath $dir)) { return $false }
+
+    $registry = Join-Path $dir 'ant-device-registry.json'
+    if (Test-Path -LiteralPath $registry) {
+        try {
+            $raw = Get-Content -LiteralPath $registry -Raw
+            if ($raw -match '[0-9a-f]{8}-[0-9a-f]{4}-') { return $true }
+        } catch { }
+    }
+
+    $cowork = Join-Path $dir 'cowork-enabled-cli-ops.json'
+    if (Test-Path -LiteralPath $cowork) {
+        try {
+            if ((Get-Content -LiteralPath $cowork -Raw) -match 'ownerAccountId') { return $true }
+        } catch { }
+    }
+
+    return $false
 }
 
 function Test-ClaudeDesktopOpened {
@@ -2058,8 +2108,16 @@ function Get-AllChecks {
     } elseif (-not $wantClaude) {
         $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'skipped' `
             -Detail "not needed - $because ChatGPT"))
+    } elseif (Test-ClaudeSignedIn) {
+        $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'ok' `
+            -Detail 'installed and signed in'))
     } elseif (Test-ClaudeDesktopOpened) {
-        $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'ok' -Detail 'installed'))
+        # Opened and still not signed in. Worth saying apart from "never
+        # opened", because the owner has already done the part they remember
+        # doing and would read one message as the setup not noticing.
+        $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'needs-you' `
+            -Detail 'opened, not signed in' `
+            -Note 'sign in - nothing below works until you do'))
     } else {
         $checks.Add((New-Check -Key 'claude-app' -Title 'Claude Desktop' -Status 'needs-you' `
             -Detail 'never opened yet' -Note 'open it once and sign in'))
@@ -2198,14 +2256,22 @@ function Get-AllChecks {
             $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'ok' `
                 -Detail 'signed in - finish on the Zo website'))
         } else {
-            # Optional in the note and compulsory in the arithmetic, until now.
-            # These two rows are the only ones an owner cannot clear by doing
-            # anything on this computer - they need a paid plan - so counting
-            # them as outstanding meant anyone paying for neither, or for only
-            # one, never saw the setup finish. Skipped, they are still on the
-            # list saying what they would save.
-            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'skipped' `
-                -Detail 'not signed in' -Note 'optional, but saves paying per use'))
+            # Required, and outstanding until they are done.
+            #
+            # These were marked skipped, on the reasoning that an owner cannot
+            # clear them from this computer - they need a paid plan - so
+            # counting them as outstanding meant anybody paying for neither
+            # never saw the setup finish. That reasoning assumed the plan was
+            # optional. It is not: participants are told to register and to pay
+            # before they arrive, so an unlinked plan is an unfinished step
+            # rather than somebody declining to buy something.
+            #
+            # The practical difference is the whole point. Skipped counts as
+            # done, so the setup never offered these rows at all - an owner who
+            # had paid and simply not linked it was never asked, and found out
+            # at the event.
+            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'missing' `
+                -Detail 'not signed in' -Note 'sign in with the plan you paid for'))
         }
     }
 
@@ -5781,7 +5847,9 @@ function Test-CheckNow {
         'chatgpt-mcp' { $result.Done = (Test-CodexMcpConfigured); return $result }
         # Signed in, not merely installed. Both are answered on this computer,
         # so neither needs Zo and neither should fall through to the ask below.
-        'claude-app'  { $result.Done = ((Test-ClaudeDesktopInstalled) -and (Test-ClaudeDesktopOpened)); return $result }
+        # Signed in, not merely opened. Opened was what this asked before, and
+        # an owner can open the app, look at the login screen, and press Yes.
+        'claude-app'  { $result.Done = ((Test-ClaudeDesktopInstalled) -and (Test-ClaudeSignedIn)); return $result }
         'chatgpt-app' { $result.Done = ((Test-ChatGptDesktopInstalled) -and (Test-ChatGptSignedIn)); return $result }
         # Answered here too, though nothing calls it today - hermes-app is not
         # a step the owner finishes elsewhere. Listed so that if it ever joins
@@ -5835,14 +5903,33 @@ function Wait-ForOwnerStep {
     #>
     param([object]$Check)
 
+    # Nothing here can be skipped, and nothing here is offered as if it could
+    # be. "No" means "not yet" and asks again.
+    #
+    # Only the steps the owner must finish themselves ever reach this function,
+    # and for v1 every one of them is required: participants are told to
+    # register and to pay for their plans before the event, so a plan that is
+    # not linked is an unfinished step rather than a choice not to buy
+    # something. The sign-ins were never optional either - the Zo connection is
+    # written into a config the app only keeps for a logged-in user, so an owner
+    # who skips one ends up with a setup that looks complete and has no Zo in
+    # it, which is the single most common way a laptop reaches the room broken.
+    #
+    # The way out is closing the window, not a key that quietly moves on.
+    # Nothing is lost by that: the setup re-checks everything when it restarts.
+    $question = if ($Check.Key -in @('claude-app', 'chatgpt-app')) { 'Have you signed in?' }
+                else { 'Have you finished that step?' }
+
     Write-Host ''
     Write-Info 'Take your time. Nothing else will happen until you are ready.'
 
     while ($true) {
-        if (-not (Read-YesNo -Question 'Have you finished that step?' -YesLabel 'Yes, check it' -NoLabel 'Skip this for now')) {
+        if (-not (Read-YesNo -Question $question -YesLabel 'Yes' -NoLabel 'No, I will wait')) {
             Write-Host ''
-            Write-Info 'Skipped. You can come back to it any time.'
-            return $false
+            Write-Info 'No rush. This will wait here until you have.'
+            Write-Info 'Close this window if you need to stop - running the setup'
+            Write-Info 'again picks up exactly where it left off.'
+            continue
         }
 
         Write-Host ''
@@ -5853,8 +5940,13 @@ function Wait-ForOwnerStep {
             return $true
         }
         if ($null -eq $result.Done) {
-            Write-Warn 'Could not check that just now, so it has been left as it is.'
-            return $false
+            # Not knowing is not the same as done, and never lets a step
+            # through. It says so and asks again, rather than marking something
+            # settled on the strength of an answer it never got.
+            Write-Warn 'Could not check that just now.'
+            Write-Info 'Make sure the app is open and you are signed in, then'
+            Write-Info 'we will try again.'
+            continue
         }
 
         Write-Host ''
@@ -5883,16 +5975,13 @@ function Wait-ForOwnerStep {
             Write-Host ''
         }
 
-        # Said plainly, because it is true and because someone who thinks they
-        # are stuck will close the window rather than press N.
-        Write-Info 'These are recommendations, not requirements. Skipping is'
-        Write-Info 'fine and you can finish them whenever you like.'
-
-        if (-not (Read-YesNo -Question 'What would you like to do?' -YesLabel 'Check again' -NoLabel 'Skip and move on')) {
-            Write-Host ''
-            Write-Info 'Left as it is. Moving on.'
-            return $false
-        }
+        # It used to say "these are recommendations, not requirements" here and
+        # offer a key to move on. That was true of an earlier build and is not
+        # true of this one: every step that reaches this function is required,
+        # and telling somebody otherwise is how a laptop arrives in the room
+        # looking finished with no Zo in it.
+        Write-Info 'This one cannot be skipped - the rest of the setup needs it.'
+        Write-Info 'Take as long as you need, and we will keep checking.'
     }
 }
 

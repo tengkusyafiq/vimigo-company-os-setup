@@ -447,11 +447,14 @@ warn()  { printf '      %s%s%s\n' "$C_YELLOW" "$1" "$C_RESET"; }
 bad()   { printf '      %s%s%s\n' "$C_RED" "$1" "$C_RESET"; }
 
 ask_yes_no() {
-    local question="$1" answer
+    # $1 = question, $2 = label for Y, $3 = label for N. The labels are optional
+    # and default to Yes and No, so every existing caller is unchanged.
+    local question="$1" yes_label="${2:-Yes}" no_label="${3:-No}" answer
     while true; do
         printf '\n      %s%s%s\n' "$C_WHITE" "$question" "$C_RESET"
-        printf '         %s Y %s%s Yes      %s N %s%s No%s\n' \
-            "$C_TEAL" "$C_RESET" "$C_GREY" "$C_CORAL" "$C_RESET" "$C_GREY" "$C_RESET"
+        printf '         %s Y %s%s %-8s %s N %s%s %s%s\n' \
+            "$C_TEAL" "$C_RESET" "$C_GREY" "$yes_label" \
+            "$C_CORAL" "$C_RESET" "$C_GREY" "$no_label" "$C_RESET"
         printf '      %s> %s' "$C_PURPLE" "$C_RESET"
         read -r answer || return 1
         case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
@@ -863,6 +866,44 @@ app_installed() {
 
 hermes_installed() { app_installed "$HERMES_APP_NAME"; }
 
+chatgpt_signed_in() {
+    # A real answer rather than an inference: ChatGPT writes its tokens to
+    # ~/.codex/auth.json once signed in, and the same file on the same path
+    # answers this on Windows.
+    local auth="$HOME/.codex/auth.json"
+    [ -s "$auth" ] || return 1
+    # Either a signed-in session or an API key counts as usable.
+    grep -qE '"tokens"|OPENAI_API_KEY' "$auth" 2>/dev/null
+}
+
+claude_signed_in() {
+    # Claude Desktop's session is encrypted and cannot be read from here, so
+    # this asks the next best question: has an account ever been attached to
+    # this copy? Signing in registers the device against an account id, and
+    # neither of these files exists before that happens.
+    #
+    # Checked because an owner can answer "yes, I have signed in" while looking
+    # at a login screen, and the Zo connection is written into a config the app
+    # only keeps for a logged-in user - so believing them produces a laptop
+    # that looks finished and has no Zo in it. That is the single most common
+    # way one arrives broken.
+    #
+    # Undocumented files, so a miss is possible and is treated as "not yet"
+    # rather than as a failure: the owner is asked again, which costs a
+    # keypress, where the other way costs the whole setup.
+    local dir="$HOME/Library/Application Support/Claude"
+    [ -d "$dir" ] || return 1
+    if [ -s "$dir/ant-device-registry.json" ] &&
+       grep -qE '[0-9a-f]{8}-[0-9a-f]{4}-' "$dir/ant-device-registry.json" 2>/dev/null; then
+        return 0
+    fi
+    if [ -s "$dir/cowork-enabled-cli-ops.json" ] &&
+       grep -q 'ownerAccountId' "$dir/cowork-enabled-cli-ops.json" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
 event_skill_installed() {
     # True only for the halves this owner actually needs.
     #
@@ -1021,22 +1062,31 @@ collect_checks() {
     # to somebody who has just said they want Claude.
     if [ -n "$chosen" ]; then because='you chose'; else because='you have'; fi
 
+    # Installed and signed in are different rows in everything but name, and the
+    # difference is the one that bites: the Zo connection is written into a
+    # config each app only keeps for a logged-in user, so an installed-but-not-
+    # signed-in app looks perfectly done and has no Zo in it. Said separately so
+    # the owner can see which half is missing.
     checking 'Claude Desktop'
     if [ "$WANT_CLAUDE" = 'no' ]; then
         CHECKS+=("claude-app|Claude Desktop|skipped|not needed - $because ChatGPT|")
-    elif [ "$HAS_CLAUDE" = 'yes' ]; then
-        CHECKS+=("claude-app|Claude Desktop|ok|installed|")
-    else
+    elif [ "$HAS_CLAUDE" != 'yes' ]; then
         CHECKS+=("claude-app|Claude Desktop|missing|not installed|")
+    elif claude_signed_in; then
+        CHECKS+=("claude-app|Claude Desktop|ok|installed and signed in|")
+    else
+        CHECKS+=("claude-app|Claude Desktop|missing|installed, not signed in|open it and sign in - nothing below works until you do")
     fi
 
     checking 'ChatGPT Desktop'
     if [ "$WANT_CHATGPT" = 'no' ]; then
         CHECKS+=("chatgpt-app|ChatGPT Desktop|skipped|not needed - $because Claude|")
-    elif [ "$HAS_CHATGPT" = 'yes' ]; then
-        CHECKS+=("chatgpt-app|ChatGPT Desktop|ok|installed|")
-    else
+    elif [ "$HAS_CHATGPT" != 'yes' ]; then
         CHECKS+=("chatgpt-app|ChatGPT Desktop|missing|not installed|")
+    elif chatgpt_signed_in; then
+        CHECKS+=("chatgpt-app|ChatGPT Desktop|ok|installed and signed in|")
+    else
+        CHECKS+=("chatgpt-app|ChatGPT Desktop|missing|installed, not signed in|open it and sign in - nothing below works until you do")
     fi
 
     if token_looks_valid "$(get_zo_token)"; then
@@ -1122,20 +1172,27 @@ collect_checks() {
     claude_state="$(zo_field 'data.aiProviders?.claude?.loggedIn === true')"
     codex_state="$(zo_field 'data.aiProviders?.codex?.loggedIn === true')"
     #
-    # Optional in the note and compulsory in the arithmetic, until now. These
-    # two rows are the only ones an owner cannot clear by doing anything on
-    # this computer - they need a paid plan - so counting them as outstanding
-    # meant anyone paying for neither, or for only one, never saw the setup
-    # finish. Skipped, they are still on the list saying what they would save.
+    # Required, and outstanding until they are done.
+    #
+    # These were marked skipped, on the reasoning that an owner cannot clear
+    # them from this computer - they need a paid plan - so counting them as
+    # outstanding meant anybody paying for neither never saw the setup finish.
+    # That reasoning assumed the plan was optional. It is not: participants are
+    # told to register and to pay before they arrive, so an unlinked plan is an
+    # unfinished step rather than somebody declining to buy something.
+    #
+    # The practical difference is the whole point. Skipped counts as done, so
+    # the setup never offered these rows at all - an owner who had paid and
+    # simply not linked it was never asked, and found out at the event.
     if [ "$claude_state" = "true" ]; then
         CHECKS+=("zo-claude-code|Claude plan on Zo|ok|signed in|")
     else
-        CHECKS+=("zo-claude-code|Claude plan on Zo|skipped|not signed in|optional, but saves paying per use")
+        CHECKS+=("zo-claude-code|Claude plan on Zo|missing|not signed in|sign in with the plan you paid for")
     fi
     if [ "$codex_state" = "true" ]; then
         CHECKS+=("zo-codex|ChatGPT plan on Zo|ok|signed in|")
     else
-        CHECKS+=("zo-codex|ChatGPT plan on Zo|skipped|not signed in|optional, but saves paying per use")
+        CHECKS+=("zo-codex|ChatGPT plan on Zo|missing|not signed in|sign in with the plan you paid for")
     fi
 
     # Order from here on follows how a business actually gets going: teach it
@@ -1595,10 +1652,16 @@ install_git_directly() {
     printf '\n'
     warn 'It is around a gigabyte, so it is worth being on wifi.'
     printf '\n'
-    ask_yes_no 'Ask your Mac to install it now?' || {
-        warn 'Skipped for now. You can come back to this any time.'
-        return 1
-    }
+    # Asked until it is agreed to, rather than offered as a choice. Git is one
+    # of the three tools the rest of the setup is built on, so declining it
+    # does not produce a smaller setup - it produces one that cannot finish.
+    # Closing the window is still the way out, and costs nothing: the setup
+    # re-checks everything when it starts again.
+    while ! ask_yes_no 'Ask your Mac to install it now?' 'Yes' 'Not yet'; do
+        printf '\n'
+        info 'This one is needed - the setup cannot finish without it.'
+        info 'Close this window if you would rather do it another time.'
+    done
 
     xcode-select --install >/dev/null 2>&1
 
@@ -4627,8 +4690,12 @@ check_now() {
         chatgpt-mcp) codex_mcp_configured  && printf 'true' || printf 'false'; return 0 ;;
         # Answered on this Mac, so neither needs Zo and neither should fall
         # through to the ask below.
-        claude-app)  app_installed "Claude"  && printf 'true' || printf 'false'; return 0 ;;
-        chatgpt-app) app_installed "ChatGPT" && printf 'true' || printf 'false'; return 0 ;;
+        # Installed AND signed in, because installed alone was never the
+        # question. A Mac used to answer this on installation only, which meant
+        # an owner who pressed Yes at the sign-in screen without signing in was
+        # marked done - on the platform that could not catch it.
+        claude-app)  app_installed "Claude"  && claude_signed_in  && printf 'true' || printf 'false'; return 0 ;;
+        chatgpt-app) app_installed "ChatGPT" && chatgpt_signed_in && printf 'true' || printf 'false'; return 0 ;;
         # Answered here too, though nothing calls it today - hermes-app is not
         # a step the owner finishes elsewhere. Listed so that if it ever joins
         # that list, it cannot fall through to the Zo questions below and come
@@ -4656,13 +4723,36 @@ wait_for_owner_step() {
     # $1 = key, $2 = friendly title.
     # Holds until the owner says they are finished, then checks whether they
     # really are. Their word alone never marks anything done.
+    # Nothing here can be skipped, and nothing here is offered as if it could
+    # be. "No" means "not yet" and asks again.
+    #
+    # Only the steps the owner must finish themselves ever reach this function,
+    # and for v1 every one of them is required: participants are told to
+    # register and to pay for their plans before the event, so a plan that is
+    # not linked is an unfinished step rather than a choice not to buy
+    # something. The sign-ins were never optional either - the Zo connection is
+    # written into a config the app only keeps for a logged-in user, so an owner
+    # who skips one ends up with a setup that looks complete and has no Zo in
+    # it, which is the single most common way a laptop reaches the room broken.
+    #
+    # The way out is closing the window, not a key that quietly moves on.
+    # Nothing is lost by that: the setup re-checks everything when it restarts.
+    local must_finish='yes' question='Have you finished that step?'
+    local no_label='No, I will wait'
+    case "$1" in
+        claude-app|chatgpt-app) question='Have you signed in?' ;;
+    esac
+
     printf '\n'
     info 'Take your time. Nothing else will happen until you are ready.'
 
     while true; do
-        if ! ask_yes_no 'Have you finished that step?'; then
-            printf '\n'; info 'Skipped for now. You can come back to it any time.'
-            return 1
+        if ! ask_yes_no "$question" 'Yes' "$no_label"; then
+            printf '\n'
+            info 'No rush. This will wait here until you have.'
+            info 'Close this window if you need to stop - running the setup'
+            info 'again picks up exactly where it left off.'
+            continue
         fi
 
         printf '\n'; info 'Checking...'
@@ -4671,7 +4761,14 @@ wait_for_owner_step() {
         case "$result" in
             true)  good "$2 is done."; return 0 ;;
             false) ;;
-            *)     warn 'Could not check that just now, so it has been left as it is.'; return 1 ;;
+            *)
+                # Not knowing is not the same as done, and never lets a step
+                # through. It says so and asks again, rather than marking
+                # something settled on the strength of an answer it never got.
+                warn 'Could not check that just now.'
+                info 'Make sure the app is open and you are signed in, then'
+                info 'we will try again.'
+                continue ;;
         esac
 
         printf '\n'
@@ -4718,14 +4815,13 @@ EOF
                 info 'The app only reads its settings when it starts, so it has'
                 info 'to be closed completely and opened again.' ;;
         esac
-        # Said plainly, because it is true and because someone who thinks they
-        # are stuck will close the window rather than say no.
-        info 'These are recommendations, not requirements. Skipping is'
-        info 'fine and you can finish them whenever you like.'
-        if ! ask_yes_no 'Try checking again?'; then
-            info 'Left as it is. You can come back to it any time.'
-            return 1
-        fi
+        # It used to say "these are recommendations, not requirements" here and
+        # offer a key to move on. That was true of an earlier build and is not
+        # true of this one: every step that reaches this function is required,
+        # and telling somebody otherwise is how a laptop arrives in the room
+        # looking finished with no Zo in it.
+        info 'This one cannot be skipped - the rest of the setup needs it.'
+        info 'Take as long as you need, and we will keep checking.'
     done
 }
 

@@ -35,6 +35,11 @@ $script:RealGetEventSkillDest = ${function:Get-EventSkillDest}
 $script:RealGetEventChatgptDest = ${function:Get-EventChatgptDest}
 $script:RealGetEventCodexDest = ${function:Get-EventCodexDest}
 $script:RealGetEventCodexPromptDest = ${function:Get-EventCodexPromptDest}
+# Captured for the same reason as the rest: the sign-in section below points
+# Get-ClaudeConfigPath at a sandbox, and everything after it needs the real one
+# back. A stub left in place would have later tests reading a folder that only
+# exists for this run.
+$script:RealGetClaudeConfigPath = ${function:Get-ClaudeConfigPath}
 
 $script:Failures = 0
 $script:Ran = 0
@@ -829,13 +834,25 @@ try {
         if ($script:FixtureUndone) { return $zoUndone }
         return $zoFixture
     }
+    # These two rows were settled whatever happened, on the reasoning that a
+    # paid subscription is not something pressing Enter can produce. v1 reverses
+    # that: participants are told to register and to pay before they arrive, so
+    # an unlinked plan is an unfinished step rather than somebody declining to
+    # buy something - and settled meant the setup never even offered the row, so
+    # an owner who HAD paid and simply not linked it was never asked.
     $noPlanRows = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'zo-claude-code' -or $_.Key -eq 'zo-codex' })
-    Assert-True (@($noPlanRows | Where-Object { $_.Status -eq 'skipped' }).Count -eq 2) `
-        'an unsigned plan is settled, not outstanding'
+    Assert-True (@($noPlanRows | Where-Object { $_.Status -eq 'missing' }).Count -eq 2) `
+        'an unsigned plan is outstanding, not quietly settled'
     $leftNoPlans = @(Get-AllChecks 6>$null | Where-Object { $settledStates -notcontains $_.Status })
-    Assert-True ($leftNoPlans.Count -eq 0) `
-        'so paying for neither plan still reaches a finished setup'
+    Assert-True ($leftNoPlans.Count -gt 0) `
+        'so a setup with neither plan linked does not report itself finished'
     $script:FixturePlans = $true
+
+    # And the other way, so the row is reachable by doing the thing rather than
+    # being a wall.
+    $withPlans = @(Get-AllChecks 6>$null | Where-Object { $_.Key -eq 'zo-claude-code' -or $_.Key -eq 'zo-codex' })
+    Assert-True (@($withPlans | Where-Object { $_.Status -eq 'ok' }).Count -eq 2) `
+        'and signing the plans in clears both rows'
 
     Write-Host ''
     Write-Host 'The progress bar counts a settled row as done' -ForegroundColor Cyan
@@ -1415,6 +1432,59 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     Assert-True ($null -eq (Get-HermesWindowsAsset)) `
         'an unreachable feed says nothing, so the pinned version is used'
     Remove-Item -LiteralPath 'function:Invoke-WebRequest' -ErrorAction SilentlyContinue
+
+    Write-Host ''
+    Write-Host 'Installed is not signed in' -ForegroundColor Cyan
+
+    # An owner can open Claude, look at the login screen, and press Yes. Asking
+    # only whether the app had ever been opened believed them. The Zo connection
+    # is then written into a config the app only keeps for a logged-in user, so
+    # the whole thing looks perfect and has no Zo in it.
+    $signinDir = Join-Path $sandbox 'signin-claude'
+    New-Item -ItemType Directory -Path $signinDir -Force | Out-Null
+    function Get-ClaudeConfigPath { return (Join-Path $signinDir 'claude_desktop_config.json') }
+
+    Assert-True (-not (Test-ClaudeSignedIn)) 'a Claude with no account attached is not signed in'
+
+    # Signing in registers the device against an account id. Nothing writes
+    # this before that happens.
+    Set-Content -LiteralPath (Join-Path $signinDir 'ant-device-registry.json') `
+        -Value '{"0838b294-3b8f-4907-b58c-7e4c1c117bca":{"x":1}}' -Encoding ASCII
+    Assert-True (Test-ClaudeSignedIn) 'a registered device means an account has signed in'
+
+    Remove-Item -LiteralPath (Join-Path $signinDir 'ant-device-registry.json') -Force
+    Set-Content -LiteralPath (Join-Path $signinDir 'cowork-enabled-cli-ops.json') `
+        -Value '{"ownerAccountId":"0838b294-3b8f-4907-b58c-7e4c1c117bca"}' -Encoding ASCII
+    Assert-True (Test-ClaudeSignedIn) 'and so does an owner account recorded for Cowork'
+
+    # A registry with no account id in it is not an account. It is what an app
+    # that has been opened and not signed into leaves behind.
+    Set-Content -LiteralPath (Join-Path $signinDir 'cowork-enabled-cli-ops.json') `
+        -Value '{}' -Encoding ASCII
+    Assert-True (-not (Test-ClaudeSignedIn)) 'an empty record is not mistaken for an account'
+
+    ${function:Get-ClaudeConfigPath} = $script:RealGetClaudeConfigPath
+
+    Write-Host ''
+    Write-Host 'Nothing can be skipped' -ForegroundColor Cyan
+
+    # Every step that reaches Wait-ForOwnerStep is required, so none of them is
+    # offered with a key that moves on. The old wording said the opposite in as
+    # many words, on the screen where it was least true.
+    $setupSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'vimigo-setup.ps1') -Raw
+    # The printed line, not the phrase. Matching the phrase anywhere in the file
+    # matches the comment that explains why the line was taken out, which is a
+    # test that can only pass by deleting its own explanation.
+    Assert-True ($setupSource -notlike "*Write-Info 'These are recommendations*") `
+        'it no longer tells the owner that skipping is fine'
+    Assert-True ($setupSource -notlike '*Skip and move on*') `
+        'and offers no key that leaves a required step unfinished'
+    Assert-True ($setupSource -like '*cannot be skipped*') `
+        'it says plainly that the step has to be done'
+    Assert-True ($setupSource -like "*'Have you signed in?'*") `
+        'the sign-in steps ask whether they have signed in'
+    Assert-True ($setupSource -like "*-NoLabel 'No, I will wait'*") `
+        'and No means waiting, not moving on'
 
     Write-Host ''
     Write-Host 'The setup starts without being asked to' -ForegroundColor Cyan

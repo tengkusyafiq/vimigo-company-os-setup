@@ -68,6 +68,13 @@ hermes_installed() { return 0; }
 # stub, it deletes the function outright - which reads as three tests failing
 # on a defect that is entirely the fixture's.
 REAL_EVENT_SKILL_INSTALLED="$(declare -f event_skill_installed)"
+
+# Same again for the two sign-in checks, and for the same reason. A function
+# defined inside another function is still global once that function has run,
+# so the stubs in app_rows below replace these permanently the moment it is
+# called - and anything testing the real logic afterwards is testing the stub.
+REAL_CLAUDE_SIGNED_IN="$(declare -f claude_signed_in)"
+REAL_CHATGPT_SIGNED_IN="$(declare -f chatgpt_signed_in)"
 event_skill_installed() { return 0; }
 
 printf '\n\033[36mClaude Desktop config\033[0m\n'
@@ -366,6 +373,11 @@ app_rows() {
     }
     claude_mcp_configured() { [ "$TEST_HAS_CLAUDE" = 'yes' ]; }
     codex_mcp_configured() { [ "$TEST_HAS_GPT" = 'yes' ]; }
+    # Signed in as well as installed, because the rows now ask both. Left to the
+    # real functions these would read the tester's own machine, so a suite run
+    # on a laptop with no Claude account would fail on which rows appear.
+    claude_signed_in() { [ "$TEST_HAS_CLAUDE" = 'yes' ]; }
+    chatgpt_signed_in() { [ "$TEST_HAS_GPT" = 'yes' ]; }
     zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
     collect_checks >/dev/null 2>&1
     local entry out=''
@@ -403,9 +415,12 @@ app_rows no yes >/dev/null
 settled_only
 assert $? 'a ChatGPT-only machine can reach a finished setup'
 
-# The two plan rows need a paid subscription, so no amount of pressing Enter
-# clears them. Counted as outstanding they held the setup open for anyone
-# paying for neither, which is most people trying it.
+# The two plan rows were settled whatever happened, on the reasoning that a paid
+# subscription is not something pressing Enter can produce. v1 reverses that:
+# participants are told to register and to pay before they arrive, so an
+# unlinked plan is an unfinished step rather than somebody declining to buy
+# something - and settled meant the setup never even offered the row, so an
+# owner who HAD paid and simply not linked it was never asked.
 zo_verify() { ZO_ANSWER="$ZO_FIXTURE"; }
 NO_PLANS='{"ok":true,"workspaceUrl":"https://example.zo.computer",
 "aiProviders":{"claude":{"loggedIn":false},"codex":{"loggedIn":false}},
@@ -415,12 +430,22 @@ NO_PLANS='{"ok":true,"workspaceUrl":"https://example.zo.computer",
 "secondBrain":{"folders":3,"notes":7},"employees":["Joe"]}'
 zo_verify() { ZO_ANSWER="$NO_PLANS"; }
 collect_checks >/dev/null 2>&1
-printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-claude-code|Claude plan on Zo|skipped|'
-assert $? 'an unsigned Claude plan is settled, not outstanding'
-printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-codex|ChatGPT plan on Zo|skipped|'
-assert $? 'an unsigned ChatGPT plan is settled too'
+printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-claude-code|Claude plan on Zo|missing|'
+assert $? 'an unsigned Claude plan is outstanding, not quietly settled'
+printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-codex|ChatGPT plan on Zo|missing|'
+assert $? 'and so is an unsigned ChatGPT plan'
 settled_only
-assert $? 'so paying for neither plan still reaches a finished setup'
+assert_not $? 'so a setup with neither plan linked does not report itself finished'
+
+# And the other way, so the row can still be cleared by doing the thing.
+BOTH_PLANS="${NO_PLANS/\"claude\":\{\"loggedIn\":false\}/\"claude\":\{\"loggedIn\":true\}}"
+BOTH_PLANS="${BOTH_PLANS/\"codex\":\{\"loggedIn\":false\}/\"codex\":\{\"loggedIn\":true\}}"
+zo_verify() { ZO_ANSWER="$BOTH_PLANS"; }
+collect_checks >/dev/null 2>&1
+printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-claude-code|Claude plan on Zo|ok|'
+assert $? 'signing the plan in clears the row'
+printf '%s\n' "${CHECKS[@]}" | grep -q '^zo-codex|ChatGPT plan on Zo|ok|'
+assert $? 'and the same for ChatGPT, so the row is reachable rather than a wall'
 
 printf '\n\033[36mNode has to be new enough to talk to Zo\033[0m\n'
 
@@ -900,6 +925,75 @@ assert_not $? 'as is the Z key'
 # Taken off the screen, not taken away.
 grep -q '"--reset"' "$SCRIPT_DIR/vimigo-setup.sh"
 assert $? 'starting over is still reachable, by asking for it on purpose'
+
+printf '\n\033[36mInstalled is not signed in\033[0m\n'
+
+# The gap this closes: a Mac used to answer "is Claude done?" with "is Claude
+# installed?", so an owner who pressed Yes at the sign-in screen without signing
+# in was marked finished - on the platform that could not catch it. The Zo
+# connection is then written into a config the app only keeps for a logged-in
+# user, so the whole thing looks perfect and has no Zo in it.
+SIGNIN_SANDBOX="$SANDBOX/signin"
+mkdir -p "$SIGNIN_SANDBOX/Library/Application Support/Claude" "$SIGNIN_SANDBOX/.codex"
+SIGNIN_REAL_HOME="$HOME"
+HOME="$SIGNIN_SANDBOX"
+eval "$REAL_CLAUDE_SIGNED_IN"
+eval "$REAL_CHATGPT_SIGNED_IN"
+
+claude_signed_in
+assert_not $? 'a Claude with no account attached is not signed in'
+printf '{"tokens":{"x":1}}\n' > "$SIGNIN_SANDBOX/.codex/auth.json"
+chatgpt_signed_in
+assert $? 'a ChatGPT with tokens on disk is'
+printf '{}\n' > "$SIGNIN_SANDBOX/.codex/auth.json"
+chatgpt_signed_in
+assert_not $? 'and an auth file holding neither tokens nor a key is not'
+printf '{"OPENAI_API_KEY":"sk-x"}\n' > "$SIGNIN_SANDBOX/.codex/auth.json"
+chatgpt_signed_in
+assert $? 'an API key counts too, since it is equally usable'
+
+# Signing in registers the device against an account id. Nothing writes these
+# before that happens.
+printf '{"0838b294-3b8f-4907-b58c-7e4c1c117bca":{"x":1}}\n' \
+    > "$SIGNIN_SANDBOX/Library/Application Support/Claude/ant-device-registry.json"
+claude_signed_in
+assert $? 'a registered device means an account has signed in'
+rm -f "$SIGNIN_SANDBOX/Library/Application Support/Claude/ant-device-registry.json"
+printf '{"ownerAccountId":"0838b294-3b8f-4907-b58c-7e4c1c117bca"}\n' \
+    > "$SIGNIN_SANDBOX/Library/Application Support/Claude/cowork-enabled-cli-ops.json"
+claude_signed_in
+assert $? 'and so does an owner account recorded for Cowork'
+
+# An empty file is not an account. Written because a zero-byte file is what a
+# half-finished write leaves behind, and -s is the only thing standing between
+# that and a green row.
+: > "$SIGNIN_SANDBOX/Library/Application Support/Claude/cowork-enabled-cli-ops.json"
+claude_signed_in
+assert_not $? 'an empty file is not mistaken for an account'
+
+HOME="$SIGNIN_REAL_HOME"
+
+printf '\n\033[36mNothing can be skipped\033[0m\n'
+
+# Every step that reaches wait_for_owner_step is required, so none of them is
+# offered with a key that moves on. The old wording said the opposite in as many
+# words, on the one screen where it was least true.
+# The printed line, not the phrase. Matching the phrase anywhere in the file
+# matches the comment that explains why the line was taken out, which is a test
+# that can only pass by deleting its own explanation - and it passed here only
+# because that comment happens to start the sentence in lower case.
+grep -q "info 'These are recommendations" "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'it no longer tells the owner that skipping is fine'
+grep -q 'cannot be skipped' "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'it says plainly that the step has to be done'
+grep -q "ask_yes_no 'Try checking again?'" "$SCRIPT_DIR/vimigo-setup.sh"
+assert_not $? 'and offers no key that leaves a required step unfinished'
+
+# The sign-in steps ask about signing in, rather than about "that step".
+grep -q "question='Have you signed in?'" "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'the sign-in steps ask whether they have signed in'
+grep -q "no_label='No, I will wait'" "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'and No means waiting, not moving on'
 
 printf '\n\033[36mThe setup starts without being asked to\033[0m\n'
 
