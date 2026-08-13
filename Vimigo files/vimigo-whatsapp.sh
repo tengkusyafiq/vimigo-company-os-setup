@@ -1243,6 +1243,50 @@ to_e164() {
     esac
 }
 
+phone_number_plausible() {
+    # Catches the number that converts perfectly and still cannot work.
+    #
+    # A real one, measured: 601488003660 went to WhatsApp, a code came back for
+    # it, the page showed it, and the phone it was typed into was 60148003660 -
+    # one 8 out. WhatsApp does not say "wrong number". It mints the code for
+    # whoever that is, the phone sits on "Logging in..." until the session dies
+    # about three minutes later, and from the owner's side that is
+    # indistinguishable from the whole thing being broken. to_e164 cannot catch
+    # it: 01488003660 is a perfectly well-formed thing to convert.
+    #
+    # Malaysian mobiles are 60 then 1, then 8 more digits - 11 in all. 011 and
+    # 015 carry one extra. That is the entire rule, and 6014-8800-3660 breaks it
+    # by one digit.
+    #
+    # Only numbers that look like Malaysian mobiles are held to it. A business
+    # on an 03 landline, or a Singapore number, is checked for nothing more than
+    # a sane length - being strict about a numbering plan I have not measured
+    # would reject somebody real, and the square still works for anyone this
+    # turns away.
+    local number="$1"
+    local length=${#number}
+    case "$number" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    case "$number" in
+        601*)
+            [ "$length" -eq 11 ] && return 0
+            if [ "$length" -eq 12 ]; then
+                case "$number" in
+                    6011*|6015*) return 0 ;;
+                esac
+            fi
+            return 1
+            ;;
+        60*)
+            [ "$length" -ge 9 ] && [ "$length" -le 12 ] && return 0
+            return 1
+            ;;
+    esac
+    [ "$length" -ge 8 ] && [ "$length" -le 15 ] && return 0
+    return 1
+}
+
 start_pairing_loop() {
     # $1 root  $2 port  $3 api key  $4 timeout seconds  $5 phone number
     #
@@ -2481,16 +2525,29 @@ read_owner_phone_number() {
             break
         fi
 
-        # Validated by the converter that will be used on it, not by a pattern
-        # of my own - so anything accepted here is something the bridge can be
-        # given, and 'abc' cannot get through to become an empty number that
-        # fails where nobody can see it.
-        if [ -n "$answer" ] && [ -n "$(to_e164 "$answer")" ]; then
+        # Converted with the same function that will be used on it downstream,
+        # so anything accepted here is something the bridge can be given, and
+        # 'abc' cannot get through to become an empty number that fails where
+        # nobody can see it.
+        e164=''
+        [ -n "$answer" ] && e164="$(to_e164 "$answer")"
+
+        if [ -n "$e164" ] && phone_number_plausible "$e164"; then
+            # Read back, because these digits are about to leave for WhatsApp
+            # and this is the last moment anybody can catch them. The page says
+            # it too, but the page is read after the code is already in the
+            # owner's hand.
+            printf '  Sending the code to +%s.\n' "$e164"
             OWNER_PHONE="$answer"
             return 0
         fi
 
-        printf '  That is not a phone number. Type it like 60123456789.\n'
+        if [ -n "$e164" ]; then
+            printf '  That is not a mobile number WhatsApp can send a code to.\n'
+            printf '  Check the digits and type it again.\n'
+        else
+            printf '  That is not a phone number. Type it like 60123456789.\n'
+        fi
         attempt=$((attempt + 1))
     done
 

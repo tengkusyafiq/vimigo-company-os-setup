@@ -55,6 +55,13 @@ Any way they write it is right: 0148003660, 60148003660, +60148003660, with
 dashes or spaces. If they ask, tell them to type it the way it appears in their
 own phone.
 
+A number with a digit too many or too few is refused at the question, and the
+number it will actually use is read back before the browser opens. **Read it
+back to them.** A code sent to a number that is one digit out is accepted by
+WhatsApp, arrives nowhere, and leaves the phone sitting on *Logging in…* — it
+looks exactly like the setup being broken, and it is the one failure this
+cannot detect afterwards.
+
 Once given, the page carries two ways in from the first second: the square on
 top, and under an **OR**, an eight-character code to type on the phone instead.
 Nothing has to be chosen and nothing has to be waited for — if their camera will
