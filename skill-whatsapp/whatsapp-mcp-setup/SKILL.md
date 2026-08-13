@@ -46,18 +46,25 @@ the only action the whole design asks of them.
 
 Before the browser opens, the setup asks for the WhatsApp number on their
 phone. **Let it ask, and let them type it.** Do not ask for the number
-yourself, and never type it for them. Pressing Enter skips it, which is fine.
+yourself, and never type it for them. Pressing Enter no longer skips it — the
+question comes back, because a page with no code on it is the one failure this
+setup keeps having. If they type something that is not a number it asks again,
+and after five tries it carries on with the square alone.
 
-If they give it, the page carries two ways in from the first second: the square
-on top, and under an **OR**, an eight-character code to type on the phone
-instead. Nothing has to be chosen and nothing has to be waited for — if their
-camera will not read the square, the code is already on screen. Tell them:
+Any way they write it is right: 0148003660, 60148003660, +60148003660, with
+dashes or spaces. If they ask, tell them to type it the way it appears in their
+own phone.
+
+Once given, the page carries two ways in from the first second: the square on
+top, and under an **OR**, an eight-character code to type on the phone instead.
+Nothing has to be chosen and nothing has to be waited for — if their camera will
+not read the square, the code is already on screen. Tell them:
 
 > *"If your camera will not read the square, tap Link with phone number instead
 > and type the code on the page."*
 
-If they skipped the number and then cannot scan, run **Link again** and let it
-ask for the number this time.
+If the page shows the square alone, they got past the question without giving a
+number. Run **Link again** and let it ask.
 
 ## When something is wrong
 

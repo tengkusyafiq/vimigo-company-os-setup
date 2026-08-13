@@ -2413,46 +2413,88 @@ fix_ladder_rungs() {
 
 OWNER_PHONE=''
 
+read_owner_answer() {
+    # One typed line from the person at the keyboard. Non-zero when there is
+    # nobody there to type it.
+    #
+    # Its own function because the question above it has a loop in it now, and
+    # a loop that reads a real terminal cannot be tested anywhere a real
+    # terminal is not attached - which is every acceptance run there has ever
+    # been. With the read behind this seam the suite can drive five wrong
+    # answers through the loop and watch what it does.
+    #
+    # Piped stdin is not the same as no keyboard. The one-liner hands this
+    # script a real terminal, but a bare curl | bash does not, and read would
+    # take a line of the script itself. /dev/tty is the terminal the process is
+    # attached to whatever stdin points at, so it asks the person actually
+    # sitting there. Neither available is the genuinely headless case, and the
+    # non-zero return says so rather than looking like an empty answer.
+    local line=''
+    if [ -t 0 ]; then
+        IFS= read -r line || return 1
+    elif [ -r /dev/tty ]; then
+        IFS= read -r line < /dev/tty || return 1
+    else
+        return 1
+    fi
+    printf '%s' "$line"
+    return 0
+}
+
 read_owner_phone_number() {
-    # Asked once, before the browser opens.
+    # Asked once, before the browser opens, and it no longer takes silence for
+    # an answer.
     #
-    # It used to be asked only after the square had already failed for its full
-    # ten minutes, which is ten minutes of somebody looking at a square their
-    # camera is never going to read. Asked first, the code can be on the page
-    # beside the square from the first second, and nobody has to discover that
-    # a second route exists - both are simply there.
+    # It used to end with an offer to press Enter and skip. Pressing Enter is
+    # what a person does when a machine asks them something they were not
+    # expecting, and what it produced was a page with the square on it and
+    # nothing else - which from the owner's side is indistinguishable from the
+    # code route being broken. That is this file's most reported failure, three
+    # times over, every time on a build that produced a code perfectly well the
+    # moment a number was handed to it. So there is no skip. The square is
+    # still there for anyone whose camera reads it; the code is what is left
+    # when it does not, and a code needs somewhere to go.
     #
-    # An answer is not required. Skip it and the page shows the square alone,
-    # exactly as it always did.
+    # Five attempts, then the square alone - because a question that cannot be
+    # got past is a worse trap than a square that will not scan, and by the
+    # fifth wrong answer it is not coming.
     #
-    # Fails closed with no keyboard attached: an empty answer must never
-    # become an empty phone number posted to the bridge, which fails in a way
-    # nobody can see. This is also why the one-liner hands this script a real
-    # terminal.
-    OWNER_PHONE=''
-    [ -t 0 ] || return 0
     # With an example, because "your WhatsApp number" alone gets 60 typed on the
     # front by people who half-remember that it belongs there, and nothing at
     # all by everybody else. to_e164 puts the 60 on, takes the trunk zero off,
     # and ignores spaces and dashes - so the number they already know how to
     # write is the right answer, and the example is the way to say that without
     # explaining any of it.
-    #
-    # The example is 012-345 6789 on purpose: it carries the leading zero, which
-    # is the one part to_e164 needs in order to know the number is Malaysian at
-    # all.
-    # Two lines. It was five, explaining the country code and the trunk
-    # zero and what happens if you skip - a paragraph of formatting rules
-    # put to somebody who has never been asked to type their own number
-    # into anything. to_e164 takes every shape they might use, so the
-    # example shows that any of them is fine, not which one to pick.
+    OWNER_PHONE=''
     printf '\n'
     printf '  What is your WhatsApp number?   (example: 60123456789)\n'
-    printf '  Or press Enter to skip.\n'
-    printf '  Your WhatsApp number: '
+
+    local attempt=1
     local answer=''
-    IFS= read -r answer || answer=''
-    OWNER_PHONE="$answer"
+    while [ "$attempt" -le 5 ]; do
+        printf '  Your WhatsApp number: '
+
+        # Nobody there, not a wrong answer: four more prompts would scroll past
+        # an empty room.
+        if ! answer="$(read_owner_answer)"; then
+            printf '\n'
+            break
+        fi
+
+        # Validated by the converter that will be used on it, not by a pattern
+        # of my own - so anything accepted here is something the bridge can be
+        # given, and 'abc' cannot get through to become an empty number that
+        # fails where nobody can see it.
+        if [ -n "$answer" ] && [ -n "$(to_e164 "$answer")" ]; then
+            OWNER_PHONE="$answer"
+            return 0
+        fi
+
+        printf '  That is not a phone number. Type it like 60123456789.\n'
+        attempt=$((attempt + 1))
+    done
+
+    printf '  Never mind - use the square on the next screen.\n'
     return 0
 }
 
