@@ -1096,10 +1096,11 @@ CODEBODY
             # something to scan that cannot possibly work, with nothing on
             # screen to say so. Seen on a real machine.
             cat <<OFFLINEBODY
-      <p class="calm">This computer cannot reach WhatsApp at the moment, so
-      there is nothing to scan yet.</p>
-      <p class="calm">It is usually the wifi. This page keeps trying by itself
-      and the square appears as soon as the connection is back.</p>
+      <p class="calm">The connection to WhatsApp dropped, so there is nothing
+      to scan for a moment.</p>
+      <p class="calm">Getting it back now. The square returns by itself in a few
+      seconds - you do not need to do anything. If it keeps happening, it is
+      usually the wifi.</p>
 OFFLINEBODY
             ;;
         syncing)
@@ -1280,7 +1281,12 @@ start_pairing_loop() {
     # typed, so what the owner reads is what the code was really issued for.
     [ -z "$phone" ] || code_for="+$phone"
     local qr='' last_qr='' qr_changed_at=0 restarts=0 stalled http tmpdir qrfile
-    local qr_stall_seconds=90 max_restarts=2
+    # Four restarts, not two. A pairing session lasts about 160 seconds and
+    # this window is 600, so surviving it takes three at minimum; two
+    # guaranteed that an owner who was simply slow ran out of squares with
+    # minutes left on the clock. Each one costs nothing - nothing has linked
+    # yet, and the store is untouched.
+    local qr_stall_seconds=90 max_restarts=4
     local deadline=$(( $(date +%s) + timeout ))
 
     # Computed rather than taken from the write's return value, so the path
@@ -1370,7 +1376,30 @@ start_pairing_loop() {
             fi
             if [ "$disconnected_since" -ne 0 ] &&
                [ $(( $(date +%s) - disconnected_since )) -ge 20 ]; then
+                # Restarted, not waited for. whatsmeow ends its own pairing
+                # session after about 160 seconds - "Pairing QR timeout" in the
+                # bridge log - and closes the login websocket. It never starts a
+                # new one, so connected stays false for the rest of the window
+                # and both routes are gone.
+                #
+                # Nobody scanning inside 160 seconds is the ORDINARY case, not a
+                # fault: it is a 60-year-old finding Linked Devices for the first
+                # time. Before this state existed the stalled-square branch below
+                # caught it and restarted the bridge; adding the offline branch
+                # took that away, because a run that skips the QR fetch never
+                # sees a square go stale. This puts the recovery back where the
+                # cause actually is.
                 write_pairing_page "$root" "$(pairing_html offline '' '')" >/dev/null 2>&1
+                if [ "$restarts" -lt "$max_restarts" ]; then
+                    restarts=$((restarts + 1))
+                    restart_bridge "$root" "$port" >/dev/null 2>&1
+                    token=''
+                    last_qr=''
+                    qr_changed_at=0
+                    code=''
+                    code_tried_at=0
+                    disconnected_since=0
+                fi
             else
                 # The code, when a number was given - fetched ALONGSIDE the square
                 # rather than instead of it. /auth/pairing-qr and /auth/pair-phone
@@ -2460,7 +2489,7 @@ read_owner_phone_number() {
     # into anything. to_e164 takes every shape they might use, so the
     # example shows that any of them is fine, not which one to pick.
     printf '\n'
-    printf '  What is your WhatsApp number?   (example: 012-345 6789)\n'
+    printf '  What is your WhatsApp number?   (example: 60123456789)\n'
     printf '  Or press Enter to skip.\n'
     printf '  Your WhatsApp number: '
     local answer=''
