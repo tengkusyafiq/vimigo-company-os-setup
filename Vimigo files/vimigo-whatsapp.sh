@@ -1086,6 +1086,22 @@ $PHONE_STEPS
       <p class="calm">If it runs out, a new one appears here by itself.</p>
 CODEBODY
             ;;
+        offline)
+            # The square and the code both come from a live connection to
+            # WhatsApp, and this computer does not have one.
+            #
+            # The bridge keeps answering with the LAST square it was given
+            # long after that connection has gone - its QR goroutine never
+            # clears the state - so without this the owner is handed
+            # something to scan that cannot possibly work, with nothing on
+            # screen to say so. Seen on a real machine.
+            cat <<OFFLINEBODY
+      <p class="calm">This computer cannot reach WhatsApp at the moment, so
+      there is nothing to scan yet.</p>
+      <p class="calm">It is usually the wifi. This page keeps trying by itself
+      and the square appears as soon as the connection is back.</p>
+OFFLINEBODY
+            ;;
         syncing)
             cat <<'SYNCBODY'
       <p class="done">Connected</p>
@@ -1212,8 +1228,26 @@ to_e164() {
     # The same rule as Windows, including the trunk zero after the country
     # code: "+60 012 345 6789" is what people write on a form, and 600123456789
     # is rejected by the bridge without saying why.
+    # Every shape a Malaysian owner might write, and dashes, spaces,
+    # brackets and a leading + are all thrown away before anything else
+    # looks at it:
+    #
+    #   012-345 6789      0123456789      +60 12 345 6789
+    #   60123456789       +60123456789    123456789
+    #
+    # The question asks for one example and accepts all of them, rather
+    # than explaining a format to somebody who has never been asked for one.
     local digits rest
     digits="$(printf '%s' "${1:-}" | tr -cd '0-9')"
+    # A mobile with its trunk zero already dropped - what people write when
+    # they have been told "no leading zero" and stopped there. Malaysian
+    # mobiles are the only ones this could be: 1 followed by 8 or 9 digits.
+    # Singapore starts 8 or 9, Indonesia 8, so nothing else is caught by
+    # accident.
+    case "$digits" in
+        1[0-9][0-9][0-9][0-9][0-9][0-9][0-9]|1[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])
+            printf '60%s' "$digits"; return 0 ;;
+    esac
     case "$digits" in
         60*)
             rest="${digits#60}"
@@ -1241,6 +1275,7 @@ start_pairing_loop() {
     # by counting seconds instead of people.
     local root="${1:-}" port="${2:-}" key="${3:-}" timeout="${4:-600}" phone="${5:-}"
     local page token='' code='' opened=0 status='' code_tried_at=0 code_for=''
+    local disconnected_since=0
     # Rebuilt from what was actually sent to the bridge, never from what was
     # typed, so what the owner reads is what the code was really issued for.
     [ -z "$phone" ] || code_for="+$phone"
@@ -1314,106 +1349,130 @@ start_pairing_loop() {
         fi
 
         if [ -n "$token" ]; then
-            # The code, when a number was given - fetched ALONGSIDE the square
-            # rather than instead of it. /auth/pairing-qr and /auth/pair-phone
-            # are independent on the bridge, so both routes can be live at once
-            # and the owner picks with their eyes instead of being asked.
+            # A live connection to WhatsApp, or nothing worth showing.
             #
-            # Fetched once and cached forever used to be the bug: the page
-            # promises "If it runs out, a new one appears here by itself", but
-            # nothing ever cleared it, so a code that expired partway through a
-            # ten-minute window just sat there looking valid.
-            if [ -n "$phone" ]; then
+            # The square and the code both come from one, and the bridge keeps
+            # answering with the LAST square it was given long after that
+            # connection has gone - its QR goroutine never clears the state. So
+            # without this the owner is handed something to scan that cannot
+            # possibly work, and nothing on screen says so. Seen on a real
+            # machine: connected:false on every attempt, a stale square on the
+            # page, and no code, for as long as anyone cared to watch.
+            #
+            # Twenty seconds of grace, because a bridge that has just started is
+            # legitimately not connected yet, and "cannot reach WhatsApp" on the
+            # first tick would be a lie arriving before the truth has had a
+            # chance.
+            if json_flag_true "$status" 'connected'; then
+                disconnected_since=0
+            elif [ "$disconnected_since" -eq 0 ]; then
+                disconnected_since="$(date +%s)"
+            fi
+            if [ "$disconnected_since" -ne 0 ] &&
+               [ $(( $(date +%s) - disconnected_since )) -ge 20 ]; then
+                write_pairing_page "$root" "$(pairing_html offline '' '')" >/dev/null 2>&1
+            else
+                # The code, when a number was given - fetched ALONGSIDE the square
+                # rather than instead of it. /auth/pairing-qr and /auth/pair-phone
+                # are independent on the bridge, so both routes can be live at once
+                # and the owner picks with their eyes instead of being asked.
                 #
-                # Ten seconds between attempts, not two. A number the bridge
-                # cannot issue against - a typo, a number with no WhatsApp on
-                # it, a client still connecting - otherwise means 300 failed
-                # calls across a ten-minute window, which is a lot of log for
-                # a thing that is not going to start working on the 300th try.
-                if [ -z "$code" ] && [ $(( $(date +%s) - code_tried_at )) -ge 10 ]; then
-                    code_tried_at="$(date +%s)"
-                    code="$(pairing_code "$port" "$token" "$phone")"
+                # Fetched once and cached forever used to be the bug: the page
+                # promises "If it runs out, a new one appears here by itself", but
+                # nothing ever cleared it, so a code that expired partway through a
+                # ten-minute window just sat there looking valid.
+                if [ -n "$phone" ]; then
+                    #
+                    # Ten seconds between attempts, not two. A number the bridge
+                    # cannot issue against - a typo, a number with no WhatsApp on
+                    # it, a client still connecting - otherwise means 300 failed
+                    # calls across a ten-minute window, which is a lot of log for
+                    # a thing that is not going to start working on the 300th try.
+                    if [ -z "$code" ] && [ $(( $(date +%s) - code_tried_at )) -ge 10 ]; then
+                        code_tried_at="$(date +%s)"
+                        code="$(pairing_code "$port" "$token" "$phone")"
+                    fi
                 fi
-            fi
 
-            # The status code, not the exit status. A 410 is the normal
-            # "nothing to show yet" - already linked, or pairing has not
-            # started - and must not be mistaken for a fault. Everything
-            # else IS a fault: an owner whose bridge is genuinely broken
-            # otherwise sits looking at "Getting ready. This takes a few
-            # seconds." for the whole ten-minute window, because nothing
-            # ever tells the loop something is actually wrong.
-            #
-            # Guarded on qrfile: with a number in hand and no private directory
-            # to write a square into, the code alone is still a working way in.
-            qr=''
-            if [ -n "$qrfile" ]; then
-                http="$(curl -s -o "$qrfile" -w '%{http_code}' --max-time 10 \
-                        -H "Authorization: Bearer $token" \
-                        "http://127.0.0.1:$port/api/auth/pairing-qr" 2>/dev/null)"
-                case "$http" in
-                    200)
-                        # base64 with no flags. There is no line-wrap flag
-                        # here, and macOS emits one line anyway.
-                        qr="$(base64 < "$qrfile" 2>/dev/null | tr -d '\n')"
-                        ;;
-                    410) : ;;
-                    *) [ -n "$code" ] || write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1 ;;
-                esac
-            fi
+                # The status code, not the exit status. A 410 is the normal
+                # "nothing to show yet" - already linked, or pairing has not
+                # started - and must not be mistaken for a fault. Everything
+                # else IS a fault: an owner whose bridge is genuinely broken
+                # otherwise sits looking at "Getting ready. This takes a few
+                # seconds." for the whole ten-minute window, because nothing
+                # ever tells the loop something is actually wrong.
+                #
+                # Guarded on qrfile: with a number in hand and no private directory
+                # to write a square into, the code alone is still a working way in.
+                qr=''
+                if [ -n "$qrfile" ]; then
+                    http="$(curl -s -o "$qrfile" -w '%{http_code}' --max-time 10 \
+                            -H "Authorization: Bearer $token" \
+                            "http://127.0.0.1:$port/api/auth/pairing-qr" 2>/dev/null)"
+                    case "$http" in
+                        200)
+                            # base64 with no flags. There is no line-wrap flag
+                            # here, and macOS emits one line anyway.
+                            qr="$(base64 < "$qrfile" 2>/dev/null | tr -d '\n')"
+                            ;;
+                        410) : ;;
+                        *) [ -n "$code" ] || write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1 ;;
+                    esac
+                fi
 
-            if [ -n "$qr" ]; then
-                # The bridge's QR goroutine never clears a timed-out
-                # square: it keeps answering 200 with the same dead image
-                # forever. Byte-identical output across consecutive
-                # fetches for longer than a real rotation ever takes is
-                # that stall, not a slow phone or a quiet moment. Ninety
-                # seconds sits comfortably above the largest genuine gap
-                # measured against the real binary (59.3 seconds, the very
-                # first rotation).
-                if [ "$qr" != "$last_qr" ]; then
-                    last_qr="$qr"
-                    qr_changed_at="$(date +%s)"
+                if [ -n "$qr" ]; then
+                    # The bridge's QR goroutine never clears a timed-out
+                    # square: it keeps answering 200 with the same dead image
+                    # forever. Byte-identical output across consecutive
+                    # fetches for longer than a real rotation ever takes is
+                    # that stall, not a slow phone or a quiet moment. Ninety
+                    # seconds sits comfortably above the largest genuine gap
+                    # measured against the real binary (59.3 seconds, the very
+                    # first rotation).
+                    if [ "$qr" != "$last_qr" ]; then
+                        last_qr="$qr"
+                        qr_changed_at="$(date +%s)"
+                    fi
+                    stalled=$(( $(date +%s) - qr_changed_at ))
+                    if [ "$stalled" -ge "$qr_stall_seconds" ] && [ "$restarts" -lt "$max_restarts" ]; then
+                        restarts=$((restarts + 1))
+                        restart_bridge "$root" "$port" >/dev/null 2>&1
+                        # A restarted bridge is a brand-new process talking a
+                        # brand-new session: the old token is dead and an entirely
+                        # fresh QR sequence begins. Nothing here was ever shown to
+                        # a phone that could still act on it, so nothing is lost by
+                        # starting over - but any code issued against the old
+                        # session died with it, so it is cleared rather than left
+                        # on screen looking valid.
+                        token=''
+                        last_qr=''
+                        qr_changed_at=0
+                        # The code died with the session. A stalled square IS
+                        # the session ending - whatsmeow closes the login websocket
+                        # when its QR sequence runs out - so a code issued against
+                        # it is already dead, however valid it looks. Cleared, and
+                        # the new session issues its own.
+                        code=''
+                        # The gap is cleared with it. A brand-new session should
+                        # be asked for its code straight away, not ten seconds
+                        # after the restart because the last attempt against the
+                        # dead one was recent.
+                        code_tried_at=0
+                    elif [ "$stalled" -ge "$qr_stall_seconds" ]; then
+                        # Restarts exhausted and the square is provably dead -
+                        # say so rather than let it sit there looking alive
+                        # for the rest of the window.
+                        write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1
+                    else
+                        write_pairing_page "$root" "$(pairing_html qr "$qr" "$code" "$code_for")" >/dev/null 2>&1
+                    fi
+                elif [ -n "$code" ]; then
+                    # A code in hand and no square yet, whether because the bridge
+                    # has none to give or because fetching it faulted. Either way
+                    # there is something the owner can act on, which beats both
+                    # "Getting ready" and an error page.
+                    write_pairing_page "$root" "$(pairing_html code '' "$code" "$code_for")" >/dev/null 2>&1
                 fi
-                stalled=$(( $(date +%s) - qr_changed_at ))
-                if [ "$stalled" -ge "$qr_stall_seconds" ] && [ "$restarts" -lt "$max_restarts" ]; then
-                    restarts=$((restarts + 1))
-                    restart_bridge "$root" "$port" >/dev/null 2>&1
-                    # A restarted bridge is a brand-new process talking a
-                    # brand-new session: the old token is dead and an entirely
-                    # fresh QR sequence begins. Nothing here was ever shown to
-                    # a phone that could still act on it, so nothing is lost by
-                    # starting over - but any code issued against the old
-                    # session died with it, so it is cleared rather than left
-                    # on screen looking valid.
-                    token=''
-                    last_qr=''
-                    qr_changed_at=0
-                    # The code died with the session. A stalled square IS
-                    # the session ending - whatsmeow closes the login websocket
-                    # when its QR sequence runs out - so a code issued against
-                    # it is already dead, however valid it looks. Cleared, and
-                    # the new session issues its own.
-                    code=''
-                    # The gap is cleared with it. A brand-new session should
-                    # be asked for its code straight away, not ten seconds
-                    # after the restart because the last attempt against the
-                    # dead one was recent.
-                    code_tried_at=0
-                elif [ "$stalled" -ge "$qr_stall_seconds" ]; then
-                    # Restarts exhausted and the square is provably dead -
-                    # say so rather than let it sit there looking alive
-                    # for the rest of the window.
-                    write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1
-                else
-                    write_pairing_page "$root" "$(pairing_html qr "$qr" "$code" "$code_for")" >/dev/null 2>&1
-                fi
-            elif [ -n "$code" ]; then
-                # A code in hand and no square yet, whether because the bridge
-                # has none to give or because fetching it faulted. Either way
-                # there is something the owner can act on, which beats both
-                # "Getting ready" and an error page.
-                write_pairing_page "$root" "$(pairing_html code '' "$code" "$code_for")" >/dev/null 2>&1
             fi
         fi
 
@@ -2395,13 +2454,14 @@ read_owner_phone_number() {
     # The example is 012-345 6789 on purpose: it carries the leading zero, which
     # is the one part to_e164 needs in order to know the number is Malaysian at
     # all.
+    # Two lines. It was five, explaining the country code and the trunk
+    # zero and what happens if you skip - a paragraph of formatting rules
+    # put to somebody who has never been asked to type their own number
+    # into anything. to_e164 takes every shape they might use, so the
+    # example shows that any of them is fine, not which one to pick.
     printf '\n'
-    printf '  What is the WhatsApp number on this phone?\n'
-    printf '  It puts a code on screen as well as a square to scan.\n'
-    printf '\n'
-    printf '  Write it the way you always do, for example   012-345 6789\n'
-    printf '  Outside Malaysia, country code first, like   +65 9123 4567\n'
-    printf '  Or press Enter to skip - the square on its own still works.\n'
+    printf '  What is your WhatsApp number?   (example: 012-345 6789)\n'
+    printf '  Or press Enter to skip.\n'
     printf '  Your WhatsApp number: '
     local answer=''
     IFS= read -r answer || answer=''
