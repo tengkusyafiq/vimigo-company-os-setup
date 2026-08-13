@@ -44,20 +44,20 @@ is not in Settings on Android, and an owner sent to the wrong menu will scroll
 past Account, Privacy, Chats and Notifications, find nothing, and stop. This is
 the only action the whole design asks of them.
 
-If they cannot scan it — a cracked screen, a camera that will not focus, an
-older phone that simply will not read the square — **press any key in the
-window the setup is running in.** It then asks for their WhatsApp number and
-shows a code to type on the phone instead. The square's own page says this too,
-so they may tell you before you notice.
+Before the browser opens, the setup asks for the WhatsApp number on their
+phone. **Let it ask, and let them type it.** Do not ask for the number
+yourself, and never type it for them. Pressing Enter skips it, which is fine.
 
-Do not wait for it to offer. It used to offer on its own only after the square
-had already failed for ten minutes, and that is ten minutes of somebody staring
-at a square their camera will never read. One keypress is all it takes, at any
-point.
+If they give it, the page carries two ways in from the first second: the square
+on top, and under an **OR**, an eight-character code to type on the phone
+instead. Nothing has to be chosen and nothing has to be waited for — if their
+camera will not read the square, the code is already on screen. Tell them:
 
-Let it ask for the number itself. Do not ask for the number yourself, and never
-type it for them. If they change their mind, pressing Enter with nothing typed
-brings the square straight back.
+> *"If your camera will not read the square, tap Link with phone number instead
+> and type the code on the page."*
+
+If they skipped the number and then cannot scan, run **Link again** and let it
+ask for the number this time.
 
 ## When something is wrong
 

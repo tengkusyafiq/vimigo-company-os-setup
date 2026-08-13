@@ -995,7 +995,38 @@ STEPS
 FINGERPRINT_NOTE='<p class="calm">Your phone may ask for your fingerprint, face, or PIN next. That is normal.</p>'
 
 pairing_body() {
-    local state="${1:-waiting}" qr="${2:-}" code="${3:-}"
+    local state="${1:-waiting}" qr="${2:-}" code="${3:-}" or_block=''
+    # Both routes on the one page, with an OR between them nobody can miss.
+    #
+    # The code used to be a different page, reached only after the square had
+    # failed for ten minutes, and then briefly a line telling the owner to press
+    # a key in a terminal - which is a terminal instruction in a flow that is
+    # meant to happen on screen. The number is asked for before the browser
+    # opens now, so both routes can be live from the first second and the owner
+    # picks with their eyes instead of being asked anything.
+    #
+    # Steps 1-4 are shared and both routes restart at 5, because that is exactly
+    # what the phone shows: the same four taps, then a fork.
+    #
+    # The leading newline lives in the block rather than in the page below it.
+    # A bare $or_block on its own line leaves an empty line behind when there is
+    # no code - and the two platforms then disagree, because this body is built
+    # through a command substitution, which strips exactly that trailing blank
+    # and PowerShell's here-string does not.
+    if [ -n "$code" ]; then
+        or_block="
+$(cat <<ORBLOCK
+      <p class="orbar">OR</p>
+      <p class="calm">If your camera will not read the square:</p>
+      <ol start="5">
+        <li>Tap <b>Link with phone number</b></li>
+        <li>Type the code below</li>
+      </ol>
+      <p class="code">$code</p>
+      <p class="calm">If it runs out, a new one appears here by itself.</p>
+ORBLOCK
+)"
+    fi
     case "$state" in
         qr)
             cat <<QRBODY
@@ -1007,22 +1038,8 @@ $PHONE_STEPS
         <li>Point your phone at the square below</li>
       </ol>
       <img class="qr" src="data:image/png;base64,$qr" alt="Scan this with your phone">
-      <p class="calm">This square refreshes by itself. You never need to hurry.</p>
-      <p class="calm">Camera will not read it? <b>Press any key in the setup
-      window</b> and we will give you a code to type on your phone instead.</p>
+      <p class="calm">This square refreshes by itself. You never need to hurry.</p>$or_block
 QRBODY
-            ;;
-        code-asked)
-            # The moment between asking for a code and having one. Without a
-            # page of its own the owner is left looking at a square they have
-            # just been told to stop using, while the answer waits in a window
-            # behind their browser that they have no reason to look at.
-            cat <<CODEASKEDBODY
-      <p class="calm">Type your WhatsApp number in the setup window, and a code
-      to enter on your phone will appear here.</p>
-      <p class="calm">Changed your mind? Press Enter there instead and the
-      square comes back.</p>
-CODEASKEDBODY
             ;;
         code)
             cat <<CODEBODY
@@ -1125,6 +1142,9 @@ $refresh
   .code { font-size: 2.6rem; letter-spacing: 0.3em; font-weight: 700; margin: 2rem 0; }
   .done { font-size: 2.2rem; font-weight: 700; color: #48cf98; }
   .calm { color: #9dbdb0; }
+  .orbar { display: flex; align-items: center; gap: 1rem; margin: 2.5rem 0;
+           color: #9dbdb0; font-weight: 700; letter-spacing: 0.2em; }
+  .orbar::before, .orbar::after { content: ""; flex: 1; height: 1px; background: #2c4a3d; }
 </style>
 </head>
 <body><main><h1>Connect your WhatsApp</h1>
@@ -1172,27 +1192,6 @@ to_e164() {
         0*) printf '60%s' "${digits#0}" ;;
         *)  printf '%s' "$digits" ;;
     esac
-}
-
-owner_asked_for_code() {
-    # Has the owner pressed a key - asked without stopping to wait for one.
-    #
-    # A plain read would answer the same question and freeze the loop that
-    # keeps the square alive while it waited, which is the one thing this must
-    # not do: betting somebody else's pairing window on whether this owner is
-    # about to type is the failure that loop is written to avoid.
-    #
-    # It spends one of the two seconds the loop was going to sleep for, so the
-    # cadence is unchanged - and it spends that second even where there is no
-    # terminal to ask, because coming back instantly would double the polling
-    # rate on every machine that has no keyboard attached.
-    #
-    # read -t takes whole seconds on the bash stock macOS ships (3.2), so one
-    # second is the finest this can be. -n 1, not -N 1, for the same reason.
-    if [ ! -t 0 ]; then sleep 1; return 1; fi
-    local junk
-    IFS= read -r -t 1 -n 1 junk 2>/dev/null || return 1
-    return 0
 }
 
 start_pairing_loop() {
@@ -1281,28 +1280,37 @@ start_pairing_loop() {
         fi
 
         if [ -n "$token" ]; then
+            # The code, when a number was given - fetched ALONGSIDE the square
+            # rather than instead of it. /auth/pairing-qr and /auth/pair-phone
+            # are independent on the bridge, so both routes can be live at once
+            # and the owner picks with their eyes instead of being asked.
+            #
+            # Fetched once and cached forever used to be the bug: the page
+            # promises "If it runs out, a new one appears here by itself", but
+            # nothing ever cleared it, so a code that expired partway through a
+            # ten-minute window just sat there looking valid.
             if [ -n "$phone" ]; then
-                # Fetched once and cached forever used to be the bug: the page
-                # promises "If it runs out, a new one appears here by itself",
-                # but nothing ever cleared it, so a code that expired partway
-                # through a ten-minute window just sat there looking valid.
                 if [ -z "$code" ] || [ $(( $(date +%s) - code_at )) -ge "$code_refresh_seconds" ]; then
                     code="$(pairing_code "$port" "$token" "$phone")"
                     code_at="$(date +%s)"
                 fi
-                [ -z "$code" ] || write_pairing_page "$root" "$(pairing_html code '' "$code")" >/dev/null 2>&1
-            else
-                # The status code, not the exit status. A 410 is the normal
-                # "nothing to show yet" - already linked, or pairing has not
-                # started - and must not be mistaken for a fault. Everything
-                # else IS a fault: an owner whose bridge is genuinely broken
-                # otherwise sits looking at "Getting ready. This takes a few
-                # seconds." for the whole ten-minute window, because nothing
-                # ever tells the loop something is actually wrong.
+            fi
+
+            # The status code, not the exit status. A 410 is the normal
+            # "nothing to show yet" - already linked, or pairing has not
+            # started - and must not be mistaken for a fault. Everything
+            # else IS a fault: an owner whose bridge is genuinely broken
+            # otherwise sits looking at "Getting ready. This takes a few
+            # seconds." for the whole ten-minute window, because nothing
+            # ever tells the loop something is actually wrong.
+            #
+            # Guarded on qrfile: with a number in hand and no private directory
+            # to write a square into, the code alone is still a working way in.
+            qr=''
+            if [ -n "$qrfile" ]; then
                 http="$(curl -s -o "$qrfile" -w '%{http_code}' --max-time 10 \
                         -H "Authorization: Bearer $token" \
                         "http://127.0.0.1:$port/api/auth/pairing-qr" 2>/dev/null)"
-                qr=''
                 case "$http" in
                     200)
                         # base64 with no flags. There is no line-wrap flag
@@ -1310,43 +1318,60 @@ start_pairing_loop() {
                         qr="$(base64 < "$qrfile" 2>/dev/null | tr -d '\n')"
                         ;;
                     410) : ;;
-                    *) write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1 ;;
+                    *) [ -n "$code" ] || write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1 ;;
                 esac
+            fi
 
-                if [ -n "$qr" ]; then
-                    # The bridge's QR goroutine never clears a timed-out
-                    # square: it keeps answering 200 with the same dead image
-                    # forever. Byte-identical output across consecutive
-                    # fetches for longer than a real rotation ever takes is
-                    # that stall, not a slow phone or a quiet moment. Ninety
-                    # seconds sits comfortably above the largest genuine gap
-                    # measured against the real binary (59.3 seconds, the very
-                    # first rotation).
-                    if [ "$qr" != "$last_qr" ]; then
-                        last_qr="$qr"
-                        qr_changed_at="$(date +%s)"
-                    fi
-                    stalled=$(( $(date +%s) - qr_changed_at ))
-                    if [ "$stalled" -ge "$qr_stall_seconds" ] && [ "$restarts" -lt "$max_restarts" ]; then
-                        restarts=$((restarts + 1))
-                        restart_bridge "$root" "$port" >/dev/null 2>&1
-                        # A restarted bridge is a brand-new process talking a
-                        # brand-new session: the old token is dead and an
-                        # entirely fresh QR sequence begins. Nothing here was
-                        # ever shown to a phone that could still act on it, so
-                        # nothing is lost by starting over.
-                        token=''
-                        last_qr=''
-                        qr_changed_at=0
-                    elif [ "$stalled" -ge "$qr_stall_seconds" ]; then
-                        # Restarts exhausted and the square is provably dead -
-                        # say so rather than let it sit there looking alive
-                        # for the rest of the window.
-                        write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1
-                    else
-                        write_pairing_page "$root" "$(pairing_html qr "$qr" '')" >/dev/null 2>&1
-                    fi
+            if [ -n "$qr" ]; then
+                # The bridge's QR goroutine never clears a timed-out
+                # square: it keeps answering 200 with the same dead image
+                # forever. Byte-identical output across consecutive
+                # fetches for longer than a real rotation ever takes is
+                # that stall, not a slow phone or a quiet moment. Ninety
+                # seconds sits comfortably above the largest genuine gap
+                # measured against the real binary (59.3 seconds, the very
+                # first rotation).
+                if [ "$qr" != "$last_qr" ]; then
+                    last_qr="$qr"
+                    qr_changed_at="$(date +%s)"
                 fi
+                stalled=$(( $(date +%s) - qr_changed_at ))
+                if [ "$stalled" -ge "$qr_stall_seconds" ] && [ -n "$code" ]; then
+                    # A dead square and a live code is not a fault, and it must
+                    # not be treated as one: restarting the bridge would take
+                    # the pairing session the code belongs to down with it and
+                    # invalidate a code the owner may be halfway through
+                    # typing. Drop the square, keep the code.
+                    write_pairing_page "$root" "$(pairing_html code '' "$code")" >/dev/null 2>&1
+                elif [ "$stalled" -ge "$qr_stall_seconds" ] && [ "$restarts" -lt "$max_restarts" ]; then
+                    restarts=$((restarts + 1))
+                    restart_bridge "$root" "$port" >/dev/null 2>&1
+                    # A restarted bridge is a brand-new process talking a
+                    # brand-new session: the old token is dead and an entirely
+                    # fresh QR sequence begins. Nothing here was ever shown to
+                    # a phone that could still act on it, so nothing is lost by
+                    # starting over - but any code issued against the old
+                    # session died with it, so it is cleared rather than left
+                    # on screen looking valid.
+                    token=''
+                    last_qr=''
+                    qr_changed_at=0
+                    code=''
+                    code_at=0
+                elif [ "$stalled" -ge "$qr_stall_seconds" ]; then
+                    # Restarts exhausted and the square is provably dead -
+                    # say so rather than let it sit there looking alive
+                    # for the rest of the window.
+                    write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1
+                else
+                    write_pairing_page "$root" "$(pairing_html qr "$qr" "$code")" >/dev/null 2>&1
+                fi
+            elif [ -n "$code" ]; then
+                # A code in hand and no square yet, whether because the bridge
+                # has none to give or because fetching it faulted. Either way
+                # there is something the owner can act on, which beats both
+                # "Getting ready" and an error page.
+                write_pairing_page "$root" "$(pairing_html code '' "$code")" >/dev/null 2>&1
             fi
         fi
 
@@ -1354,27 +1379,7 @@ start_pairing_loop() {
         # every two seconds if nobody stops it.
         [ "$opened" -eq 1 ] || { open_in_browser "$page"; opened=1; }
 
-        # The square is the default and stays the default. But the code was
-        # only ever offered after this whole window had failed, so an owner
-        # whose camera cannot read a QR at all sat in front of one for ten
-        # minutes before anything mentioned there was another way in. The page
-        # names the keypress; this is the keypress it names.
-        #
-        # Not asked at all once a number is in hand: that is the code path, and
-        # there is nothing left to switch to. That branch keeps its own sleep,
-        # because owner_asked_for_code is what spends the first second on this
-        # one.
-        if [ -n "$phone" ]; then
-            sleep 2
-        else
-            if owner_asked_for_code; then
-                OWNER_ASKED_FOR_CODE=1
-                write_pairing_page "$root" "$(pairing_html code-asked '' '')" >/dev/null 2>&1
-                [ -n "$tmpdir" ] && rm -rf "$tmpdir" 2>/dev/null
-                return 1
-            fi
-            sleep 1
-        fi
+        sleep 2
     done
 
     # Never leave anything on screen that the owner might act on when nothing
@@ -2319,15 +2324,18 @@ fix_ladder_rungs() {
 # ---------------------------------------------------------------------------
 
 OWNER_PHONE=''
-# Set by start_pairing_loop when the owner pressed a key to ask for a code, so
-# pair_with_fallback can tell that from a window that simply ran out.
-OWNER_ASKED_FOR_CODE=0
 
 read_owner_phone_number() {
-    # Asked once, in plain words, and only after the square has already had
-    # its ten minutes. A cracked screen, a camera that will not focus, or a
-    # code that expires while they hunt for the menu otherwise ends the whole
-    # install with nothing the owner can do.
+    # Asked once, before the browser opens.
+    #
+    # It used to be asked only after the square had already failed for its full
+    # ten minutes, which is ten minutes of somebody looking at a square their
+    # camera is never going to read. Asked first, the code can be on the page
+    # beside the square from the first second, and nobody has to discover that
+    # a second route exists - both are simply there.
+    #
+    # An answer is not required. Skip it and the page shows the square alone,
+    # exactly as it always did.
     #
     # Fails closed with no keyboard attached: an empty answer must never
     # become an empty phone number posted to the bridge, which fails in a way
@@ -2336,8 +2344,9 @@ read_owner_phone_number() {
     OWNER_PHONE=''
     [ -t 0 ] || return 0
     printf '\n'
-    printf '  If you could not scan the square, type your WhatsApp number and\n'
-    printf '  press Enter. If you would rather try the square again, just press Enter.\n'
+    printf '  What is the WhatsApp number on this phone?\n'
+    printf '  It lets us put a code on screen as well as a square, in case\n'
+    printf '  your camera will not read the square. Press Enter to skip.\n'
     printf '  Your WhatsApp number: '
     local answer=''
     IFS= read -r answer || answer=''
@@ -2347,35 +2356,18 @@ read_owner_phone_number() {
 
 pair_with_fallback() {
     # $1 root  $2 port  $3 api key
-    local root="${1:-}" port="${2:-}" key="${3:-}" e164 asked_early started left
-    OWNER_ASKED_FOR_CODE=0
-    started="$(date +%s)"
-    start_pairing_loop "$root" "$port" "$key" 600 '' && return 0
-    asked_early="$OWNER_ASKED_FOR_CODE"
-
-    read_owner_phone_number
-    if [ -z "$OWNER_PHONE" ]; then
-        # Pressed a key, then thought better of it - or nudged the keyboard
-        # while reaching for the phone. The square was still live and most of
-        # its window is still there, so it comes back. Ending the pairing on a
-        # stray keystroke would be a failure we invented ourselves.
-        #
-        # Only for the early exit. Reaching here the old way means the window
-        # genuinely ran out, and there is nothing left to go back to.
-        [ "$asked_early" -eq 1 ] || return 1
-        left=$(( 600 - ( $(date +%s) - started ) ))
-        # Under a minute is not worth reopening: it puts a square in front of
-        # somebody that will be withdrawn before they have found the menu.
-        [ "$left" -ge 60 ] || return 1
-        start_pairing_loop "$root" "$port" "$key" "$left" ''
-        return $?
-    fi
+    #
+    # One window, not two. The number is asked for first and handed straight to
+    # the loop, so the square and the code go up together and the owner never
+    # has to run out of one to be offered the other.
+    #
     # An answer with no digits in it converts to nothing at all - the same
-    # shape an empty answer already is, and guarded the same way, rather than
-    # spending a second full ten-minute window posting an empty number the
-    # bridge can only reject.
-    e164="$(to_e164 "$OWNER_PHONE")"
-    [ -n "$e164" ] || return 1
+    # shape an empty answer already is, and is treated the same way: the square
+    # alone, rather than a window spent posting a number the bridge can only
+    # reject.
+    local root="${1:-}" port="${2:-}" key="${3:-}" e164=''
+    read_owner_phone_number
+    [ -z "$OWNER_PHONE" ] || e164="$(to_e164 "$OWNER_PHONE")"
     start_pairing_loop "$root" "$port" "$key" 600 "$e164"
 }
 
