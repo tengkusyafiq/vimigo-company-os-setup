@@ -44,10 +44,20 @@ is not in Settings on Android, and an owner sent to the wrong menu will scroll
 past Account, Privacy, Chats and Notifications, find nothing, and stop. This is
 the only action the whole design asks of them.
 
-If they cannot scan it — a cracked screen, a camera that will not focus — the
-setup asks for their WhatsApp number in the window it is already running in,
-and shows a code to type on the phone instead. Let it ask. Do not ask for the
-number yourself, and never type it for them.
+If they cannot scan it — a cracked screen, a camera that will not focus, an
+older phone that simply will not read the square — **press any key in the
+window the setup is running in.** It then asks for their WhatsApp number and
+shows a code to type on the phone instead. The square's own page says this too,
+so they may tell you before you notice.
+
+Do not wait for it to offer. It used to offer on its own only after the square
+had already failed for ten minutes, and that is ten minutes of somebody staring
+at a square their camera will never read. One keypress is all it takes, at any
+point.
+
+Let it ask for the number itself. Do not ask for the number yourself, and never
+type it for them. If they change their mind, pressing Enter with nothing typed
+brings the square straight back.
 
 ## When something is wrong
 

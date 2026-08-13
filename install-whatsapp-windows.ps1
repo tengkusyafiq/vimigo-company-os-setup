@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 # artefacts - which version independently - share a tag that describes only one
 # of them. The pin below makes this URL exact, so it must point somewhere that
 # changes only when this artefact does.
-$release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/whatsapp-v1.0/vimigo-whatsapp-windows-v1.0.zip'
+$release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/whatsapp-v1.1/vimigo-whatsapp-windows-v1.1.zip'
 
 # The trust anchor for everything that follows.
 #
@@ -21,7 +21,7 @@ $release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/dow
 # This line is fetched separately over TLS and is the only thing outside the
 # archive that says anything about it. Task 13 regenerates it from the asset
 # it is about to upload, in the same step, so the two cannot diverge.
-$ZipSha256 = '41680d7a873af6e256c831f042a5bdd65245ce4294136bee7ee3af08e1c14cd6'
+$ZipSha256 = '1acf5d446e64c9a1c5504701b77080971a9aa5b7a5e9f2797d7e7b47908e4390'
 $root      = Join-Path $env:LOCALAPPDATA 'Vimigo\whatsapp'
 
 function Stop-Here {

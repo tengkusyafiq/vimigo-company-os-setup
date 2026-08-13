@@ -1008,7 +1008,21 @@ $PHONE_STEPS
       </ol>
       <img class="qr" src="data:image/png;base64,$qr" alt="Scan this with your phone">
       <p class="calm">This square refreshes by itself. You never need to hurry.</p>
+      <p class="calm">Camera will not read it? <b>Press any key in the setup
+      window</b> and we will give you a code to type on your phone instead.</p>
 QRBODY
+            ;;
+        code-asked)
+            # The moment between asking for a code and having one. Without a
+            # page of its own the owner is left looking at a square they have
+            # just been told to stop using, while the answer waits in a window
+            # behind their browser that they have no reason to look at.
+            cat <<CODEASKEDBODY
+      <p class="calm">Type your WhatsApp number in the setup window, and a code
+      to enter on your phone will appear here.</p>
+      <p class="calm">Changed your mind? Press Enter there instead and the
+      square comes back.</p>
+CODEASKEDBODY
             ;;
         code)
             cat <<CODEBODY
@@ -1158,6 +1172,27 @@ to_e164() {
         0*) printf '60%s' "${digits#0}" ;;
         *)  printf '%s' "$digits" ;;
     esac
+}
+
+owner_asked_for_code() {
+    # Has the owner pressed a key - asked without stopping to wait for one.
+    #
+    # A plain read would answer the same question and freeze the loop that
+    # keeps the square alive while it waited, which is the one thing this must
+    # not do: betting somebody else's pairing window on whether this owner is
+    # about to type is the failure that loop is written to avoid.
+    #
+    # It spends one of the two seconds the loop was going to sleep for, so the
+    # cadence is unchanged - and it spends that second even where there is no
+    # terminal to ask, because coming back instantly would double the polling
+    # rate on every machine that has no keyboard attached.
+    #
+    # read -t takes whole seconds on the bash stock macOS ships (3.2), so one
+    # second is the finest this can be. -n 1, not -N 1, for the same reason.
+    if [ ! -t 0 ]; then sleep 1; return 1; fi
+    local junk
+    IFS= read -r -t 1 -n 1 junk 2>/dev/null || return 1
+    return 0
 }
 
 start_pairing_loop() {
@@ -1318,7 +1353,28 @@ start_pairing_loop() {
         # Opened once, on the first pass. A loop like this opens a new window
         # every two seconds if nobody stops it.
         [ "$opened" -eq 1 ] || { open_in_browser "$page"; opened=1; }
-        sleep 2
+
+        # The square is the default and stays the default. But the code was
+        # only ever offered after this whole window had failed, so an owner
+        # whose camera cannot read a QR at all sat in front of one for ten
+        # minutes before anything mentioned there was another way in. The page
+        # names the keypress; this is the keypress it names.
+        #
+        # Not asked at all once a number is in hand: that is the code path, and
+        # there is nothing left to switch to. That branch keeps its own sleep,
+        # because owner_asked_for_code is what spends the first second on this
+        # one.
+        if [ -n "$phone" ]; then
+            sleep 2
+        else
+            if owner_asked_for_code; then
+                OWNER_ASKED_FOR_CODE=1
+                write_pairing_page "$root" "$(pairing_html code-asked '' '')" >/dev/null 2>&1
+                [ -n "$tmpdir" ] && rm -rf "$tmpdir" 2>/dev/null
+                return 1
+            fi
+            sleep 1
+        fi
     done
 
     # Never leave anything on screen that the owner might act on when nothing
@@ -2159,7 +2215,12 @@ fix_ladder_rungs() {
             # square anywhere. But it never loops: three rounds of killing a
             # healthy bridge over something only the owner can do on their
             # phone is exactly what this guard exists to prevent.
-            if start_pairing_loop "$root" "$port" "$key" 600 ''; then
+            #
+            # Through the fallback, not the bare loop. Repair is where an owner
+            # whose camera cannot read a QR ends up - it is what put the square
+            # back after their first attempt failed - so it is the last place
+            # that should be able to offer only a square.
+            if pair_with_fallback "$root" "$port" "$key"; then
                 continue
             fi
             return 1
@@ -2258,6 +2319,9 @@ fix_ladder_rungs() {
 # ---------------------------------------------------------------------------
 
 OWNER_PHONE=''
+# Set by start_pairing_loop when the owner pressed a key to ask for a code, so
+# pair_with_fallback can tell that from a window that simply ran out.
+OWNER_ASKED_FOR_CODE=0
 
 read_owner_phone_number() {
     # Asked once, in plain words, and only after the square has already had
@@ -2283,11 +2347,29 @@ read_owner_phone_number() {
 
 pair_with_fallback() {
     # $1 root  $2 port  $3 api key
-    local root="${1:-}" port="${2:-}" key="${3:-}" e164
+    local root="${1:-}" port="${2:-}" key="${3:-}" e164 asked_early started left
+    OWNER_ASKED_FOR_CODE=0
+    started="$(date +%s)"
     start_pairing_loop "$root" "$port" "$key" 600 '' && return 0
+    asked_early="$OWNER_ASKED_FOR_CODE"
 
     read_owner_phone_number
-    [ -n "$OWNER_PHONE" ] || return 1
+    if [ -z "$OWNER_PHONE" ]; then
+        # Pressed a key, then thought better of it - or nudged the keyboard
+        # while reaching for the phone. The square was still live and most of
+        # its window is still there, so it comes back. Ending the pairing on a
+        # stray keystroke would be a failure we invented ourselves.
+        #
+        # Only for the early exit. Reaching here the old way means the window
+        # genuinely ran out, and there is nothing left to go back to.
+        [ "$asked_early" -eq 1 ] || return 1
+        left=$(( 600 - ( $(date +%s) - started ) ))
+        # Under a minute is not worth reopening: it puts a square in front of
+        # somebody that will be withdrawn before they have found the menu.
+        [ "$left" -ge 60 ] || return 1
+        start_pairing_loop "$root" "$port" "$key" "$left" ''
+        return $?
+    fi
     # An answer with no digits in it converts to nothing at all - the same
     # shape an empty answer already is, and guarded the same way, rather than
     # spending a second full ten-minute window posting an empty number the
