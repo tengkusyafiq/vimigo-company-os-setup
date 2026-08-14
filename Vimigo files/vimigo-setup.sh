@@ -5773,9 +5773,13 @@ while true; do
         printf '\n'
     fi
 
-    printf '      Press Enter to check again '; read -r _ || true
-    clear_screen
-    show_banner
-    info '  Checking again...'
+    # Enter ends the run. It used to check again, and the two lines above have
+    # just said that the things left finish on a website - which cannot have
+    # happened in the second between reading that and pressing a key. So the
+    # loop re-ran, redrew the same list, and asked again, and the only way out
+    # of a screen that said "some things still need you" was to close the
+    # window.
+    printf '      Press Enter to exit '; read -r _ || true
     printf '\n'
+    break
 done

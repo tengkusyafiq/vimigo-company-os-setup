@@ -634,6 +634,67 @@ wait_bridge_answering() {
     return 1
 }
 
+# The four lines shown while the bridge is waking up, in order. Warm rather than
+# funny: the audience is a 60-plus owner who has been told this will take a few
+# minutes, and a joke lands differently on somebody who half suspects they have
+# broken their computer.
+waiting_line() {
+    # $1 tick. Changed every 24 frames - six seconds - because a line that
+    # changes with the spinner cannot be read at all.
+    case $(( ( ${1:-0} / 24 ) % 4 )) in
+        0) printf 'Waking it up. This is the slow part.' ;;
+        1) printf 'Still going. Nothing is stuck.' ;;
+        2) printf 'Getting your WhatsApp ready.' ;;
+        *) printf 'Almost there. Thank you for waiting.' ;;
+    esac
+}
+
+spin_char() {
+    case $(( ${1:-0} % 4 )) in
+        0) printf '|' ;;
+        1) printf '/' ;;
+        2) printf -- '-' ;;
+        *) printf '\\' ;;
+    esac
+}
+
+wait_bridge_answering_shown() {
+    # $1 port  $2 api key  $3 seconds
+    #
+    # The same wait as wait_bridge_answering, with something moving on screen.
+    # It exists because that wait is up to ninety seconds of nothing at all,
+    # and a still screen reads as a hung computer to the person watching it -
+    # which is how an owner ends up closing the window on an install that was
+    # about to succeed.
+    #
+    # Only when a terminal is actually attached. Redirected into a file, a log
+    # or an acceptance suite, it falls through to the plain wait and prints
+    # nothing - carriage returns and spinner frames in a captured log are
+    # noise, and every existing caller redirects.
+    local port="${1:-}" key="${2:-}" secs="${3:-90}"
+    if [ ! -t 1 ]; then
+        wait_bridge_answering "$port" "$key" "$secs"
+        return $?
+    fi
+
+    local deadline=$(( $(date +%s) + secs )) tick=0 j
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        if bridge_reachable "$port" && [ -n "$(auth_status "$port" "$key")" ]; then
+            printf '\r    %-68s\r' ''
+            return 0
+        fi
+        j=0
+        while [ "$j" -lt 8 ]; do
+            printf '\r    %s  %s ' "$(spin_char "$tick")" "$(waiting_line "$tick")"
+            tick=$(( tick + 1 ))
+            j=$(( j + 1 ))
+            sleep 0.25
+        done
+    done
+    printf '\r    %-68s\r' ''
+    return 1
+}
+
 restart_bridge() {
     # $1 root  $2 port
     #
@@ -2152,6 +2213,22 @@ doctor_state() {
 
     status="$(auth_status "$port" "$key")"
     if [ -z "$status" ]; then
+        # Not on the first read. The bridge binds its port before its HTTP
+        # server answers, so for a second or two after any restart a perfectly
+        # healthy install is reachable on the port and will not identify itself
+        # - which is indistinguishable, here, from a squatter.
+        #
+        # Measured on a healthy machine: the ladder's own restart rung ran, and
+        # the very next doctor read returned WA-03 and moved the port. Nothing
+        # was on it. WA-03's fix rewrites the launcher and every client config,
+        # so a false one is expensive, and it fires precisely when the ladder
+        # has just restarted the bridge itself.
+        if wait_bridge_answering "$port" "$key" 20; then
+            status="$(auth_status "$port" "$key")"
+        fi
+    fi
+
+    if [ -z "$status" ]; then
         # Something is on the port and it will not identify itself as us. A
         # restart cannot help: the bridge does not exit when it fails to bind,
         # so restarting it three times just leaves the squatter in place. The
@@ -2650,6 +2727,13 @@ fresh_install_steps() {
     fi
 
     printf '  Setting it to start with this computer.\n'
+    # macOS 13 and up raise a notification the moment launchd accepts a login
+    # item - "Background items added", naming a script nobody recognises. It
+    # cannot be suppressed, and an owner who was promised nothing would be asked
+    # of them reads an unexplained system alert as something going wrong, and
+    # asks. Said before it appears, it is a step going right instead.
+    printf '  Your Mac may say a background item was added. That is this,\n'
+    printf '  and it is normal - you can close that notice.\n'
     if ! write_bridge_launcher "$root/bin/start-bridge.sh" 2>/dev/null ||
        ! write_launch_agent "$LAUNCH_AGENT_PLIST" "$root/bin/start-bridge.sh" "$root/run" "$key" "$jwt" "$port" 2>/dev/null; then
         printf '\n'
@@ -2659,10 +2743,44 @@ fresh_install_steps() {
     register_autostart "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || \
         log_note "$root" 'autostart: launchd would not take the agent'
 
-    if ! resume_bridge "$root" "$port" "$key" >/dev/null 2>&1; then
-        printf '\n'
-        printf '  Your WhatsApp did not start. Please restart the computer and try again.\n'
-        return 1
+    register_autostart "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
+    if ! wait_bridge_answering_shown "$port" "$key" 90; then
+        # "Please restart the computer and try again" was the whole of this
+        # branch, and it is advice that cannot work. Measured on a Mac that had
+        # a different WhatsApp bridge installed on it beforehand: whatever is in
+        # the way is still in the way after a restart, so the owner reboots,
+        # runs the line again, and reads the same sentence.
+        #
+        # The ladder is exactly what the repair verb runs, and every rung of it
+        # applies to a first install too - move the port, rewrite the launcher,
+        # re-register the agent, fetch the binaries again. Run once here, most
+        # of these stop being a failure at all and become an install that took a
+        # minute longer.
+        printf '  It has not answered yet. Giving it a hand.\n'
+        fix_ladder "$root" 3 600 >/dev/null 2>&1 || true
+
+        # Asked of the doctor rather than of the port this function happens to
+        # be holding: the ladder is allowed to move the port, and a check
+        # against the old one would call a repaired install broken.
+        local state code sentence
+        state="$(doctor_state "$root")"
+        code="${state%%|*}"
+        sentence="${state#*|}"
+        sentence="${sentence%%|*}"
+        case "$code" in
+            OK|WA-11)
+                # WA-11 is "nothing linked yet", which is the correct state for
+                # an install that has not reached the pairing page.
+                : ;;
+            *)
+                printf '\n'
+                # The doctor's own sentence, because it names the thing that is
+                # actually wrong - something else already on the port, binaries
+                # the Mac will not run, launchd refusing the agent - and
+                # "restart the computer" names none of them.
+                printf '  %s\n' "$sentence"
+                return 1 ;;
+        esac
     fi
 
     printf '  Connecting it to your apps.\n'
@@ -2876,10 +2994,36 @@ fi
 # No verb. A first run installs; a second run repairs, because the commonest
 # reason to paste the line twice is that something stopped working.
 if [ -f "$ROOT/bin/whatsapp-bridge" ]; then
-    if ! fix_ladder "$ROOT" 3 600; then
-        printf '\n'
-        printf '  I could not fix this one. Please contact Vimigo support.\n'
-    fi
+    # A ladder that finds nothing wrong used to print NOTHING. The owner pasted
+    # the line, watched "Downloading. This takes a moment.", and got their
+    # prompt back in silence - so they pasted it again, and got silence again.
+    # Their WhatsApp was working perfectly the whole time. A run that ends with
+    # no sentence on screen is indistinguishable from one that crashed.
+    fixed=0
+    fix_ladder "$ROOT" 3 600 || fixed=1
+
+    state="$(doctor_state "$ROOT")"
+    code="${state%%|*}"
+    sentence="${state#*|}"
+    sentence="${sentence%%|*}"
+
+    case "$code" in
+        WA-11)
+            # Installed, healthy, nothing linked. The phone is what is missing,
+            # and pairing is the only thing that supplies it - which is also
+            # the commonest reason somebody runs this line a second time.
+            reconnect_verb "$ROOT" ;;
+        OK)
+            printf '\n'
+            printf '  Your WhatsApp is connected. There is nothing else to do.\n' ;;
+        *)
+            printf '\n'
+            if [ "$fixed" -eq 1 ]; then
+                printf '  I could not fix this one. Please contact Vimigo support.\n'
+            else
+                printf '  %s\n' "$sentence"
+            fi ;;
+    esac
 else
     fresh_install "$ROOT" "$ARG_ZIP_PATH" "$ARG_ZIP_SHA256" || true
 fi

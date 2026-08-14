@@ -7021,11 +7021,15 @@ while ($true) {
         Write-Host ''
     }
 
-    Read-Host -Prompt '      Press Enter to check again' | Out-Null
-    Clear-Screen
-    Show-Banner
-    Write-Host '      Checking again...' -ForegroundColor $script:Ink.Body
+    # Enter ends the run. It used to check again, and the two lines above have
+    # just said that the things left finish on a website or need a restart -
+    # neither of which can have happened in the second between reading that and
+    # pressing a key. So the loop re-ran, redrew the same list, and asked again,
+    # and the only way out of a screen that said "some things still need you"
+    # was to close the window.
+    Read-Host -Prompt '      Press Enter to exit' | Out-Null
     Write-Host ''
+    break
 }
 
 Reset-Theme
