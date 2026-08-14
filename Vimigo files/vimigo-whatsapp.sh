@@ -518,7 +518,11 @@ resume_bridge() {
     local root="${1:-}" port="${2:-}" key="${3:-}"
     register_autostart "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1
     [ -n "$port" ] && [ -n "$key" ] || return 1
-    wait_bridge_answering "$port" "$key" 90
+    # Shown, not silent. The spinner belongs HERE rather than at the install's
+    # call site, so that the one function which gets the bridge running is also
+    # the one that reports the wait. wait_bridge_answering_shown falls back to
+    # the plain wait whenever output is redirected, which is every other caller.
+    wait_bridge_answering_shown "$port" "$key" 90
 }
 
 # ---------------------------------------------------------------------------
@@ -2223,7 +2227,7 @@ doctor_state() {
         # was on it. WA-03's fix rewrites the launcher and every client config,
         # so a false one is expensive, and it fires precisely when the ladder
         # has just restarted the bridge itself.
-        if wait_bridge_answering "$port" "$key" 20; then
+        if wait_bridge_answering "$port" "$key" 45; then
             status="$(auth_status "$port" "$key")"
         fi
     fi
@@ -2743,8 +2747,7 @@ fresh_install_steps() {
     register_autostart "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || \
         log_note "$root" 'autostart: launchd would not take the agent'
 
-    register_autostart "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
-    if ! wait_bridge_answering_shown "$port" "$key" 90; then
+    if ! resume_bridge "$root" "$port" "$key"; then
         # "Please restart the computer and try again" was the whole of this
         # branch, and it is advice that cannot work. Measured on a Mac that had
         # a different WhatsApp bridge installed on it beforehand: whatever is in
@@ -2756,8 +2759,15 @@ fresh_install_steps() {
         # re-register the agent, fetch the binaries again. Run once here, most
         # of these stop being a failure at all and become an install that took a
         # minute longer.
+        # Two rounds and three minutes, not the repair verb's three and ten.
+        # This is an owner sitting in front of a first install that has already
+        # spent ninety seconds waiting; the repair verb's budget is sized for
+        # somebody who typed "fix my WhatsApp" and expects it to take a while.
+        # Ten minutes here is long enough that the honest answer - what is
+        # actually wrong - arrives after everyone has given up on it. The
+        # acceptance suite found this by hanging on it.
         printf '  It has not answered yet. Giving it a hand.\n'
-        fix_ladder "$root" 3 600 >/dev/null 2>&1 || true
+        fix_ladder "$root" 2 180 >/dev/null 2>&1 || true
 
         # Asked of the doctor rather than of the port this function happens to
         # be holding: the ladder is allowed to move the port, and a check
@@ -2768,9 +2778,12 @@ fresh_install_steps() {
         sentence="${state#*|}"
         sentence="${sentence%%|*}"
         case "$code" in
-            OK|WA-11)
-                # WA-11 is "nothing linked yet", which is the correct state for
-                # an install that has not reached the pairing page.
+            OK|WA-11|P-01)
+                # WA-11 and P-01 are both "nothing linked yet" - the correct
+                # state for an install that has not reached the pairing page,
+                # which is exactly where this one is about to go. Treating P-01
+                # as a failure meant a perfectly healthy fresh install was
+                # reported as broken seconds before it offered the square.
                 : ;;
             *)
                 printf '\n'

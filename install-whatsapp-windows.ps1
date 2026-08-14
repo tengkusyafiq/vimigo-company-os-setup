@@ -6,12 +6,12 @@ $ErrorActionPreference = 'Stop'
 # Its own release tag, deliberately not the repository's v1.0.
 #
 # v1.0 is the company-os setup's own release, six days old and already
-# superseded by v1.9. Hanging the WhatsApp asset off it would mean any tidy-up
+# superseded by v1.10. Hanging the WhatsApp asset off it would mean any tidy-up
 # of old releases silently breaks every WhatsApp install, and that the two
 # artefacts - which version independently - share a tag that describes only one
 # of them. The pin below makes this URL exact, so it must point somewhere that
 # changes only when this artefact does.
-$release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/whatsapp-v1.9/vimigo-whatsapp-windows-v1.9.zip'
+$release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/download/whatsapp-v1.10/vimigo-whatsapp-windows-v1.10.zip'
 
 # The trust anchor for everything that follows.
 #
@@ -21,7 +21,7 @@ $release = 'https://github.com/tengkusyafiq/vimigo-company-os-setup/releases/dow
 # This line is fetched separately over TLS and is the only thing outside the
 # archive that says anything about it. Task 13 regenerates it from the asset
 # it is about to upload, in the same step, so the two cannot diverge.
-$ZipSha256 = '35f97eeecbf2f6aad84d15bd2689f38479181d1b294dea5d1cea5b672f70c56a'
+$ZipSha256 = '27e4ff6f818b20e944105bf435cb4d93a89990ff9fc59f7cd3058511b72bca1e'
 $root      = Join-Path $env:LOCALAPPDATA 'Vimigo\whatsapp'
 
 function Stop-Here {
