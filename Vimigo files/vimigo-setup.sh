@@ -1137,8 +1137,6 @@ collect_checks() {
         # Same order, and the same names, as when a key is present. A list that
         # rearranges itself once the key is pasted looks like a different
         # program.
-        CHECKS+=("zo-claude-code|Claude plan on Zo|skipped|$why|")
-        CHECKS+=("zo-codex|ChatGPT plan on Zo|skipped|$why|")
         if feature_on "$FEATURE_ZO_SKILLS"; then
             CHECKS+=("zo-skills|Basic skills for your Zo|needs-you|$why|")
         fi
@@ -1159,41 +1157,24 @@ collect_checks() {
         # offered exactly as they would be on a machine whose key works.
         add_event_skill_check
         add_hermes_check
+
+        # The plan rows last, because that is where they are once a key exists,
+        # and a list that rearranges itself the moment the key is pasted looks
+        # like a different program. Added after Hermes rather than above it for
+        # exactly that reason.
+        #
+        # This is the second hand-kept copy of the order, which is why the
+        # acceptance suite compares this list against the live one row for row
+        # rather than trusting either. It caught this pair being left behind on
+        # Windows.
+        CHECKS+=("zo-claude-code|Claude plan on Zo|skipped|$why|")
+        CHECKS+=("zo-codex|ChatGPT plan on Zo|skipped|$why|")
         return 0
     fi
 
     # Remember the workspace address as soon as Zo names it, so later links go
     # to the owner's own pages.
     save_workspace_url "$(zo_field 'data.workspaceUrl || ""')"
-
-    # Signing Zo in to an existing plan means it uses one the owner already
-    # pays for, instead of billing per use.
-    local claude_state codex_state
-    claude_state="$(zo_field 'data.aiProviders?.claude?.loggedIn === true')"
-    codex_state="$(zo_field 'data.aiProviders?.codex?.loggedIn === true')"
-    #
-    # Required, and outstanding until they are done.
-    #
-    # These were marked skipped, on the reasoning that an owner cannot clear
-    # them from this computer - they need a paid plan - so counting them as
-    # outstanding meant anybody paying for neither never saw the setup finish.
-    # That reasoning assumed the plan was optional. It is not: participants are
-    # told to register and to pay before they arrive, so an unlinked plan is an
-    # unfinished step rather than somebody declining to buy something.
-    #
-    # The practical difference is the whole point. Skipped counts as done, so
-    # the setup never offered these rows at all - an owner who had paid and
-    # simply not linked it was never asked, and found out at the event.
-    if [ "$claude_state" = "true" ]; then
-        CHECKS+=("zo-claude-code|Claude plan on Zo|ok|signed in|")
-    else
-        CHECKS+=("zo-claude-code|Claude plan on Zo|missing|not signed in|sign in with the plan you paid for")
-    fi
-    if [ "$codex_state" = "true" ]; then
-        CHECKS+=("zo-codex|ChatGPT plan on Zo|ok|signed in|")
-    else
-        CHECKS+=("zo-codex|ChatGPT plan on Zo|missing|not signed in|sign in with the plan you paid for")
-    fi
 
     # Order from here on follows how a business actually gets going: teach it
     # skills, give it access, decide where you talk to it, then hire. Anything
@@ -1348,11 +1329,56 @@ collect_checks() {
     # Hermes One, which the CEO asked for as the final step by name.
     add_event_skill_check
 
-    # Genuinely last, and deliberately so. Everything before it either is the
-    # way the owner reaches their Zo or is something their Zo gains; this is a
-    # separate app that stands on its own, so it goes after the setup's own
-    # promise has been kept rather than in front of it.
+    # Last of the rows this setup can finish by itself, and deliberately so.
+    # Everything before it either is the way the owner reaches their Zo or is
+    # something their Zo gains; this is a separate app that stands on its own,
+    # so it goes after the setup's own promise has been kept rather than in
+    # front of it.
+    #
+    # It used to be last outright. The plan rows now sit below it, because they
+    # are the one thing here nobody can finish for the owner - see their own
+    # comment for why that belongs at the very end.
     add_hermes_check
+
+    # Last on purpose, and it is the only row here that is.
+    #
+    # Every other step is something this setup can do while the owner watches: a
+    # download, a file copy, a registration. This one cannot be. It sends them to a
+    # website, to sign in to a plan, and come back - and until they do, everything
+    # below it in the old order sat waiting behind the one step nobody could finish
+    # for them.
+    #
+    # Moved to the end, the owner watches the whole setup complete and is left with
+    # exactly one thing to do, rather than meeting it in the middle and wondering
+    # whether the rest ever ran.
+    # Signing Zo in to an existing plan means it uses one the owner already
+    # pays for, instead of billing per use.
+    local claude_state codex_state
+    claude_state="$(zo_field 'data.aiProviders?.claude?.loggedIn === true')"
+    codex_state="$(zo_field 'data.aiProviders?.codex?.loggedIn === true')"
+    #
+    # Required, and outstanding until they are done.
+    #
+    # These were marked skipped, on the reasoning that an owner cannot clear
+    # them from this computer - they need a paid plan - so counting them as
+    # outstanding meant anybody paying for neither never saw the setup finish.
+    # That reasoning assumed the plan was optional. It is not: participants are
+    # told to register and to pay before they arrive, so an unlinked plan is an
+    # unfinished step rather than somebody declining to buy something.
+    #
+    # The practical difference is the whole point. Skipped counts as done, so
+    # the setup never offered these rows at all - an owner who had paid and
+    # simply not linked it was never asked, and found out at the event.
+    if [ "$claude_state" = "true" ]; then
+        CHECKS+=("zo-claude-code|Claude plan on Zo|ok|signed in|")
+    else
+        CHECKS+=("zo-claude-code|Claude plan on Zo|missing|not signed in|sign in with the plan you paid for")
+    fi
+    if [ "$codex_state" = "true" ]; then
+        CHECKS+=("zo-codex|ChatGPT plan on Zo|ok|signed in|")
+    else
+        CHECKS+=("zo-codex|ChatGPT plan on Zo|missing|not signed in|sign in with the plan you paid for")
+    fi
 }
 
 clear_screen() { [ -t 1 ] && clear 2>/dev/null; return 0; }

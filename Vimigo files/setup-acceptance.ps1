@@ -664,25 +664,25 @@ try {
         return (@(Get-AllChecks 6>$null | ForEach-Object { $_.Key }) -join ' ')
     }
 
-    $allOn = 'zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo zo-employees'
-    $allOff = 'zo-claude-code zo-codex zo-google'
+    $allOn = 'zo-skills zo-brain zo-google talk-to-zo zo-employees zo-claude-code zo-codex'
+    $allOff = 'zo-google zo-claude-code zo-codex'
 
     Assert-True ((Get-ZoRowKeys -Assistant 'on' -Skills 'on' -Brain 'on' -Employees 'on') -eq $allOn) `
-        'everything on, the checklist is in the order it always was'
+        'everything on, the plan rows are last and the rest keep their order'
     Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'off' -Employees 'off') -eq $allOff) `
         'everything off, only the rows that always ship are left'
     Assert-True ((Get-ZoRowKeys -Assistant 'on' -Skills 'off' -Brain 'off' -Employees 'off') -eq `
-        'zo-claude-code zo-codex zo-google talk-to-zo') `
+        'zo-google talk-to-zo zo-claude-code zo-codex') `
         'the assistant alone brings back only its own row'
     Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'on' -Brain 'off' -Employees 'off') -eq `
-        'zo-claude-code zo-codex zo-skills zo-google') `
-        'skills alone come back in their old place'
+        'zo-skills zo-google zo-claude-code zo-codex') `
+        'skills alone come back above the plan rows'
     Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'on' -Employees 'off') -eq `
-        'zo-claude-code zo-codex zo-brain zo-google') `
-        'the second brain alone sits where it always sat'
+        'zo-brain zo-google zo-claude-code zo-codex') `
+        'the second brain alone sits above the plan rows'
     Assert-True ((Get-ZoRowKeys -Assistant 'off' -Skills 'off' -Brain 'off' -Employees 'on') -eq `
-        'zo-claude-code zo-codex zo-google zo-employees') `
-        'employees alone stay last'
+        'zo-google zo-employees zo-claude-code zo-codex') `
+        'employees alone come last of the rows this setup can finish itself'
 
     # The fault this guards is a real one that shipped: the list shown before
     # the key is pasted was kept by hand and had lost the second brain, so
@@ -1323,21 +1323,21 @@ try {
         return $keys[-1]
     }
 
-    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off') -eq 'hermes-app') `
-        'it is the last row on the list'
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off') -eq 'zo-codex') `
+        'it is the last row this setup can finish by itself'
 
     # The one that matters most. Get-AllChecks gives up early when Zo cannot be
     # reached, and this row is built after that point - so written in the
     # obvious place it would be missing from every machine without a key, which
     # is every machine the first time it is opened.
-    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off' -NoKey) -eq 'hermes-app') `
-        'with no Zo key at all it is still offered, and still last'
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off' -NoKey) -eq 'zo-codex') `
+        'with no Zo key at all it is still offered, and still above the plan rows'
 
     # The other early exit. Employees used to end the function outright, so
     # anything after it vanished on every build that ships with them off.
-    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'on') -eq 'hermes-app') `
-        'switching AI employees back on does not push it off the end'
-    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off') -eq 'hermes-app') `
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'on') -eq 'zo-codex') `
+        'switching AI employees back on does not push it above the rest'
+    Assert-True ((Get-LastRowKey -Hermes 'on' -Employees 'off') -eq 'zo-codex') `
         'and switching them off again does not take it with them'
 
     Set-Features 'off'

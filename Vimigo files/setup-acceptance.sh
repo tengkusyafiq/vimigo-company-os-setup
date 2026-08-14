@@ -267,21 +267,21 @@ zo_rows() {
     printf '%s' "$keys"
 }
 
-ALL_ON='zo-claude-code zo-codex zo-skills zo-brain zo-google talk-to-zo zo-employees'
-ALL_OFF='zo-claude-code zo-codex zo-google'
+ALL_ON='zo-skills zo-brain zo-google talk-to-zo zo-employees zo-claude-code zo-codex'
+ALL_OFF='zo-google zo-claude-code zo-codex'
 
 [ "$(zo_rows on on on on key)" = "$ALL_ON" ]
-assert $? 'everything on, the checklist is in the order it always was'
+assert $? 'everything on, the plan rows are last and the rest keep their order'
 [ "$(zo_rows off off off off key)" = "$ALL_OFF" ]
 assert $? 'everything off, only the rows that always ship are left'
-[ "$(zo_rows on off off off key)" = 'zo-claude-code zo-codex zo-google talk-to-zo' ]
+[ "$(zo_rows on off off off key)" = 'zo-google talk-to-zo zo-claude-code zo-codex' ]
 assert $? 'the assistant alone brings back only its own row'
-[ "$(zo_rows off on off off key)" = 'zo-claude-code zo-codex zo-skills zo-google' ]
+[ "$(zo_rows off on off off key)" = 'zo-skills zo-google zo-claude-code zo-codex' ]
 assert $? 'skills alone bring back only skills, in their old place'
-[ "$(zo_rows off off on off key)" = 'zo-claude-code zo-codex zo-brain zo-google' ]
-assert $? 'the second brain alone sits where it always sat'
-[ "$(zo_rows off off off on key)" = 'zo-claude-code zo-codex zo-google zo-employees' ]
-assert $? 'employees alone stay last'
+[ "$(zo_rows off off on off key)" = 'zo-brain zo-google zo-claude-code zo-codex' ]
+assert $? 'the second brain alone sits above the plan rows'
+[ "$(zo_rows off off off on key)" = 'zo-google zo-employees zo-claude-code zo-codex' ]
+assert $? 'employees alone come last of the rows this setup can finish itself'
 
 # The fault this guards is a real one, shipped for weeks on Windows: the list
 # shown before the key is pasted was kept by hand and drifted out of step with
@@ -1353,21 +1353,21 @@ all_keys() {
 
 last_key() { printf '%s' "${1##* }"; }
 
-[ "$(last_key "$(all_keys key on off)")" = 'hermes-app' ]
-assert $? 'it is the last row on the list'
+[ "$(last_key "$(all_keys key on off)")" = 'zo-codex' ]
+assert $? 'it is the last row this setup can finish by itself'
 
 # The one that matters most. collect_checks gives up early when Zo cannot be
 # reached, and this row is built after that point - so written in the obvious
 # place it would be missing from every machine without a key, which is every
 # machine the first time it is opened.
-[ "$(last_key "$(all_keys nokey on off)")" = 'hermes-app' ]
-assert $? 'with no Zo key at all it is still offered, and still last'
+[ "$(last_key "$(all_keys nokey on off)")" = 'zo-codex' ]
+assert $? 'with no Zo key at all it is still offered, and still above the plan rows'
 
 # The other early exit. Employees used to end the function outright, so
 # anything after it vanished on every build that ships with them switched off.
-[ "$(last_key "$(all_keys key on on)")" = 'hermes-app' ]
-assert $? 'switching AI employees back on does not push it off the end'
-[ "$(last_key "$(all_keys key on off)")" = 'hermes-app' ]
+[ "$(last_key "$(all_keys key on on)")" = 'zo-codex' ]
+assert $? 'switching AI employees back on does not push it above the rest'
+[ "$(last_key "$(all_keys key on off)")" = 'zo-codex' ]
 assert $? 'and switching them off again does not take it with them'
 
 case " $(all_keys key off off) " in *' hermes-app '*) false ;; *) true ;; esac

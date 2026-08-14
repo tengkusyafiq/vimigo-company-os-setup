@@ -411,6 +411,15 @@ $script:ZoWorkspaceUrl = ''
 # only makes sense once there is a first one.
 $script:WhatsAppLinked = $false
 
+# Set the moment `shutdown /r` is issued, and read by the step runner and the
+# main loop so that neither starts anything else.
+#
+# Without it the setup carried on: the restart branch returned "this step is
+# done" and the next step began on a computer with ten seconds to live. Windows
+# then killed the window mid-step - so the owner watched a step start, saw it
+# vanish, and had no way to know whether it had done half its work.
+$script:RestartPending = $false
+
 # ---------------------------------------------------------------------------
 # Remembered answers
 # ---------------------------------------------------------------------------
@@ -1776,6 +1785,11 @@ function Repair-HcsServices {
         Write-Info 'Restarting in 10 seconds. Save anything open.'
         Start-Process -FilePath 'shutdown.exe' -ArgumentList '/r', '/t', '10', '/c', `
             '"Vimigo setup: finishing Claude Desktop setup"' -WindowStyle Hidden
+        # Nothing else may start now. The countdown is running, and the step
+        # after this one would begin work Windows kills in seconds - which is
+        # what happened: the owner said yes to the restart and watched the setup
+        # march into the next step regardless.
+        $script:RestartPending = $true
         return $true
     }
 
@@ -2298,8 +2312,6 @@ function Get-AllChecks {
         # missing the second brain while the list below it had one - the exact
         # rearrangement the paragraph above forbids, shipped for weeks.
         $offline = New-Object System.Collections.Generic.List[object]
-        $offline.Add(@{ Key = 'zo-claude-code'; Title = 'Claude plan on Zo' })
-        $offline.Add(@{ Key = 'zo-codex';       Title = 'ChatGPT plan on Zo' })
         if (Test-FeatureOn $script:FeatureZoSkills) {
             $offline.Add(@{ Key = 'zo-skills';  Title = 'Basic skills for your Zo' })
         }
@@ -2323,42 +2335,22 @@ function Get-AllChecks {
         # and offered exactly as they would be on a machine whose key works.
         Add-EventSkillCheck -Checks $checks
         Add-HermesCheck -Checks $checks
-        return $checks
-    }
 
-    # Signing Zo in to an existing Claude or ChatGPT subscription means the
-    # owner's Zo uses a plan they already pay for, instead of billing per use.
-    foreach ($provider in @(
-        @{ Key = 'zo-claude-code'; Title = 'Claude plan on Zo'; Field = 'claude' },
-        @{ Key = 'zo-codex';       Title = 'ChatGPT plan on Zo'; Field = 'codex' }
-    )) {
-        $signedIn = $zo.aiProviders -and $zo.aiProviders.($provider.Field) -and
-            $zo.aiProviders.($provider.Field).loggedIn -eq $true
-        # "signed in" is all this can honestly say. Whether Zo has the provider
-        # switched on and set as a default lives in Zo's web settings, which
-        # are held on its servers and are not readable from here. Calling that
-        # "done" would hide a plan being paid for and never used.
-        if ($signedIn) {
-            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'ok' `
-                -Detail 'signed in - finish on the Zo website'))
-        } else {
-            # Required, and outstanding until they are done.
-            #
-            # These were marked skipped, on the reasoning that an owner cannot
-            # clear them from this computer - they need a paid plan - so
-            # counting them as outstanding meant anybody paying for neither
-            # never saw the setup finish. That reasoning assumed the plan was
-            # optional. It is not: participants are told to register and to pay
-            # before they arrive, so an unlinked plan is an unfinished step
-            # rather than somebody declining to buy something.
-            #
-            # The practical difference is the whole point. Skipped counts as
-            # done, so the setup never offered these rows at all - an owner who
-            # had paid and simply not linked it was never asked, and found out
-            # at the event.
-            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'missing' `
-                -Detail 'not signed in' -Note 'sign in with the plan you paid for'))
-        }
+        # The plan rows last, because that is where they are once a key exists,
+        # and a list that rearranges itself the moment the key is pasted looks
+        # like a different program. Added here rather than in $offline above
+        # precisely so they land after Hermes: everything in that list is
+        # printed before it.
+        #
+        # This is the second hand-kept copy of the order that the comment above
+        # warns about, and it is why the acceptance suite compares this list
+        # against the live one row for row rather than trusting either. It
+        # caught this exact pair being left behind.
+        $checks.Add((New-Check -Key 'zo-claude-code' -Title 'Claude plan on Zo' `
+            -Status 'needs-you' -Detail $why))
+        $checks.Add((New-Check -Key 'zo-codex' -Title 'ChatGPT plan on Zo' `
+            -Status 'needs-you' -Detail $why))
+        return $checks
     }
 
     # Order from here on follows how a business actually gets going: teach it
@@ -2540,11 +2532,62 @@ function Get-AllChecks {
     # Hermes One, which the CEO asked for as the final step by name.
     Add-EventSkillCheck -Checks $checks
 
-    # Genuinely last, and deliberately so. Everything before it either is the
-    # way the owner reaches their Zo or is something their Zo gains; this is a
-    # separate app that stands on its own, so it goes after the setup's own
-    # promise has been kept rather than in front of it.
+    # Last of the rows this setup can finish by itself, and deliberately so.
+    # Everything before it either is the way the owner reaches their Zo or is
+    # something their Zo gains; this is a separate app that stands on its own,
+    # so it goes after the setup's own promise has been kept rather than in
+    # front of it.
+    #
+    # It used to be last outright. The plan rows now sit below it, because they
+    # are the one thing here nobody can finish for the owner - see their own
+    # comment for why that belongs at the very end.
     Add-HermesCheck -Checks $checks
+    # Last on purpose, and it is the only row here that is.
+    #
+    # Every other step is something this setup can do while the owner watches: a
+    # download, a file copy, a registration. This one cannot be. It sends them to a
+    # website, to sign in to a plan, and come back - and until they do, everything
+    # below it in the old order sat waiting behind the one step nobody could finish
+    # for them.
+    #
+    # Moved to the end, the owner watches the whole setup complete and is left with
+    # exactly one thing to do, rather than meeting it in the middle and wondering
+    # whether the rest ever ran.
+    # Signing Zo in to an existing Claude or ChatGPT subscription means the
+    # owner's Zo uses a plan they already pay for, instead of billing per use.
+    foreach ($provider in @(
+        @{ Key = 'zo-claude-code'; Title = 'Claude plan on Zo'; Field = 'claude' },
+        @{ Key = 'zo-codex';       Title = 'ChatGPT plan on Zo'; Field = 'codex' }
+    )) {
+        $signedIn = $zo.aiProviders -and $zo.aiProviders.($provider.Field) -and
+            $zo.aiProviders.($provider.Field).loggedIn -eq $true
+        # "signed in" is all this can honestly say. Whether Zo has the provider
+        # switched on and set as a default lives in Zo's web settings, which
+        # are held on its servers and are not readable from here. Calling that
+        # "done" would hide a plan being paid for and never used.
+        if ($signedIn) {
+            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'ok' `
+                -Detail 'signed in - finish on the Zo website'))
+        } else {
+            # Required, and outstanding until they are done.
+            #
+            # These were marked skipped, on the reasoning that an owner cannot
+            # clear them from this computer - they need a paid plan - so
+            # counting them as outstanding meant anybody paying for neither
+            # never saw the setup finish. That reasoning assumed the plan was
+            # optional. It is not: participants are told to register and to pay
+            # before they arrive, so an unlinked plan is an unfinished step
+            # rather than somebody declining to buy something.
+            #
+            # The practical difference is the whole point. Skipped counts as
+            # done, so the setup never offered these rows at all - an owner who
+            # had paid and simply not linked it was never asked, and found out
+            # at the event.
+            $checks.Add((New-Check -Key $provider.Key -Title $provider.Title -Status 'missing' `
+                -Detail 'not signed in' -Note 'sign in with the plan you paid for'))
+        }
+    }
+
 
     return $checks
 }
@@ -6732,6 +6775,17 @@ function Invoke-FixEverything {
 
         Write-Host ''
         Show-ProgressBar -Done $number -Total $total
+
+        if ($script:RestartPending) {
+            # The computer is going down. Everything after this one is untouched
+            # rather than done, and saying so is the whole point: a step nobody
+            # ran must never be reported as run, least of all to somebody about
+            # to reboot and come back expecting it to have happened.
+            for ($later = $number; $later -lt @($outstanding).Count; $later++) {
+                $unfinished.Add(@($outstanding)[$later])
+            }
+            break
+        }
     }
 
     return $unfinished
@@ -7093,6 +7147,21 @@ while ($true) {
     Show-Banner
 
     $unfinished = @(Invoke-FixEverything -Checks $checks)
+
+    # Said before anything else, and nothing is asked of them. The countdown is
+    # already running, so "Press Enter to exit" is a question the machine will
+    # answer for them - and the list of what is left would scroll past unread on
+    # a screen that is about to go black.
+    if ($script:RestartPending) {
+        Write-Host ''
+        Write-Warn '      Your computer is restarting now.'
+        Write-Host ''
+        Write-Info '      Nothing else will run until it comes back. When it does,'
+        Write-Info '      run this setup again and it will pick up exactly where it'
+        Write-Info '      left off.'
+        Write-Host ''
+        break
+    }
 
     Write-Host ''
     if ($unfinished.Count -gt 0) {
