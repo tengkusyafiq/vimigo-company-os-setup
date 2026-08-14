@@ -1636,7 +1636,7 @@ function Repair-HcsServices {
         return $false
     }
 
-    Write-Info 'Cowork needs two Windows features that are switched off on this'
+    Write-Info 'Cowork needs some Windows features that are switched off on this'
     Write-Info 'computer. Without them the Cowork button stays greyed out.'
     Write-Host ''
     Write-Warn 'Windows will ask for permission, and the computer must restart afterwards.'
@@ -1659,31 +1659,117 @@ function Repair-HcsServices {
         Write-Info 'Close this window if you would rather do it another time.'
     }
 
-    # One elevated run for all three, so the owner sees a single prompt rather
-    # than three. Each feature is independent: Containers is unavailable on
-    # Windows Home, and the first two alone usually resolve it there.
-    $features = @('VirtualMachinePlatform', 'HypervisorPlatform', 'Containers')
-    $commands = ($features | ForEach-Object {
-        "dism.exe /online /enable-feature /featurename:$_ /all /norestart"
-    }) -join '; '
+    # Five, not three.
+    #
+    # Claude names three things it cannot find, and each one arrives with a
+    # different feature: vmcompute with Containers, hns with Containers-HNS,
+    # vfpext with Containers-SDN. The list here asked for Containers alone and
+    # stopped, which is the parent of the other two - and /all does not reach
+    # them. It enables the features the named one depends *on*, upward, and has
+    # never switched a child feature on. So the best this could do, on a machine
+    # where the elevated run worked perfectly, was one service out of the three
+    # and the identical "Missing HCS services: HNS, vmcompute, vfpext" after the
+    # restart.
+    #
+    # Named in full rather than leaned on. What is confirmed is that the two
+    # binaries come from components of their own - hns.exe from microsoft-
+    # windows-host-network-service, vfpext.sys from microsoft-windows-hyper-v-
+    # vfpext - and that on a machine with all of these off, neither binary is in
+    # System32 at all. Which feature stages which component is inference from
+    # that, so the five are asked for by name instead of trusting the deduction.
+    # Naming one that turns out to be redundant costs nothing; missing one costs
+    # the owner a restart and leaves the error unchanged.
+    $features = @(
+        'VirtualMachinePlatform',
+        'HypervisorPlatform',
+        'Containers',
+        'Containers-HNS',
+        'Containers-SDN'
+    )
+
+    # One call per line in a batch file, rather than one string joined with a
+    # separator.
+    #
+    # The joined form is what made this step a no-op. The separator was ; which
+    # is PowerShell's, and cmd.exe has no such thing - it reads it as an ordinary
+    # argument. So the five calls collapsed into one malformed dism invocation
+    # carrying a second program name and a second /featurename:, dism refused it,
+    # and nothing was enabled. Start-HcsServices joins with & - the separator
+    # cmd.exe does have - which is why that half of this file worked.
+    #
+    # Fixing the separator would have been enough. A file with one call per line
+    # is chosen instead because it cannot be got wrong that way at all, and it
+    # buys the thing this step never had: somewhere for each call to record
+    # whether it worked. In a batch file %errorlevel% is expanded as its line
+    # runs, so the codes collected below are per-feature and real.
+    #
+    # Written into a directory of its own, and the batch refers to it as %~dp0
+    # rather than an absolute path, so nothing but ASCII feature names ever goes
+    # into the file. An owner whose account name is not ASCII would otherwise hit
+    # the gap between the codepage PowerShell writes and the one cmd.exe reads.
+    $workDir = Join-Path ([IO.Path]::GetTempPath()) ('vimigo-features-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $workDir -Force | Out-Null
+    $batchPath = Join-Path $workDir 'enable.cmd'
+    $codesPath = Join-Path $workDir 'codes.txt'
+
+    $batch = New-Object System.Collections.Generic.List[string]
+    $batch.Add('@echo off')
+    foreach ($feature in $features) {
+        $batch.Add("dism.exe /online /enable-feature /featurename:$feature /all /norestart")
+        $batch.Add("echo $feature=%errorlevel%>>`"%~dp0codes.txt`"")
+    }
+    Set-Content -LiteralPath $batchPath -Value $batch -Encoding ASCII
 
     Write-Info 'Asking Windows for permission. This takes a few minutes.'
     try {
-        $process = Start-Process -FilePath 'cmd.exe' `
-            -ArgumentList '/c', $commands `
-            -Verb RunAs -Wait -PassThru -ErrorAction Stop
+        Start-Process -FilePath $batchPath -Verb RunAs -Wait -WindowStyle Hidden -ErrorAction Stop | Out-Null
     } catch {
+        Remove-Item -LiteralPath $workDir -Recurse -Force -ErrorAction SilentlyContinue
         Write-Bad 'Permission was refused, so nothing was changed.'
         return $false
     }
 
-    # DISM reports 3010 for "worked, restart required", and Containers returns a
-    # failure on Windows Home which is expected rather than fatal. The features
-    # only actually appear after the restart, so neither code proves anything.
+    # Read back what each feature actually did, instead of announcing success.
+    #
+    # This is the other half of the same bug. The step printed "Windows has been
+    # asked to turn the features on" and sent the owner off to restart, whatever
+    # had happened - so a run in which dism refused every single call ended in a
+    # restart, a greyed-out Cowork button and nothing to go on. It would have
+    # done the same for a corrupt component store or an update service switched
+    # off by policy, which are the two ways this can still fail on a machine
+    # where the command is now perfectly well formed.
+    #
+    # 0 is done, 3010 is done-and-needs-the-restart. Anything else is a feature
+    # that did not go on.
+    $results = @{}
+    foreach ($line in @(Get-Content -LiteralPath $codesPath -ErrorAction SilentlyContinue)) {
+        $pair = "$line".Split('=')
+        if ($pair.Count -eq 2) { $results[$pair[0].Trim()] = $pair[1].Trim() }
+    }
+    Remove-Item -LiteralPath $workDir -Recurse -Force -ErrorAction SilentlyContinue
+
+    $failed = @($features | Where-Object {
+        (-not $results.ContainsKey($_)) -or (@('0', '3010') -notcontains $results[$_])
+    })
+
     Write-Host ''
-    Write-Good 'Windows has been asked to turn the features on.'
-    Write-Warn 'You must restart this computer for it to take effect.'
-    Write-Info "(installer reported code $($process.ExitCode))"
+    if ($failed.Count -eq 0) {
+        Write-Good 'All of those features are now switched on.'
+        Write-Warn 'You must restart this computer for it to take effect.'
+    } else {
+        # Named, with their codes, because this is the text that reaches support
+        # and "it did not work" is not something anybody can act on.
+        Write-Warn 'Windows would not switch all of them on:'
+        Write-Host ''
+        foreach ($feature in $failed) {
+            $code = if ($results.ContainsKey($feature)) { $results[$feature] } else { 'no answer' }
+            Write-Host "      $feature - code $code" -ForegroundColor $script:Ink.Warn
+        }
+        Write-Host ''
+        Write-Info 'Restart anyway: whatever did go on needs it, and Cowork may be'
+        Write-Info 'there afterwards. If it is still greyed out, send Vimigo support'
+        Write-Info 'the list above - it says which one refused and why.'
+    }
     Write-Host ''
 
     if (Read-YesNo -Question 'Restart now?' -YesLabel 'Restart now' -NoLabel 'I will restart later') {

@@ -1778,6 +1778,68 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     Assert-True ($setupText -match '(?s)Test-VirtualisationInFirmware.*?catch \{\s*return \$true') `
         'a machine that cannot answer is given the benefit of the doubt'
 
+    # The bug these guard shipped, and it made the whole step a no-op.
+    #
+    # The dism calls were joined into one string with ; - the separator
+    # PowerShell has and cmd.exe does not. cmd read it as an ordinary argument,
+    # started the first dism.exe and handed it everything after it, including a
+    # second program name, and dism refused the malformed call. Nothing was
+    # enabled. The owner was still told the features had been asked for and still
+    # restarted into the identical greyed-out Cowork button.
+    #
+    # Every assertion above this one passed while that was true. They check which
+    # services are asked about, in what order, and whether the firmware is
+    # consulted first - and not one of them ever looked at what was handed to
+    # cmd.exe at all. So that is what is checked here.
+    #
+    # The separator is gone rather than corrected: the calls go into a batch file
+    # one to a line. This asserts it stays gone, because reintroducing a joined
+    # string is the one edit that would bring the whole bug back.
+    Assert-True ($setupText -notmatch "dism\.exe[^`n]*`"\s*\}\s*\)\s*-join") `
+        'the dism calls are not joined into one string for cmd.exe to mis-read'
+
+    # Scoped to the sc.exe calls rather than the whole file. "No -join with ;
+    # anywhere" was the first version of this and it failed on Update-SessionPath,
+    # which joins PATH with ; and is completely correct to do so. The thing worth
+    # asserting is narrower: the two places in this file that build a command
+    # line for cmd.exe must use cmd.exe's separator.
+    $startHcs = [regex]::Match($setupText, '(?s)function Start-HcsServices \{(.*?)\n\}')
+    Assert-True ($startHcs.Success) 'the service-starting step was found to check'
+    if ($startHcs.Success) {
+        $scJoin = [regex]::Match($startHcs.Groups[1].Value, "(?s)sc\.exe.*?-join\s*'([^']*)'")
+        Assert-True ($scJoin.Success -and $scJoin.Groups[1].Value -match '&') `
+            'and its sc.exe calls are joined with & rather than a PowerShell ;'
+    }
+    if ($repair.Success) {
+        $body = $repair.Groups[1].Value
+        Assert-True ($body -match '(?s)foreach \(\$feature in \$features\).*?dism\.exe /online /enable-feature') `
+            'each feature gets a dism call of its own, written a line at a time'
+
+        # The other half of the same bug: the step announced success and sent the
+        # owner off to restart whatever had actually happened. A run in which
+        # dism refused every call ended in a restart and an unchanged error.
+        Assert-True ($body -match '%errorlevel%') `
+            'and each call records what it returned'
+        Assert-True ($body -match "@\('0', '3010'\)") `
+            'which is then read back, counting only 0 and 3010 as done'
+        $goodAt = $body.IndexOf("Write-Good 'All of those features are now switched on.'")
+        $failAt = $body.IndexOf('$failed.Count -eq 0')
+        Assert-True ($goodAt -ge 0 -and $failAt -ge 0 -and $failAt -lt $goodAt) `
+            'so success is claimed only after checking, never before'
+        Assert-True ($body -match 'Windows would not switch all of them on') `
+            'and a partial failure names the features that refused, for support'
+    }
+
+    # Three services, three different features. Containers brings vmcompute and
+    # neither of the other two, and /all does not reach them: it enables what a
+    # feature depends on, upward, and has never switched on a child. Asking for
+    # Containers alone could only ever have fixed one of the three.
+    foreach ($feature in @('VirtualMachinePlatform', 'HypervisorPlatform',
+                           'Containers', 'Containers-HNS', 'Containers-SDN')) {
+        Assert-True ($setupText -match [regex]::Escape("'$feature'")) `
+            "the features asked for include $feature"
+    }
+
     Write-Host ''
     Write-Host 'A default Windows blocks scripts, and the way in must survive it' -ForegroundColor Cyan
 
