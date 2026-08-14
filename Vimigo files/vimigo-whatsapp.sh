@@ -2842,6 +2842,17 @@ fresh_install_steps() {
 
     printf '\n'
     printf '  Your WhatsApp is connected.\n'
+    # Where to use it, because the install ended without ever saying so. The
+    # owner has just watched several minutes of work finish, and "connected"
+    # answers whether it worked, not what to do with it - and what to do with
+    # it is the entire point.
+    #
+    # No instruction to restart anything. restart_ai_clients has already
+    # restarted whichever of them was open, and one that was closed reads the
+    # new settings the next time it opens. Telling somebody to do a thing that
+    # is already done invites them to go looking for a problem.
+    printf '\n'
+    printf '  You can use it now in Claude and in ChatGPT on this computer.\n'
     return 0
 }
 
