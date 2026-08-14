@@ -1537,6 +1537,52 @@ releaseDate: '2026-07-22T11:44:41.451Z'
         'and the plan step asks about both halves, not only the one it can check'
 
     Write-Host ''
+    Write-Host 'A Zo trial that has ended' -ForegroundColor Cyan
+
+    # Measured on the owner's own machine: Zo answers the sign-in with
+    # "Lifecycle operation start denied for <account>: trial_ended", the setup
+    # printed that at him word for word under "Could not start the sign-in", and
+    # both plan rows were then listed as unfinished with "Press Enter to check
+    # again" underneath - which checked again, for ever, and could never have
+    # finished. Nothing on that screen said a trial had ended.
+    $trialResult = [pscustomobject]@{
+        ok = $false
+        error = 'Lifecycle operation start denied for vimigotengku: trial_ended'
+    }
+    Assert-True (Test-ZoTrialEnded -Result $trialResult) 'an ended trial is told apart from every other refusal'
+    Assert-True (-not (Test-ZoTrialEnded -Result ([pscustomobject]@{ ok = $false; error = 'Zo could not be reached' }))) `
+        'and a refusal that is not the trial is left alone'
+    Assert-True (-not (Test-ZoTrialEnded -Result $null)) 'no answer at all is not an ended trial'
+
+    # The words, checked in the file, because this is the whole point of the
+    # branch: an owner who reads "trial_ended" learns nothing they can act on.
+    Assert-True ($setupSource -like '*Your Zo trial has ended.*') 'the owner is told the trial ended, in those words'
+    Assert-True ($setupSource -like '*Add a plan to this Zo account?*') 'and asked which of the two ways on they want'
+    Assert-True ($setupSource -like '*use a different*Zo account*') 'the second way being a different Zo account'
+
+    # Both ways have to actually do something. Adding a plan opens the Zo;
+    # switching accounts throws the expired key away first, because it is read
+    # in a dozen places and any one of them would go on asking about the wrong
+    # Zo.
+    $resolveBody = [regex]::Match($setupSource,
+        '(?s)function Resolve-ZoTrialEnded \{.*?\n\}').Value
+    Assert-True ([bool]$resolveBody) 'the branch was found to check'
+    Assert-True ($resolveBody -match 'Start-Process') 'adding a plan opens the page it is bought on'
+    Assert-True ($resolveBody -match 'Remove-ZoToken') 'switching accounts removes the expired key first'
+    Assert-True ($resolveBody -match 'Set-ZoTokenInteractive') 'and then asks for the new one'
+    Assert-True ($resolveBody -match "workspaceUrl") 'and clears the address that belonged to the old account'
+
+    # Once, not in a loop: the retry happens after the owner has dealt with it,
+    # and a trial still dead after that is reported plainly rather than asked
+    # about again on a screen they have already answered.
+    $providerBody = [regex]::Match($setupSource,
+        '(?s)function Connect-ZoAiProvider \{.*?\n\}').Value
+    Assert-True (([regex]::Matches($providerBody, 'Resolve-ZoTrialEnded')).Count -eq 1) `
+        'the owner is asked about the trial once, not in a loop'
+    Assert-True ($providerBody -match 'still has no plan on it') `
+        'and a trial still dead after that is said plainly, not as an error code'
+
+    Write-Host ''
     Write-Host 'The setup starts without being asked to' -ForegroundColor Cyan
 
     # The first screen no longer asks permission to do the thing it was opened

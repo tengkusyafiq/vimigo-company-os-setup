@@ -1064,6 +1064,65 @@ assert $? 'in money, which is what an owner will act on'
 grep -q "question='Have you signed in and switched it on?'" "$SCRIPT_DIR/vimigo-setup.sh"
 assert $? 'the plan step asks about both halves, not only the one it can check'
 
+printf '\n\033[36mA Zo trial that has ended\033[0m\n'
+
+# Measured on the owner's own machine: Zo answers the sign-in with "Lifecycle
+# operation start denied for <account>: trial_ended", the setup printed that at
+# him word for word under "Could not start the sign-in", and both plan rows were
+# then listed as unfinished with "Press Enter to check again" underneath - which
+# checked again, for ever, and could never have finished. Nothing on that screen
+# said a trial had ended.
+TRIAL_JSON='{"ok":false,"error":"Lifecycle operation start denied for vimigotengku: trial_ended"}'
+ZO_HELPER_REASON=''
+zo_trial_ended "$TRIAL_JSON"
+assert $? 'an ended trial is told apart from every other refusal'
+if zo_trial_ended '{"ok":false,"error":"Zo could not be reached"}'; then
+    assert 1 'and a refusal that is not the trial is left alone'
+else
+    assert 0 'and a refusal that is not the trial is left alone'
+fi
+# The helper reports some failures through its own reason line rather than the
+# answer, and a branch that only reads one of them misses half of them.
+ZO_HELPER_REASON='Lifecycle operation start denied for x: trial_ended'
+zo_trial_ended ''
+assert $? 'and it is caught when only the helper reason carries it'
+ZO_HELPER_REASON=''
+
+# The words, checked in the file, because this is the whole point of the branch:
+# an owner who reads "trial_ended" learns nothing they can act on.
+grep -q 'Your Zo trial has ended.' "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'the owner is told the trial ended, in those words'
+grep -q 'Add a plan to this Zo account?' "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'and asked which of the two ways on they want'
+grep -q 'use a different' "$SCRIPT_DIR/vimigo-setup.sh"
+assert $? 'the second way being a different Zo account'
+
+# Both ways have to actually do something. Adding a plan opens the Zo; switching
+# accounts throws the expired key away first, because it is read in a dozen
+# places and any one of them would go on asking about the wrong Zo.
+RESOLVE_BODY="$(sed -n '/^resolve_zo_trial_ended() {/,/^}/p' "$SCRIPT_DIR/vimigo-setup.sh")"
+[ -n "$RESOLVE_BODY" ]
+assert $? 'the branch was found to check'
+printf '%s\n' "$RESOLVE_BODY" | grep -q 'open "$url"'
+assert $? 'adding a plan opens the page it is bought on'
+printf '%s\n' "$RESOLVE_BODY" | grep -q 'remove_zo_token'
+assert $? 'switching accounts removes the expired key first'
+printf '%s\n' "$RESOLVE_BODY" | grep -q 'set_zo_token_interactive'
+assert $? 'and then asks for the new one'
+printf '%s\n' "$RESOLVE_BODY" | grep -q 'profile_set workspaceUrl'
+assert $? 'and clears the address that belonged to the old account'
+
+# Once, not in a loop, and the answer is kept whatever the exit status was -
+# `|| answer=''` threw away the one line that says the trial has ended, which
+# put the owner straight back to being told the sign-in failed.
+TRIAL_PROVIDER_BODY="$(sed -n '/^connect_zo_ai_provider() {/,/^}/p' "$SCRIPT_DIR/vimigo-setup.sh")"
+[ "$(printf '%s\n' "$TRIAL_PROVIDER_BODY" | grep -c 'resolve_zo_trial_ended')" = '1' ]
+assert $? 'the owner is asked about the trial once, not in a loop'
+printf '%s\n' "$TRIAL_PROVIDER_BODY" | grep -q 'still has no plan on it'
+assert $? 'and a trial still dead after that is said plainly, not as an error code'
+printf '%s\n' "$TRIAL_PROVIDER_BODY" | grep -q 'status=\$?'
+assert $? 'the status is kept apart from the answer, so neither is thrown away'
+
 printf '\n\033[36mThe setup starts without being asked to\033[0m\n'
 
 # The first screen no longer asks permission to do the thing it was opened to

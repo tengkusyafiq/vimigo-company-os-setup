@@ -4448,6 +4448,67 @@ show_zo_model_step() {
     return 0
 }
 
+zo_trial_ended() {
+    # Zo answers a signin on a dead trial with ok:false and
+    # "Lifecycle operation start denied for <account>: trial_ended". That is not
+    # a sign-in that went wrong, it is the one failure in this step the owner can
+    # actually fix, and it needs telling apart from every other refusal. Both the
+    # answer and the helper's own reason are looked at, because a refusal can
+    # arrive either way.
+    case "${1:-}" in
+        *trial_ended*|*'trial has ended'*) return 0 ;;
+    esac
+    case "${ZO_HELPER_REASON:-}" in
+        *trial_ended*|*'trial has ended'*) return 0 ;;
+    esac
+    return 1
+}
+
+resolve_zo_trial_ended() {
+    # Two real ways on, and only the owner knows which. One of the few questions
+    # in this setup with more than one correct answer - the rest were taken out
+    # precisely because they had only one.
+    #
+    # Printed raw, the way this failed before, the owner saw "Could not start the
+    # sign-in. Lifecycle operation start denied for <account>: trial_ended", the
+    # step was listed as unfinished, and "Press Enter to check again" checked
+    # again for ever. Nothing on that screen said the trial had ended, and
+    # nothing could have finished the step.
+    printf '\n'
+    bad 'Your Zo trial has ended.'
+    printf '\n'
+    info 'Zo will not connect your Claude or ChatGPT plan until this Zo'
+    info 'account is on a paid plan. Nothing else on this computer is'
+    info 'affected, and nothing you have already done is lost.'
+    printf '\n'
+    info 'Two ways on: add a plan to this Zo account, or use a different'
+    info 'Zo account that still has time on it.'
+    printf '\n'
+
+    if ask_yes_no 'Add a plan to this Zo account?'; then
+        local url; url="$(zo_settings_url)"
+        printf '\n'
+        info 'Opening your Zo. Add a plan there, then come back to this window.'
+        # Opened, not offered. A plan can only be bought on that page.
+        open "$url" 2>/dev/null || info 'Could not open your browser.'
+        printf '\n'
+        printf '      Press Enter once the plan is active: '
+        read -r _ || true
+        return 0
+    fi
+
+    # A different account means a different key, and the old one has to go
+    # first: the saved token is read in a dozen places, and any one of them left
+    # holding the expired account would go on asking about the wrong Zo. The
+    # workspace address goes with it - it belongs to the account being replaced.
+    printf '\n'
+    info 'No problem. Let us put a different Zo account on this computer.'
+    remove_zo_token
+    ZO_WORKSPACE_URL=''
+    profile_set workspaceUrl ''
+    set_zo_token_interactive
+}
+
 connect_zo_ai_provider() {
     # Signs the owner's Zo in to a Claude or ChatGPT plan they already pay for,
     # so Zo stops billing per use.
@@ -4489,8 +4550,34 @@ connect_zo_ai_provider() {
     ensure_zo_scripts
 
     info 'Starting the sign-in. This takes a moment.'
-    local answer; answer="$(zo_helper --signin "$which")" || {
-        bad 'Could not start the sign-in.'; zo_helper_reason; return 1; }
+    # The status is kept apart from the answer, and the answer is kept whatever
+    # the status is. Throwing it away on a non-zero exit - which is what the
+    # obvious `|| answer=''` does - throws away the one line that says the trial
+    # has ended, and the owner is back to being told the sign-in failed.
+    local answer='' status=0
+    answer="$(zo_helper --signin "$which")" || status=$?
+
+    # Asked about before it is reported as a failure, because it is the one
+    # refusal here with something the owner can do about it.
+    if zo_trial_ended "$answer"; then
+        resolve_zo_trial_ended || return 1
+        printf '\n'
+        info 'Starting the sign-in again.'
+        status=0
+        answer="$(zo_helper --signin "$which")" || status=$?
+    fi
+
+    if [ "$status" -ne 0 ] || [ -z "$answer" ]; then
+        # Once, not in a loop. If it is still the trial after they have just
+        # dealt with the trial, saying so plainly beats asking the same question
+        # again on a screen they have already answered.
+        if zo_trial_ended "$answer"; then
+            bad 'That Zo still has no plan on it.'
+            info 'Add a plan, or use a different Zo account, then run this setup again.'
+            return 1
+        fi
+        bad 'Could not start the sign-in.'; zo_helper_reason; return 1
+    fi
 
     case "$answer" in
         *'"alreadySignedIn":true'*)
@@ -4498,6 +4585,14 @@ connect_zo_ai_provider() {
             show_zo_model_step "$friendly"
             return 0 ;;
         *'"ok":false'*)
+            # Once, not in a loop. If it is still the trial after they have just
+            # dealt with the trial, saying so plainly beats asking the same
+            # question again on a screen they have already answered.
+            if zo_trial_ended "$answer"; then
+                bad 'That Zo still has no plan on it.'
+                info 'Add a plan, or use a different Zo account, then run this setup again.'
+                return 1
+            fi
             bad "$(json_field "$answer" 'data.error || "Zo refused that."')"; return 1 ;;
     esac
 

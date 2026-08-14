@@ -5538,6 +5538,67 @@ function Show-PairingCode {
     Write-Host ''
 }
 
+function Test-ZoTrialEnded {
+    param($Result)
+    # Zo answers a signin on a dead trial with ok:false and
+    # "Lifecycle operation start denied for <account>: trial_ended". That is not
+    # a sign-in that went wrong, it is the one failure in this step the owner can
+    # actually fix, and it needs to be told apart from every other refusal.
+    if (-not $Result) { return $false }
+    $text = ''
+    if ($Result.PSObject.Properties.Name -contains 'error') { $text = [string]$Result.error }
+    if (-not $text) { return $false }
+    return ($text -match 'trial_ended' -or $text -match 'trial has ended')
+}
+
+function Resolve-ZoTrialEnded {
+    <#
+        Two real ways on, and only the owner knows which. One of the few
+        questions in this setup with more than one correct answer - the rest were
+        taken out precisely because they had only one.
+
+        Printed raw, the way this failed before, the owner saw "Could not start
+        the sign-in. Lifecycle operation start denied for vimigotengku:
+        trial_ended", the step was listed as unfinished, and "Press Enter to
+        check again" checked again for ever. Nothing on that screen said the
+        trial had ended, and nothing could have finished the step.
+    #>
+    Write-Host ''
+    Write-Bad 'Your Zo trial has ended.'
+    Write-Host ''
+    Write-Info 'Zo will not connect your Claude or ChatGPT plan until this Zo'
+    Write-Info 'account is on a paid plan. Nothing else on this computer is'
+    Write-Info 'affected, and nothing you have already done is lost.'
+    Write-Host ''
+    Write-Info 'Two ways on: add a plan to this Zo account, or use a different'
+    Write-Info 'Zo account that still has time on it.'
+    Write-Host ''
+
+    if (Read-YesNo -Question 'Add a plan to this Zo account?') {
+        $url = Get-ZoSettingsUrl -WorkspaceUrl $script:ZoWorkspaceUrl
+        Write-Host ''
+        Write-Info 'Opening your Zo. Add a plan there, then come back to this window.'
+        # Opened, not offered. A plan can only be bought on that page.
+        try { Start-Process $url } catch {
+            Write-Info "Could not open your browser. The address is $url"
+        }
+        Write-Host ''
+        Read-Host -Prompt '      Press Enter once the plan is active' | Out-Null
+        return $true
+    }
+
+    # A different account means a different key, and the old one has to go
+    # first: Get-ZoToken is read in a dozen places, and any one of them left
+    # holding the expired account would go on asking about the wrong Zo. The
+    # workspace address goes with it - it belongs to the account being replaced.
+    Write-Host ''
+    Write-Info 'No problem. Let us put a different Zo account on this computer.'
+    Remove-ZoToken
+    $script:ZoWorkspaceUrl = ''
+    Set-ProfileValue -Name 'workspaceUrl' -Value ''
+    return (Set-ZoTokenInteractive)
+}
+
 function Connect-ZoAiProvider {
     <#
         Signs the owner's Zo in to a Claude or ChatGPT plan they already pay
@@ -5577,7 +5638,24 @@ function Connect-ZoAiProvider {
     Write-Info 'Starting the sign-in. This takes a moment.'
     $result = Invoke-ZoHelper -Arguments @('--signin', $Which)
 
+    # Asked about before it is reported as a failure, because it is the one
+    # refusal here with something the owner can do about it.
+    if (Test-ZoTrialEnded -Result $result) {
+        if (-not (Resolve-ZoTrialEnded)) { return $false }
+        Write-Host ''
+        Write-Info 'Starting the sign-in again.'
+        $result = Invoke-ZoHelper -Arguments @('--signin', $Which)
+    }
+
     if (-not $result -or -not $result.ok) {
+        # Once, not in a loop. If it is still the trial after they have just
+        # dealt with the trial, saying so plainly beats asking the same question
+        # again on a screen they have already answered.
+        if (Test-ZoTrialEnded -Result $result) {
+            Write-Bad 'That Zo still has no plan on it.'
+            Write-Info 'Add a plan, or use a different Zo account, then run this setup again.'
+            return $false
+        }
         Write-Bad 'Could not start the sign-in.'
         if ($result -and $result.error) { Write-Info "  $($result.error)" }
         return $false
