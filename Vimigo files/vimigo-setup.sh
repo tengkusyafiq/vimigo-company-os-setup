@@ -1775,7 +1775,18 @@ install_brew_formula() {
     add_installed_by_us "$formula"
 
     info "Installing $friendly. This can take a few minutes."
-    brew install "$formula" 2>&1 | sed 's/^/    /'
+    info 'If your Mac asks for your password, type it and press Enter. It does'
+    info 'not appear on screen as you type.'
+    printf '\n'
+    # NOT piped into sed for the indent.
+    #
+    # sed block-buffers, so a download that is working perfectly shows nothing
+    # at all for minutes - and brew's own password prompt goes into the buffer
+    # with it. On event wifi that is a completely silent screen for twenty
+    # minutes, which is indistinguishable from a crash and was reported as one
+    # on two Macs on the morning of the event. Live output, unindented, beats a
+    # tidy screen nobody can read.
+    brew install "$formula" 2>&1
 
     # Homebrew's exit code proves nothing. Re-detect.
     load_homebrew_env
@@ -1828,7 +1839,13 @@ install_desktop_app() {
         install_homebrew || return 1
     fi
 
-    brew install --cask "$cask" 2>&1 | sed 's/^/    /'
+    info "Downloading $friendly. This one is large - on a busy wifi it can take"
+    info 'twenty minutes. Lines will appear below while it works.'
+    info 'If your Mac asks for your password, type it and press Enter. It does'
+    info 'not appear on screen as you type.'
+    printf '\n'
+    # Live, for the reason given on the formula install above.
+    brew install --cask "$cask" 2>&1
 
     if app_installed "$appname"; then
         good "$friendly is installed."
