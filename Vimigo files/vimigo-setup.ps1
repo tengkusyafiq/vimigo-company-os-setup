@@ -178,7 +178,30 @@ $script:FeatureEventSkill  = 'on'
 # It is still the most invasive thing here - administrator permission, the
 # hypervisor, and a restart - so it earns its place by being right about
 # whether it can work at all before it asks for any of that.
-$script:FeatureClaudeFeatures = 'on'
+#
+# OFF, turned off during the event on the morning it shipped.
+#
+# Two laptops - a Legion and an MSI, different vendors - ran the setup,
+# restarted when asked, and came back to "Your device ran into a problem and
+# couldn't be repaired". Neither reached Windows again without recovery. The
+# owner confirmed the sequence: run the setup, restart, dead.
+#
+# This is the only step that touches boot. It asks for administrator, enables
+# VirtualMachinePlatform and HypervisorPlatform through dism, and restarts so
+# Windows can apply them - and applying them is what failed.
+#
+# Everything written above argued it earns its invasiveness by being right about
+# whether it can work before it asks. It checked whether the services were
+# present. It could not check whether this particular machine would survive the
+# change, and two of them did not.
+#
+# A greyed-out Cowork button costs an owner part of a session. An unbootable
+# laptop costs them the whole event and their machine. That trade is not close.
+#
+# Turn it back on with VIMIGO_FEATURE_CLAUDE_FEATURES=on, on a machine you can
+# afford to rebuild, and find out what actually failed before this goes back to
+# on by default.
+$script:FeatureClaudeFeatures = 'off'
 # What the finished screen offers besides Close.
 #
 # Off, so "ALL DONE" ends the setup instead of presenting a menu. The two rows
@@ -3459,6 +3482,53 @@ function Confirm-ZoKeyWorks {
     }
 }
 
+function Close-DesktopAppForWrite {
+    <#
+        Closes the app before its settings file is written, and says whether it
+        had to.
+
+        Both apps keep their settings in memory and write the whole file back
+        when they quit. This used to write the Zo entry into a running app's
+        file, confirm it had saved, and only then ask the app to restart - so
+        the app saved its own copy over ours on the way out, the entry vanished
+        a second after being verified, and the very next check honestly reported
+        "not connected". Owners who had done everything right were told they had
+        not, live during the event.
+
+        The process matching is deliberately identical to Restart-DesktopApp's,
+        including why it matches on path rather than name: Claude Code ships an
+        executable called claude too, and closing everything by that name closes
+        the terminal the owner is sitting in.
+    #>
+    param([ValidateSet('Claude', 'ChatGPT')][string]$Which)
+
+    $processNames = if ($Which -eq 'Claude') { @('Claude') } else { @('ChatGPT', 'Codex') }
+    $running = {
+        @($processNames |
+            ForEach-Object { Get-Process -Name $_ -ErrorAction SilentlyContinue } |
+            Where-Object {
+                $path = ''
+                try { $path = [string]$_.Path } catch { $path = '' }
+                Test-DesktopAppPath -Which $Which -Path $path
+            })
+    }
+
+    $open = @(& $running)
+    if ($open.Count -eq 0) { return 'was-closed' }
+
+    Write-Host ''
+    Write-Info "Closing $Which first, so it does not overwrite this."
+    foreach ($process in $open) {
+        try { $null = $process.CloseMainWindow() } catch { }
+    }
+
+    for ($waited = 0; $waited -lt 10; $waited++) {
+        Start-Sleep -Seconds 1
+        if (@(& $running).Count -eq 0) { return 'closed-it' }
+    }
+    return 'refused'
+}
+
 function Backup-ConfigFile {
     param([string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
@@ -3508,6 +3578,15 @@ function Connect-ZoToClaude {
         }
     }
     if (-not $document) { $document = [pscustomobject]@{} }
+
+    # Before the backup, and before the write. See Close-DesktopAppForWrite.
+    if ((Close-DesktopAppForWrite -Which 'Claude') -eq 'refused') {
+        Write-Warn 'Claude Desktop did not close, so nothing was changed.'
+        Write-Info 'Close Claude Desktop yourself, then press Enter here to try'
+        Write-Info 'again. A connection saved underneath a running app is a'
+        Write-Info 'connection that will not be there a minute later.'
+        return $false
+    }
 
     $backup = Backup-ConfigFile -Path (Resolve-ClaudeConfigPath)
     if ($backup) { Write-Info "Saved a backup of your existing Claude settings." }
@@ -3675,6 +3754,15 @@ function Connect-ZoToChatGpt {
     if (Test-Path -LiteralPath $script:CodexConfigPath) {
         $existing = Get-Content -LiteralPath $script:CodexConfigPath -Raw
         if ($null -eq $existing) { $existing = '' }
+    }
+
+    # Before the backup, and before the write. See Close-DesktopAppForWrite.
+    if ((Close-DesktopAppForWrite -Which 'ChatGPT') -eq 'refused') {
+        Write-Warn 'ChatGPT did not close, so nothing was changed.'
+        Write-Info 'Close ChatGPT yourself, then press Enter here to try again.'
+        Write-Info 'A connection saved underneath a running app is a connection'
+        Write-Info 'that will not be there a minute later.'
+        return $false
     }
 
     $backup = Backup-ConfigFile -Path $script:CodexConfigPath

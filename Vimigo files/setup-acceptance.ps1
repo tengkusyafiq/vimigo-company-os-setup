@@ -1678,8 +1678,12 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     # owner who arrives with a greyed-out Cowork button cannot take part. It is
     # still the most invasive thing here, so it has to be right about whether it
     # can work before asking for permission, the hypervisor and a restart.
-    Assert-True (Test-FeatureOn $script:FeatureClaudeFeatures) `
-        'it ships on, because Cowork is what the event actually uses'
+    # It shipped on, and two laptops did not come back from it - a Legion and an
+    # MSI, both bricked at "Your device ran into a problem and couldn't be
+    # repaired" after running the setup and restarting when asked. Off until
+    # somebody knows why, on a machine that can be rebuilt.
+    Assert-True (-not (Test-FeatureOn $script:FeatureClaudeFeatures)) `
+        'it ships OFF, because enabling the hypervisor stopped two laptops booting'
     # Claude present, said here rather than inherited. An earlier block left
     # $script:WantClaude false, and Test-ClaudeDesktopInstalled follows it - so
     # this measured "no Claude, therefore no row" and read as the switch

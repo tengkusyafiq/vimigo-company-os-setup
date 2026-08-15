@@ -1481,8 +1481,12 @@ assert $? 'both scripts ship the same answer for Hermes One'
 # drift. A switch present in one file only is how the two setups come apart.
 [ -n "$(win_default ClaudeFeatures)" ] && [ "$(win_default ClaudeFeatures)" = "$(mac_default CLAUDE_FEATURES)" ]
 assert $? 'both scripts ship the same answer for the Claude Desktop features'
-[ "$(mac_default CLAUDE_FEATURES)" = 'on' ]
-assert $? 'and that answer is on, because the training uses Cowork rather than Chat'
+# It shipped on, and two laptops did not come back from it - a Legion and an MSI,
+# both bricked at "Your device ran into a problem and couldn't be repaired" after
+# running the setup and restarting when asked. Off until somebody knows why, on a
+# machine that can be rebuilt.
+[ "$(mac_default CLAUDE_FEATURES)" = 'off' ]
+assert $? 'and that answer is OFF, because it stopped two laptops booting'
 # The only one that ships on, so it is worth stating rather than implying.
 [ "$(mac_default HERMES)" = 'on' ]
 assert $? 'and that answer is on, because it was asked for by name'

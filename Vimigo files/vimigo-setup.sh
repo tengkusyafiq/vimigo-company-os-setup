@@ -70,7 +70,29 @@ FEATURE_EVENT_SKILL='on'
 # The name is declared anyway so the two files carry the same switches and the
 # acceptance suites can hold them to it. A switch that exists in one file only
 # is how the two setups drift apart without anybody noticing.
-FEATURE_CLAUDE_FEATURES='on'
+# OFF, turned off during the event on the morning it shipped.
+#
+# Two laptops - a Legion and an MSI, different vendors - ran the setup, restarted
+# when asked, and came back to "Your device ran into a problem and couldn't be
+# repaired". Neither reached Windows again without recovery. The owner confirmed
+# the sequence: run the setup, restart, dead.
+#
+# This is the only step that touches boot. It asks for administrator, enables
+# VirtualMachinePlatform and HypervisorPlatform through dism, and restarts so
+# Windows can apply them - and applying them is what failed.
+#
+# The comment that used to be here argued it earns its invasiveness by checking
+# whether it can work before asking. It checked whether the services were
+# present. It could not check whether this particular machine would survive the
+# change, and two of them did not.
+#
+# A greyed-out Cowork button costs an owner part of a session. An unbootable
+# laptop costs them the whole event and their machine. That trade is not close.
+#
+# Turn it back on with VIMIGO_FEATURE_CLAUDE_FEATURES=on, on a machine you can
+# afford to rebuild, and find out what actually failed before this goes back to
+# on by default.
+FEATURE_CLAUDE_FEATURES='off'
 # What the finished screen offers besides Close.
 #
 # Off, so "ALL DONE" ends the setup instead of presenting a menu. The two rows
