@@ -2379,6 +2379,40 @@ backup_config() {
     cp "$path" "$backup" && printf '%s' "$backup"
 }
 
+quit_before_write() {
+    # $1 = the .app name. Closes it if it is open, so the file about to be
+    # written is not overwritten a moment later.
+    #
+    # Both apps keep their settings in memory and write the whole file back when
+    # they quit. This used to write the Zo entry into a running app's file and
+    # then ask it to quit - so the app saved its own copy over ours on the way
+    # out, the entry vanished, and the very next check honestly reported "not
+    # connected". Reported live during the event, by owners who had done
+    # everything right and were being told they had not.
+    #
+    # Returns 0 if it closed something, 1 if nothing was open, 2 if it refused.
+    local appname="$1" waited state
+    app_is_running "$appname"; state=$?
+    [ "$state" -eq 0 ] || return 1
+
+    info "Closing $appname first, so it does not overwrite this."
+    osascript -e "tell application \"$appname\" to quit" >/dev/null 2>&1 || true
+
+    waited=0
+    while [ "$waited" -lt 10 ]; do
+        app_is_running "$appname"; state=$?
+        [ "$state" -eq 0 ] || return 0
+        sleep 1
+        waited=$((waited + 1))
+    done
+    # Still up after ten seconds. Say so rather than write underneath it - a
+    # connection saved under a running app is a connection that will not be
+    # there in a minute.
+    warn "$appname did not close, so nothing was changed."
+    info "Quit $appname yourself, then press Enter here to try again."
+    return 2
+}
+
 connect_zo_to_claude() {
     title 'Connecting Zo to Claude Desktop'
 
@@ -2393,6 +2427,14 @@ connect_zo_to_claude() {
         info 'Press Enter on the main screen and the setup will install it.'
         return 1
     fi
+
+    # Before the backup, and before the write. See quit_before_write.
+    local was_open=''
+    quit_before_write 'Claude'
+    case $? in
+        0) was_open='yes' ;;
+        2) return 1 ;;
+    esac
 
     mkdir -p "$(dirname "$CLAUDE_CONFIG")"
 
@@ -2434,7 +2476,13 @@ connect_zo_to_claude() {
     fi
 
     good 'Zo is connected to Claude Desktop.'
-    restart_desktop_app 'Claude'
+    # Already closed above, so this only has to put it back the way it was.
+    if [ "$was_open" = 'yes' ]; then
+        info 'Opening Claude Desktop again.'
+        open -a 'Claude' >/dev/null 2>&1 || info 'Open Claude Desktop when you like.'
+    else
+        info 'Open Claude Desktop when you like - Zo will be waiting inside it.'
+    fi
     return 0
 }
 
@@ -2452,6 +2500,14 @@ connect_zo_to_chatgpt() {
         info 'Press Enter on the main screen and the setup will install it.'
         return 1
     fi
+
+    # Before the backup, and before the write. See quit_before_write.
+    local was_open=''
+    quit_before_write 'ChatGPT'
+    case $? in
+        0) was_open='yes' ;;
+        2) return 1 ;;
+    esac
 
     mkdir -p "$(dirname "$CODEX_CONFIG")"
     touch "$CODEX_CONFIG"
@@ -2508,7 +2564,13 @@ connect_zo_to_chatgpt() {
     fi
 
     good 'Zo is connected to ChatGPT.'
-    restart_desktop_app 'ChatGPT'
+    # Already closed before the write, so this only puts it back.
+    if [ "$was_open" = 'yes' ]; then
+        info 'Opening ChatGPT again.'
+        open -a 'ChatGPT' >/dev/null 2>&1 || info 'Open ChatGPT when you like.'
+    else
+        info 'Open ChatGPT when you like - Zo will be waiting inside it.'
+    fi
     printf '\n'
 
     # Where it actually appears. The Mac never said, and Windows said the wrong
