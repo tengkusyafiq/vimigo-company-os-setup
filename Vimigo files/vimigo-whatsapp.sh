@@ -1035,7 +1035,69 @@ install_skill() {
     # The same mark install_binaries clears on its own tree, for the same
     # reason: this came out of something downloaded from the internet.
     xattr -d com.apple.quarantine "$dest" >/dev/null 2>&1 || true
+
+    # ChatGPT's copies, from the same extraction.
+    #
+    # ~/.claude/skills is read by Claude Code, Claude Desktop and Cowork - and
+    # by nothing else. An owner who does all their work in ChatGPT had the
+    # repair skill installed to a folder their app has never looked in, so
+    # "ask your assistant to repair it" reached an assistant that had never
+    # heard of the repair verbs and started improvising at somebody who has
+    # never opened a terminal. Which is the exact failure the skill exists to
+    # prevent.
+    #
+    # Failures here are swallowed on purpose. The Claude copy above is the one
+    # this function's return value is about, and an owner who uses Claude must
+    # not lose a working install because a ~/.codex folder would not be
+    # written.
+    if mkdir -p "$(dirname "$(codex_skill_path)")" 2>/dev/null; then
+        cp "$dir/$SKILL_ZIP_ENTRY" "$(codex_skill_path)" 2>/dev/null || true
+        xattr -d com.apple.quarantine "$(codex_skill_path)" >/dev/null 2>&1 || true
+    fi
+    write_codex_prompt || true
+
     rm -rf "$dir" 2>/dev/null
+    return 0
+}
+
+codex_skill_path() {
+    printf '%s' "${CODEX_SKILL_OVERRIDE:-$HOME/.codex/skills/whatsapp-mcp-setup/SKILL.md}"
+}
+
+codex_prompt_path() {
+    # ~/.codex/skills makes the skill something the model can choose;
+    # ~/.codex/prompts makes /fix-whatsapp something the owner can type - which
+    # matters, because a skill the model has to decide to use on its own is not
+    # the same promise as a command in their hand.
+    printf '%s' "${CODEX_PROMPT_OVERRIDE:-$HOME/.codex/prompts/fix-whatsapp.md}"
+}
+
+write_codex_prompt() {
+    # What /fix-whatsapp puts in front of the model.
+    #
+    # The non-technical framing is repeated here rather than left to the skill.
+    # A prompt file is what an owner types when the skill did not load, did not
+    # trigger, or is not there at all - which is precisely the moment the model
+    # is most likely to start reading them error messages.
+    local dest
+    dest="$(codex_prompt_path)"
+    [ -n "$dest" ] || return 1
+    mkdir -p "$(dirname "$dest")" 2>/dev/null || return 1
+    cat >"$dest" 2>/dev/null <<'PROMPT' || return 1
+Fix my WhatsApp connection.
+
+I am the business owner of this computer. I have never opened a terminal. I
+cannot read commands, file paths, error messages or logs, and I will not be
+able to tell you what any of them say. Do all of it yourself. The only thing
+you may ever ask me to do is something on my own phone.
+
+Use the whatsapp-mcp-setup skill if you have it - it has the exact repair
+commands for this computer, and they are the only ones that will work here.
+Do not invent your own, and do not install anything from anywhere else.
+
+When you are done, tell me in one or two plain sentences whether my WhatsApp
+is working, and if it is not, what I should do next.
+PROMPT
     return 0
 }
 
@@ -1082,7 +1144,15 @@ pairing_body() {
     # owner sits watching a code that will never work with nothing on screen
     # to suggest why. Their own number in front of them is the only chance
     # they have to notice.
+    # $5 is set once the code route has been tried enough times to call it: the
+    # owner typed a number, and no code is coming. Without it the page is silent
+    # about that. The owner gave their number - which to them IS asking for a
+    # code - then watches a square, with no code, and nothing anywhere saying
+    # why. Several did exactly that and read it as the setup being stuck. The
+    # square works perfectly the whole time; nobody had told them it was now
+    # the only route.
     local state="${1:-waiting}" qr="${2:-}" code="${3:-}" code_for="${4:-}"
+    local code_unavailable="${5:-0}"
     local or_block='' code_for_line=''
     if [ -n "$code_for" ]; then
         code_for_line="
@@ -1121,6 +1191,13 @@ $(cat <<ORBLOCK
       <p class="code">$code</p>$code_for_line
       <p class="calm">If it runs out, a new one appears here by itself.</p>
 ORBLOCK
+)"
+    elif [ "$code_unavailable" = '1' ]; then
+        or_block="
+$(cat <<NOCODE
+      <p class="calm">I could not get a code for the number you typed, so the
+      square above is the way in. It works exactly the same.</p>
+NOCODE
 )"
     fi
     case "$state" in
@@ -1368,6 +1445,7 @@ start_pairing_loop() {
     # by counting seconds instead of people.
     local root="${1:-}" port="${2:-}" key="${3:-}" timeout="${4:-600}" phone="${5:-}"
     local page token='' code='' opened=0 status='' code_tried_at=0 code_for=''
+    local code_fails=0 code_unavailable=0
     # Rebuilt from what was actually sent to the bridge, never from what was
     # typed, so what the owner reads is what the code was really issued for.
     [ -z "$phone" ] || code_for="+$phone"
@@ -1485,9 +1563,21 @@ start_pairing_loop() {
                 # it, a client still connecting - otherwise means 300 failed
                 # calls across a ten-minute window, which is a lot of log for
                 # a thing that is not going to start working on the 300th try.
+                #
+                # Failures are counted, not just dropped. A number the bridge
+                # will not issue against fails here every ten seconds for the
+                # whole window, silently, and the owner watches a square
+                # wondering where the code they asked for went. Three tries is
+                # thirty seconds: long enough to cover a client still
+                # connecting, short enough that nobody has decided the setup
+                # is broken yet.
                 if [ -z "$code" ] && [ $(( $(date +%s) - code_tried_at )) -ge 10 ]; then
                     code_tried_at="$(date +%s)"
                     code="$(pairing_code "$port" "$token" "$phone")"
+                    [ -n "$code" ] || code_fails=$(( code_fails + 1 ))
+                fi
+                if [ -z "$code" ] && [ "$code_fails" -ge 3 ]; then
+                    code_unavailable=1
                 fi
             fi
 
@@ -1555,13 +1645,19 @@ start_pairing_loop() {
                     # after the restart because the last attempt against the
                     # dead one was recent.
                     code_tried_at=0
+                    # And the tally with it. Those failures were against a
+                    # session that is now gone; holding them against a fresh
+                    # one would tell the owner no code is coming at the exact
+                    # moment one has become possible again.
+                    code_fails=0
+                    code_unavailable=0
                 elif [ "$stalled" -ge "$qr_stall_seconds" ]; then
                     # Restarts exhausted and the square is provably dead -
                     # say so rather than let it sit there looking alive
                     # for the rest of the window.
                     write_pairing_page "$root" "$(pairing_html error '' '')" >/dev/null 2>&1
                 else
-                    write_pairing_page "$root" "$(pairing_html qr "$qr" "$code" "$code_for")" >/dev/null 2>&1
+                    write_pairing_page "$root" "$(pairing_html qr "$qr" "$code" "$code_for" "$code_unavailable")" >/dev/null 2>&1
                 fi
             elif [ -n "$code" ]; then
                 # A code in hand and no square yet, whether because the bridge
@@ -1893,13 +1989,71 @@ add_mcp_everywhere() {
     # Every return value is kept. A writer that failed silently is how a green
     # install and a client that has never heard of WhatsApp end up being the
     # same thing.
+    # The names of the ones that failed are kept too, in a global, because the
+    # sentence the owner gets used to be "one of your apps could not be
+    # connected" - which names nothing, so there is nothing they or their
+    # assistant can act on, and it is equally true when one app failed and when
+    # all three did. An owner read that at the end of an otherwise perfect
+    # install and had no way to tell whether their WhatsApp worked at all.
+    FAILED_CLIENTS=''
+    OK_CLIENTS=''
     local failed=0
-    add_mcp_json "$(claude_desktop_config_path)" "${1:-}" "${2:-}" "${3:-}" || failed=1
-    add_mcp_toml "$(codex_config_path)" "${1:-}" "${2:-}" "${3:-}" || failed=1
+    if add_mcp_json "$(claude_desktop_config_path)" "${1:-}" "${2:-}" "${3:-}"; then
+        OK_CLIENTS="${OK_CLIENTS}Claude Desktop
+"
+    else
+        failed=1; FAILED_CLIENTS="${FAILED_CLIENTS}Claude Desktop
+"
+    fi
+    if add_mcp_toml "$(codex_config_path)" "${1:-}" "${2:-}" "${3:-}"; then
+        OK_CLIENTS="${OK_CLIENTS}ChatGPT
+"
+    else
+        failed=1; FAILED_CLIENTS="${FAILED_CLIENTS}ChatGPT
+"
+    fi
     if command -v claude >/dev/null 2>&1; then
-        add_mcp_claude_code "${1:-}" "${2:-}" "${3:-}" || failed=1
+        if add_mcp_claude_code "${1:-}" "${2:-}" "${3:-}"; then
+            OK_CLIENTS="${OK_CLIENTS}Claude Code
+"
+        else
+            failed=1; FAILED_CLIENTS="${FAILED_CLIENTS}Claude Code
+"
+        fi
     fi
     return "$failed"
+}
+
+# Set by add_mcp_everywhere, one client name per line. Declared here so a
+# reader that runs before any writer sees an empty string rather than an
+# unbound variable under set -u.
+FAILED_CLIENTS=''
+OK_CLIENTS=''
+
+failed_clients_sentence() {
+    # The names on one line, joined the way a person would say them.
+    local list='' name
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if [ -z "$list" ]; then list="$name"
+        else list="$list and $name"; fi
+    done <<EOF
+$FAILED_CLIENTS
+EOF
+    printf '%s' "$list"
+}
+
+first_ok_client() {
+    # The first app that DID get connected, or nothing at all.
+    local name
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        printf '%s' "$name"
+        return 0
+    done <<EOF
+$OK_CLIENTS
+EOF
+    return 1
 }
 
 unescaped_json_text() {
@@ -2164,12 +2318,28 @@ doctor_fix_message() {
         WA-03) printf 'Moving your WhatsApp to a different connection now.' ;;
         WA-04) printf 'Setting it to start with this computer now.' ;;
         WA-05) printf 'Starting it now.' ;;
-        WA-06) printf 'Trying again now.' ;;
+        WA-06) printf 'Reconnecting now. This one needs the internet, so check your wifi.' ;;
         WA-07) printf 'Putting its settings back now.' ;;
         WA-09) printf 'Connecting them now.' ;;
         WA-10) printf 'Updating them now.' ;;
         WA-11) printf 'Waiting for your conversations to finish copying.' ;;
         *) printf '' ;;
+    esac
+}
+
+give_up_message() {
+    # $1 the code the ladder gave up on. What to print when there are no rungs
+    # left.
+    #
+    # The default sends them to support, which is right for a broken install
+    # and wrong for a broken wifi. WA-06 means the bridge is logged in and
+    # cannot hold its connection to WhatsApp - which at an event, on a room
+    # full of laptops sharing one access point, is usually the room rather
+    # than the laptop. Support cannot fix that. The owner can, in seconds,
+    # if anybody tells them that is what it is.
+    case "${1:-}" in
+        WA-06) printf 'Your WhatsApp cannot reach the internet. Check this computer is on wifi - a phone hotspot works too - then run this again.' ;;
+        *) printf 'I could not fix this one. Please contact Vimigo support.' ;;
     esac
 }
 
@@ -2490,12 +2660,27 @@ fix_ladder_rungs() {
                 fi
                 ;;
             WA-06)
+                # One restart, not two.
+                #
+                # The loop gives every code two rounds before it calls a rung
+                # unproductive, which is right for a rung that might work the
+                # second time. This one cannot. WA-06 is "logged in, and the
+                # connection to WhatsApp is down", and restarting a healthy
+                # bridge does not bring the internet back - it just adds
+                # another round of waiting to a screen the owner is already
+                # sitting in front of, before telling them to phone support
+                # about their wifi.
+                #
+                # changed=0 unconditionally rather than only on failure: it is
+                # read only by the "did this round get anywhere" test below,
+                # and that test runs only when the code did NOT change. So a
+                # restart that works is unaffected, and one that does not
+                # stops here instead of going round again.
                 suspend_bridge "$root" >/dev/null 2>&1
                 if [ -n "$port" ] && [ -n "$key" ]; then
-                    resume_bridge "$root" "$port" "$key" >/dev/null 2>&1 || changed=0
-                else
-                    changed=0
+                    resume_bridge "$root" "$port" "$key" >/dev/null 2>&1 || true
                 fi
+                changed=0
                 ;;
             WA-07|WA-09|WA-10) update_bridge_wiring "$root" '' 2>/dev/null || true ;;
             *)
@@ -2680,7 +2865,18 @@ fresh_install_steps() {
     local root="${1:-}" zip="${2:-}" pin="${3:-}" key jwt port record
 
     printf '\n'
-    printf '  Setting up your WhatsApp. This takes a few minutes.\n'
+    # "and the screen stays still" is doing real work, not padding.
+    #
+    # What follows this is a 28 MB download with no output of any kind, and on
+    # venue wifi it can sit there for several minutes. Owners read a still
+    # screen as a stuck one and ask - the same mistake the Mac setup's install
+    # step caused, from the same cause. Saying in advance that nothing moving
+    # IS the normal appearance of this working answers it before it is asked.
+    #
+    # Folded into the existing sentence rather than added as a third one. The
+    # shape here is two sentences, held to by the suite, and it is held to
+    # because an owner reading a wall of reassurance stops reading it.
+    printf '  Setting up your WhatsApp. This takes a few minutes, and the screen stays still.\n'
 
     if [ -z "$zip" ]; then
         zip="$(get_release_zip "$root" "$pin" 2>/dev/null)" || zip=''
@@ -2834,9 +3030,36 @@ fresh_install_steps() {
     fi
 
     if [ "$registered" -ne 0 ]; then
+        # Named, and the good news first. The owner has just watched several
+        # minutes of work and the last thing on screen decides what they
+        # believe happened: "one of your apps" reads as "it did not work",
+        # when in fact their WhatsApp is linked and every other app has it.
         printf '\n'
-        printf '  Your WhatsApp is linked, but one of your apps could not be connected.\n'
-        printf '  Ask your assistant to repair it.\n'
+        printf '  Your WhatsApp is linked and working.\n'
+        printf '  It is the connection to %s that did not go through.\n' "$(failed_clients_sentence)"
+
+        # The words to paste, and somewhere that can act on them.
+        #
+        # "Ask your assistant to repair it" is not an instruction. It does not
+        # say what to say, and - the part that made it useless in the room - it
+        # can name the very app that just failed, which is the one app that
+        # cannot help. An owner who reads that has been handed a dead end at
+        # the end of a working install.
+        #
+        # So: a working client is picked to paste into, never a failed one, and
+        # the sentence to paste is the one the repair skill triggers on. Only
+        # if nothing survived does this become a support call, because only
+        # then is there genuinely nobody on this computer who can act.
+        local helper
+        if helper="$(first_ok_client)" && [ -n "$helper" ]; then
+            printf '\n'
+            printf '  Open %s and paste this:\n' "$helper"
+            printf '\n'
+            printf '      Fix my WhatsApp connection\n'
+        else
+            printf '\n'
+            printf '  Please contact Vimigo support.\n'
+        fi
         return 1
     fi
 
@@ -3000,7 +3223,7 @@ fi
 if [ "$ARG_FIX" -eq 1 ]; then
     if ! fix_ladder "$ROOT" 3 600; then
         printf '\n'
-        printf '  I could not fix this one. Please contact Vimigo support.\n'
+        printf '  %s\n' "$(give_up_message "$(doctor_state "$ROOT" 2>/dev/null | cut -d'|' -f1)")"
     fi
     exit 0
 fi
@@ -3043,7 +3266,7 @@ if [ -f "$ROOT/bin/whatsapp-bridge" ]; then
         *)
             printf '\n'
             if [ "$fixed" -eq 1 ]; then
-                printf '  I could not fix this one. Please contact Vimigo support.\n'
+                printf '  %s\n' "$(give_up_message "$code")"
             else
                 printf '  %s\n' "$sentence"
             fi ;;

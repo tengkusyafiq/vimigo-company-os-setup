@@ -44,7 +44,7 @@ set -eu
 # ---------------------------------------------------------------------------
 UPSTREAM_SHA="${UPSTREAM_SHA_OVERRIDE:-913934ab801d44327fe3eeb94d89a96d318183e9}"
 UPSTREAM_URL="${UPSTREAM_URL_OVERRIDE:-https://github.com/tengkusyafiq/whatsapp-mcp-go.git}"
-VERSION='v1.11'
+VERSION='v1.12'
 
 # Without this, clang stamps the BUILD machine's own macOS version as the
 # binary's minimum. A runner on macOS 15 would then produce something that
