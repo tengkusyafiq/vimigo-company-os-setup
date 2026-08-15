@@ -61,10 +61,17 @@ env:
   # release on a Tuesday.
   GO_VERSION: '1.25.0'
 
-  # The name scripts/public-install-whatsapp-mac.sh downloads. If this ever
-  # stops matching the RELEASE line in that file, every Mac participant gets a
-  # 404 from the one command they were given.
-  ASSET_NAME: 'vimigo-whatsapp-mac-v1.0.zip'
+  # ASSET_NAME is NOT set here on purpose. It is derived below, from the one
+  # VERSION line in scripts/build-whatsapp.sh that actually names the file.
+  #
+  # It used to be a literal, and it sat at v1.0 through eleven releases. The
+  # build kept succeeding and kept producing the right zip; this name then
+  # matched nothing, so the upload quietly shipped an artifact containing the
+  # manifest and no zip at all. `if-no-files-found: error` did not catch it,
+  # because the manifest is on the same path list and one of the two was
+  # found. Nobody noticed until a release needed the Mac asset in a hurry.
+  #
+  # One source for the name, and it is the script that writes the file.
 
 jobs:
   build:
@@ -185,8 +192,39 @@ jobs:
           # run yet, so leaving the default on fails the step outright.
           cache: false
 
+      # The asset's name, taken from the script that writes it, so the two can
+      # never disagree again. Read before the build rather than after, so a
+      # VERSION line that has gone missing or changed shape stops the run here
+      # instead of after eight minutes of compiling.
+      - name: Resolve the asset name
+        run: |
+          set -eu
+          version="$(sed -n "s/^VERSION='\\(v[0-9][0-9.]*\\)'.*/\\1/p" scripts/build-whatsapp.sh | head -n1)"
+          if [ -z "$version" ]; then
+            echo "no VERSION line found in scripts/build-whatsapp.sh" >&2
+            echo "the asset name is derived from it and cannot be guessed" >&2
+            exit 1
+          fi
+          echo "ASSET_NAME=vimigo-whatsapp-mac-$version.zip" >>"$GITHUB_ENV"
+          echo "asset will be vimigo-whatsapp-mac-$version.zip"
+
       - name: Build universal binaries
         run: bash scripts/build-whatsapp.sh
+
+      # The zip has to exist under the name the upload and the one-liner both
+      # use. Checked here, on its own, because the upload step's
+      # if-no-files-found guard is satisfied by the manifest alone - which is
+      # how eleven releases' worth of runs went green while shipping an
+      # artifact with no zip in it.
+      - name: The zip must exist under that name
+        run: |
+          set -eu
+          if [ ! -f "dist/whatsapp/$ASSET_NAME" ]; then
+            echo "the build did not produce dist/whatsapp/$ASSET_NAME" >&2
+            ls -la dist/whatsapp >&2 || true
+            exit 1
+          fi
+          echo "found dist/whatsapp/$ASSET_NAME"
 
       # Hashes match the manifest, both architectures are present in every
       # binary, nothing outside /usr/lib and /System is imported, the ad-hoc
