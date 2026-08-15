@@ -2251,8 +2251,26 @@ function Get-AllChecks {
         }
     }
 
+    # "Later" is a thing the owner says out loud, never something assumed for
+    # them. Without it these three rows cannot be cleared by anybody who has no
+    # Zo account yet, so the setup never reaches ALL DONE - and Hermes and
+    # /compile-data, which need no Zo at all, sit behind a step that cannot be
+    # finished today.
+    #
+    # A working key beats the note and erases it. Otherwise an owner who chose
+    # later, then pasted a key an hour afterwards, would have their Zo rows stay
+    # grey for ever with nothing on screen explaining why.
+    $zoLater = [string]((Get-Profile)['zoLater'])
+    if (Test-ZoTokenShape -Token $token) {
+        if ($zoLater) { Set-ProfileValue -Name 'zoLater' -Value '' }
+        $zoLater = ''
+    }
+
     if (Test-ZoTokenShape -Token $token) {
         $checks.Add((New-Check -Key 'zo-token' -Title 'Zo account key' -Status 'ok' -Detail 'saved on this computer'))
+    } elseif ($zoLater -eq 'yes') {
+        $checks.Add((New-Check -Key 'zo-token' -Title 'Zo account key' -Status 'skipped' `
+            -Detail 'not now - you chose to set Zo up later'))
     } else {
         $checks.Add((New-Check -Key 'zo-token' -Title 'Zo account key' -Status 'needs-you' -Detail 'not entered yet' -Note 'everything below needs this first'))
     }
@@ -2260,11 +2278,16 @@ function Get-AllChecks {
     # Connecting Zo to an app that is not installed is work nobody can finish.
     # These follow the same rule as the apps above them.
     Write-Checking 'the Zo connection inside each app'
+    # Already connected wins over "later" - it is a fact about this computer, and
+    # a row reading "not now" beside a connection that exists would be a lie.
     if (Test-ClaudeMcpConfigured) {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'ok' -Detail 'connected'))
     } elseif (-not $wantClaude) {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'skipped' `
             -Detail "not needed - $because ChatGPT"))
+    } elseif ($zoLater -eq 'yes') {
+        $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'skipped' `
+            -Detail 'not now - you chose to set Zo up later'))
     } else {
         $checks.Add((New-Check -Key 'claude-mcp' -Title 'Zo inside Claude Desktop' -Status 'missing' -Detail 'not connected'))
     }
@@ -2274,6 +2297,9 @@ function Get-AllChecks {
     } elseif (-not $wantChatGpt) {
         $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'skipped' `
             -Detail "not needed - $because Claude"))
+    } elseif ($zoLater -eq 'yes') {
+        $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'skipped' `
+            -Detail 'not now - you chose to set Zo up later'))
     } else {
         $checks.Add((New-Check -Key 'chatgpt-mcp' -Title 'Zo inside ChatGPT' -Status 'missing' -Detail 'not connected'))
     }
@@ -2346,10 +2372,20 @@ function Get-AllChecks {
         # warns about, and it is why the acceptance suite compares this list
         # against the live one row for row rather than trusting either. It
         # caught this exact pair being left behind.
+        #
+        # An owner who has chosen "later" has no key and no plan to link, so
+        # these two are set aside with the rest. Without this, choosing later on
+        # Windows still left two rows nobody could clear and the setup still
+        # never said ALL DONE - which is the whole of what later is for. Mac
+        # already skips this pair whenever Zo is unreachable; only the deliberate
+        # "later" case is aligned here, because the default pre-key behaviour is
+        # a separate question and not one to answer during an event.
+        $planStatus = if ($zoLater -eq 'yes') { 'skipped' } else { 'needs-you' }
+        $planWhy = if ($zoLater -eq 'yes') { 'not now - you chose to set Zo up later' } else { $why }
         $checks.Add((New-Check -Key 'zo-claude-code' -Title 'Claude plan on Zo' `
-            -Status 'needs-you' -Detail $why))
+            -Status $planStatus -Detail $planWhy))
         $checks.Add((New-Check -Key 'zo-codex' -Title 'ChatGPT plan on Zo' `
-            -Status 'needs-you' -Detail $why))
+            -Status $planStatus -Detail $planWhy))
         return $checks
     }
 
@@ -3319,6 +3355,24 @@ function Set-ZoTokenInteractive {
         Write-Host ''
         Read-Host -Prompt '      Press Enter once you have signed up' | Out-Null
         Write-Host ''
+
+        # The only way out of a step that otherwise cannot be finished today.
+        #
+        # Offered here and nowhere else, because saying "no account" is the one
+        # answer that proves there is no key to paste. Everyone else is a minute
+        # from having one, and an escape hatch shown to them is an invitation to
+        # arrive in the room with no Zo in the computer.
+        if (-not (Read-YesNo -Question 'Did you get your account set up?' `
+                -YesLabel 'Yes, carry on' -NoLabel 'No, set Zo up later')) {
+            Set-ProfileValue -Name 'zoLater' -Value 'yes'
+            Write-Host ''
+            Write-Good 'Zo is set aside for now.'
+            Write-Info 'Everything that does not need Zo will still be set up.'
+            Write-Info 'Run this setup again when you have your key, and it will'
+            Write-Info 'pick Zo up from there on its own.'
+            Write-Host ''
+            return $true
+        }
     }
 
     Write-Host ''

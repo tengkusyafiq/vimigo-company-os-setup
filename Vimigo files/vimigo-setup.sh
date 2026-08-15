@@ -1089,8 +1089,25 @@ collect_checks() {
         CHECKS+=("chatgpt-app|ChatGPT Desktop|missing|installed, not signed in|open it and sign in - nothing below works until you do")
     fi
 
+    # "Later" is a thing the owner says out loud, never something assumed for
+    # them. Without it these three rows cannot be cleared by anybody who has no
+    # Zo account yet, so the setup never reaches ALL DONE - and Hermes and
+    # /compile-data, which need no Zo at all, sit behind a step that cannot be
+    # finished today.
+    #
+    # A working key beats the note and erases it. Otherwise an owner who chose
+    # later, then pasted a key an hour afterwards, would have their Zo rows stay
+    # grey for ever with nothing on screen explaining why.
+    local zo_later; zo_later="$(profile_get zoLater)"
+    if token_looks_valid "$(get_zo_token)"; then
+        [ -n "$zo_later" ] && profile_set zoLater ''
+        zo_later=''
+    fi
+
     if token_looks_valid "$(get_zo_token)"; then
         CHECKS+=("zo-token|Zo account key|ok|saved in your keychain|")
+    elif [ "$zo_later" = 'yes' ]; then
+        CHECKS+=("zo-token|Zo account key|skipped|not now - you chose to set Zo up later|")
     else
         CHECKS+=("zo-token|Zo account key|needs-you|not entered yet|everything below needs this first")
     fi
@@ -1098,10 +1115,14 @@ collect_checks() {
     # Connecting Zo to an app that is not installed is work nobody can finish.
     # These follow the same rule as the apps above them.
     checking 'the Zo connection inside each app'
+    # Already connected wins over "later" - it is a fact about this Mac, and a
+    # row reading "not now" beside a connection that exists would be a lie.
     if claude_mcp_configured; then
         CHECKS+=("claude-mcp|Zo inside Claude Desktop|ok|connected|")
     elif [ "$WANT_CLAUDE" = 'no' ]; then
         CHECKS+=("claude-mcp|Zo inside Claude Desktop|skipped|not needed - $because ChatGPT|")
+    elif [ "$zo_later" = 'yes' ]; then
+        CHECKS+=("claude-mcp|Zo inside Claude Desktop|skipped|not now - you chose to set Zo up later|")
     else
         CHECKS+=("claude-mcp|Zo inside Claude Desktop|missing|not connected|")
     fi
@@ -1110,6 +1131,8 @@ collect_checks() {
         CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|ok|connected|")
     elif [ "$WANT_CHATGPT" = 'no' ]; then
         CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|skipped|not needed - $because Claude|")
+    elif [ "$zo_later" = 'yes' ]; then
+        CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|skipped|not now - you chose to set Zo up later|")
     else
         CHECKS+=("chatgpt-mcp|Zo inside ChatGPT|missing|not connected|")
     fi
@@ -2294,6 +2317,23 @@ set_zo_token_interactive() {
             info "Could not open your browser. The address is $ZO_SIGNUP_URL"
         printf '\n'
         info 'Sign up, then come back here and choose this step again.'
+        printf '\n'
+
+        # The only way out of a step that otherwise cannot be finished today.
+        #
+        # Offered here and nowhere else, because this is the one answer that
+        # proves the owner has no key to paste. Everyone else is a minute from
+        # having one, and an escape hatch shown to them is an invitation to
+        # arrive in the room with no Zo in the laptop.
+        if ask_yes_no 'Would you rather set Zo up later and carry on without it?'; then
+            profile_set zoLater 'yes'
+            printf '\n'
+            good 'Zo is set aside for now.'
+            info 'Everything that does not need Zo will still be set up.'
+            info 'Run this setup again when you have your key, and it will pick'
+            info 'Zo up from there on its own.'
+            return 0
+        fi
         return 1
     fi
 
