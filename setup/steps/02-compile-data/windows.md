@@ -12,4 +12,6 @@ Create these three, copying the same `SKILL.md` into the first two:
 Create parent folders as needed. If a file is already there, overwrite it —
 this one is ours and carries no owner state.
 
-Then start a new Claude Code session, or the command will not appear.
+**Do not restart Claude Code now.** The row is done the moment these files
+exist. A restart only makes `/compile-data` appear in the menu, and that is
+wanted at the end of the event - see `README.md`. Finish the checklist first.

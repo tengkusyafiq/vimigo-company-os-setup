@@ -32,6 +32,28 @@ prompt, and it is what makes `/compile-data` something the owner can type rather
 than something the model has to decide to use on its own. A hundred people are
 going to be told to type that command out loud; two out of three is a failure.
 
+## Do not restart anything for this row
+
+The files are on disk the moment you write them, and `verify.js` reads disk. The
+row is done. What a restart buys is `/compile-data` appearing in the menu — and
+that is needed at the **end of the event**, not now.
+
+So finish the checklist first. Restarting Claude Code here kills the session
+mid-setup, costs the owner a resume they did not ask for, and gains nothing they
+will use in the next hour.
+
+Mention it once, at the very end, after every row is green:
+
+> *"One last thing — close Claude and open it again when you get a moment. That
+> makes the /compile-data command appear in your menu. It's for the end of the
+> event, so there's no rush."*
+
+If they are still in this session at the end and you have to restart anyway,
+say it the way `MASTER.md` says:
+
+> *"I'm going to close this and reopen it. When it's back, say hi and I'll pick
+> up where we are."*
+
 ## What to say
 
 > *"Now I'm adding a command you'll use at the end of the event. One moment."*
