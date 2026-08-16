@@ -29,7 +29,11 @@ const evidence = ok
 
 // A passing check leaves a receipt. state.js will not mark this row done
 // without one, which is what stops a row being marked by assertion.
+// A failing check withdraws any earlier passing one. Declining to write a new
+// receipt is not enough - the old one stays valid until it expires, and half an
+// hour is longer than this whole setup takes.
 if (ok) require('../../lib/receipt.js').write('runtimes', { ok, evidence });
+else require('../../lib/receipt.js').clear('runtimes');
 
 process.stdout.write(JSON.stringify({ ok, evidence, missing }) + '\n');
 process.exit(ok ? 0 : 1);

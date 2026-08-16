@@ -40,7 +40,10 @@ const evidence = ok
 
 // A passing check leaves a receipt. state.js will not mark this row done
 // without one, which is what stops a row being marked by assertion.
+// A failing check withdraws any earlier passing one, or a row that broke since
+// it was marked stays markable from the stale receipt.
 if (ok) require('../../lib/receipt.js').write('compile-data', { ok, evidence });
+else require('../../lib/receipt.js').clear('compile-data');
 
 process.stdout.write(JSON.stringify({ ok, evidence, missing }) + '\n');
 process.exit(ok ? 0 : 1);

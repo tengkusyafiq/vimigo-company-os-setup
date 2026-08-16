@@ -398,6 +398,67 @@ The bridge can store/display reactions and may contain REST operations not regis
 
 For a local installation, prefer `send_media` with `media_path`. `upload_media` is intended for remote deployments where the MCP server cannot read the user's local file.
 
+## Reading what people send them
+
+`download_media` brings the file to the computer. What you do next depends
+entirely on what it costs, and the three kinds are not close to each other.
+
+### Voice notes — transcribe them locally, free
+
+Never send a voice note to a paid transcription service. It is the most common
+kind of message in a WhatsApp business chat, an owner may get dozens a day, and
+per-minute billing on that is a bill they never agreed to.
+
+Use Whisper on their own machine. Nothing leaves the computer, and it costs
+nothing however many arrive:
+
+    python3 -m faster_whisper --model base --language auto "<the downloaded file>"
+
+If no Whisper is installed and they want voice notes read, install one first —
+Python is already on this machine, it is row 1 of the setup:
+
+    python3 -m pip install --user faster-whisper
+
+Say what is happening, once, and not in those words:
+
+> *"That's a voice message — give me a moment to listen to it."*
+
+The `base` model is the right default: it runs on any laptop in the room and is
+accurate enough for "can you deliver Tuesday". Only reach for a larger one if
+the transcript comes back obviously wrong, and say nothing about models either
+way.
+
+### Images — just look at it
+
+Download it and read it directly. You can already see images, the owner is
+already paying for that with their Claude or ChatGPT subscription, and there is
+no extra cost and nothing to install.
+
+No transcription service, no OCR tool, no upload anywhere. Read the picture and
+answer the question.
+
+### Video — ask first, every time
+
+**Never process a video without asking.** Video costs real money to analyse, the
+files are large, and a single forwarded clip can cost more than a whole day of
+messages.
+
+> *"There's a video in that message. Do you want me to watch it? It'll take a
+> minute and it does cost a bit — happy to skip it and just tell you who it's
+> from."*
+
+If they say no, say who sent it and what the caption says, and move on. That is
+usually enough to decide with.
+
+If they say yes, do it once. Do not go on to watch every other video in the
+chat off the back of one yes.
+
+### The rule underneath all three
+
+The owner should never be surprised by a cost. Free and instant needs no
+mention; free but slow gets one sentence; anything that costs money gets asked
+about first, in money terms they recognise, before it is spent.
+
 ## Telling them to restart the app
 
 Registering the server does not make the WhatsApp tools appear. Every client

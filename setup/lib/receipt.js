@@ -32,4 +32,16 @@ function read(id) {
   }
 }
 
-module.exports = { write, read, dir };
+// A failing check has to withdraw the last passing one, not merely decline to
+// add another. A verifier with a bug wrote a receipt saying Hermes One was
+// installed on a machine that had never had it; the bug was fixed within the
+// minute, and the receipt sat there afterwards saying the same thing, ready for
+// the next `set hermes done`. The expiry would have cleared it half an hour
+// later, which is longer than the whole setup takes.
+function clear(id) {
+  try {
+    fs.unlinkSync(path.join(dir(), id + '.json'));
+  } catch { /* nothing to withdraw */ }
+}
+
+module.exports = { write, read, clear, dir };

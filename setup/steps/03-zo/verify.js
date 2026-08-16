@@ -10,6 +10,9 @@ const zoVerify = process.env.VIMIGO_ZO_VERIFY
   || path.join(__dirname, '..', '..', 'lib', 'zo-verify.js');
 
 function fail(missing, evidence) {
+  // Withdraw any earlier pass. A key that worked an hour ago and does not now
+  // must not stay markable from the receipt that hour left behind.
+  require('../../lib/receipt.js').clear('zo');
   process.stdout.write(JSON.stringify({ ok: false, evidence, missing }) + '\n');
   process.exit(1);
 }

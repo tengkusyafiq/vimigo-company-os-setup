@@ -53,9 +53,16 @@ async function main() {
   if (!base) die('no address given');
   if (!base.endsWith('/')) base += '/';
 
+  // An optional part names its own list, and every path inside is still
+  // relative to the setup root - so optional/hcs-fix/files.json holds
+  // "optional/hcs-fix/README.md", not "README.md". A list of bare names would
+  // land those files on top of the main tree's README.
+  const listPath = process.argv[3] || 'files.json';
+  if (!safe(listPath)) die('that file list is not inside the setup');
+
   let list;
   try {
-    list = listOf(JSON.parse(await get(base + 'files.json')));
+    list = listOf(JSON.parse(await get(base + listPath)));
   } catch (e) {
     die('could not read the file list (' + e.message + ')');
   }

@@ -129,20 +129,37 @@ Rows run in order, and the required ones gate the optional ones. Nothing below
 | `compile-data` | `steps/02-compile-data/` | yes |
 | `zo` | `steps/03-zo/` | yes |
 | `whatsapp` | `optional/whatsapp/` | only when asked |
-| `hcs-fix` | **not built yet** | — |
-| `hermes` | **not built yet** | — |
+| `hcs-fix` | `optional/hcs-fix/` | only when they report Cowork broken |
+| `hermes` | `optional/hermes/` | only when asked |
 
-`hcs-fix` and `hermes` have no instructions in this tree yet. If someone asks
-for either, **do not improvise one.** Say it is not ready yet, leave the row
-alone, and carry on with the rest:
+### Fetching an optional part
 
-> *"That part isn't ready for me to set up yet — I'll leave it for now."*
+Nothing under `optional/` is downloaded until somebody asks for it, which is
+what keeps the riskier one off a machine nobody asked about. Each names its own
+file list:
 
-This matters most for the Cowork fix. Making that work means changing how the
-computer starts, it has already left one machine unable to boot, and the
-instructions that say how to do it safely are not written. An AI improvising
-inside the guardrails further down this file is still an AI improvising a boot
-configuration change.
+    node lib/fetch-setup.js https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/ optional/hcs-fix/files.json
+
+Then read its `README.md` before doing anything, exactly as with a required row.
+
+### `hcs-fix` is asked for, never offered
+
+Run it when the owner says Cowork is broken. Do not offer it because you saw an
+error, and do not fold it into the checklist.
+
+**Its `README.md` splits one fault into three, and refuses two of them.** One is
+starting a stopped service — safe, no restart. The others need a change to how
+Windows starts, and that change left two laptops of different makes unable to
+boot at an event, with nobody since working out why. `verify.js` says which you
+have. **Never improvise past a refusal**: an AI reasoning carefully toward a
+boot configuration change on a stranger's laptop is still an AI making one.
+
+### `hermes` is last, and finishes without a key
+
+Hermes One needs its own AI provider key, and **their ChatGPT or Claude
+subscription does not include one.** Say so before installing, not after. The
+row is done when the app is installed; the key is theirs to decide on later and
+nothing else depends on it.
 
 ## Check before you do anything — every row, every time
 
