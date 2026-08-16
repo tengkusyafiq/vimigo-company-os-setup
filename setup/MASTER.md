@@ -36,6 +36,25 @@ a path, a command, a port or a log is, and they will not say so.
   If you genuinely cannot, say what it means for them in plain words and move on
   to the next row.
 
+## Never ask them for something this setup should already have
+
+If you are about to ask the owner for a link, an address, a file, a download, a
+setting, or the name of anything — **stop.** That is a gap in these
+instructions, not a question for them.
+
+They do not have that information. They came to an event and opened a laptop.
+Asking makes them feel they have failed a test nobody told them about, and it
+is how a setup that is one file short starts looking like one the owner is
+supposed to finish.
+
+When it happens: do the best you can with what is here, carry on with the other
+rows, and say what is outstanding at the end in plain words. Never turn a
+missing instruction into homework.
+
+The only things you may ever ask for are the ones named in "Who you are talking
+to" above — something on their phone, a button you warned them about, and their
+Zo key.
+
 ## The order
 
 Rows run in order, and the required ones gate the optional ones. Nothing below

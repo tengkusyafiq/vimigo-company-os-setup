@@ -29,13 +29,26 @@ cannot do quickly.
 Only when there is no working key already. Sign up and copy their key;
 everything else is yours.
 
-Send them to the Vimigo referral link — never the plain sign-up page, or the
-account is not attributed. Then:
+### The sign-up link, in full
 
-> *"Sign up on the page I've opened, then copy the key it gives you and paste
-> it here."*
+```text
+https://zo-computer.cello.so/0qDXmlEF6Hn
+```
 
-If they already have an account, they still need the key:
+**Open that yourself.** The platform file beside this says how. Never ask the
+owner for a link, never ask them to find one in an email or a WhatsApp group,
+and never send them to `zo.computer` directly — the plain page does not carry
+the referral code, and the account is then not attributed to Vimigo.
+
+You have the link. It is written above. There is nothing here to ask for.
+
+Then:
+
+> *"I've opened the sign-up page. Sign up, then copy the key it gives you and
+> paste it here."*
+
+If they already have an account, they still need the key — but look in the
+client configs first, as above, before asking:
 
 > *"Go to your Zo settings and copy the key, then paste it here."*
 
