@@ -11,22 +11,25 @@
   :root { --ink:#e8edf2; --dim:#9aa6b2; --line:#2a3138; --bg:#12161a;
           --card:#1a1f25; --warn:#f0c274; --warnbg:#2a2113; } }
 * { box-sizing: border-box; }
-body { margin:0; padding:2rem 1rem 5rem; background:var(--bg); color:var(--ink);
-       font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-main { max-width: 52rem; margin: 0 auto; }
-h1 { font-size:1.6rem; line-height:1.2; margin:0 0 1.5rem; }
-h2 { font-size:1.15rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
+body { margin:0; padding:1.5rem 1rem 4rem; background:var(--bg); color:var(--ink);
+       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 44rem; margin: 0 auto; }
+h1 { font-size:1.4rem; line-height:1.2; margin:0 0 1.5rem; }
+h2 { font-size:1.05rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
      border-top:1px solid var(--line); }
 h2:first-of-type { border-top:0; padding-top:0; }
 p { margin:.6rem 0; }
 ol { padding-left:0; list-style:none; counter-reset:step; margin:1.5rem 0; }
-ol > li { counter-increment:step; margin:0 0 2rem; padding-left:3rem; position:relative; }
-ol > li::before { content:counter(step); position:absolute; left:0; top:-.1rem;
-  width:2rem; height:2rem; border-radius:50%; background:var(--ink); color:var(--bg);
-  font-weight:700; font-size:1rem; display:grid; place-items:center; }
-li strong:first-child { display:block; font-size:1.02rem; margin-bottom:.2rem; }
-img { display:block; width:100%; height:auto; margin:.9rem 0 0;
-      border:1px solid var(--line); border-radius:10px; background:var(--card); }
+ol > li { counter-increment:step; margin:0 0 1.4rem; padding-left:2.4rem; position:relative; }
+ol > li::before { content:counter(step); position:absolute; left:0; top:0;
+  width:1.6rem; height:1.6rem; border-radius:50%; background:var(--ink); color:var(--bg);
+  font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+li strong:first-child { display:block; font-size:.98rem; margin-bottom:.2rem; }
+a.shot { display:inline-block; margin:.6rem 0 0; line-height:0; }
+a.shot img { display:block; max-width:100%; max-height:210px; width:auto; height:auto;
+      border:1px solid var(--line); border-radius:8px; background:var(--card);
+      cursor:zoom-in; transition:border-color .12s; }
+a.shot:hover img { border-color:var(--dim); }
 table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
 th,td { text-align:left; padding:.7rem .8rem; border-bottom:1px solid var(--line); }
 th { font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
@@ -36,9 +39,17 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 .warn { margin:1.5rem 0; padding:1rem 1.2rem; background:var(--warnbg);
         border-radius:10px; color:var(--warn); }
 .warn h2 { border:0; padding:0; margin:0 0 .4rem; font-size:1.1rem; color:inherit; }
-.handover { margin:3rem 0 0; padding:1rem; border:2px dashed var(--line);
+.handover { margin:2.5rem 0 0; padding:1rem; border:2px dashed var(--line);
             border-radius:12px; text-align:center; color:var(--dim); font-size:.95rem; }
-@media (max-width:34rem) { body { font-size:15px; padding:1.25rem .9rem 4rem; } }
+
+#lb { position:fixed; inset:0; z-index:99; display:none; place-items:center;
+      background:rgba(0,0,0,.86); padding:2rem 1rem; cursor:zoom-out; }
+#lb.open { display:grid; }
+#lb img { max-width:96vw; max-height:88vh; width:auto; height:auto;
+          border-radius:8px; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+#lb p { position:absolute; bottom:1.1rem; left:0; right:0; margin:0;
+        text-align:center; color:#cfd6dd; font-size:.85rem; }
+@media (max-width:34rem) { body { font-size:14px; padding:1.25rem .9rem 4rem; } }
 </style>
 </head>
 <body>
@@ -59,7 +70,7 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 <li><strong>Find Telegram in the list and click Set up</strong>
 <p>It sits in the list of ways to reach your Zo — Chat, Text, Email, Telegram,</p>
 <p>Discord, Slack. Click <strong>Set up</strong> on the Telegram row.</p>
-<img src="img/telegram-1-setup.png" alt="Click Set up on the Telegram row" loading="lazy">
+<a class="shot" href="img/telegram-1-setup.png" title="Click to see it full size"><img src="img/telegram-1-setup.png" alt="Click Set up on the Telegram row" loading="lazy"></a>
 </li>
 <li><strong>Follow what Zo asks</strong>
 <p>It will send you to Telegram to connect the two. Everything from here happens</p>
@@ -74,5 +85,26 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 </div>
 <p class="handover">If your screen doesn't look like this, tell me &mdash; I'll walk you through it instead.</p>
 </main>
+
+<div id="lb" role="dialog" aria-modal="true" aria-label="Screenshot">
+<img alt=""><p>Click anywhere, or press Esc, to close</p></div>
+<script>
+(function () {
+  var lb = document.getElementById('lb'), big = lb.querySelector('img');
+  function close() { lb.classList.remove('open'); big.removeAttribute('src'); }
+  document.querySelectorAll('a.shot').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      big.src = a.getAttribute('href');
+      big.alt = a.querySelector('img').alt;
+      lb.classList.add('open');
+    });
+  });
+  lb.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && lb.classList.contains('open')) close();
+  });
+})();
+</script>
 </body>
 </html>

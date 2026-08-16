@@ -11,22 +11,25 @@
   :root { --ink:#e8edf2; --dim:#9aa6b2; --line:#2a3138; --bg:#12161a;
           --card:#1a1f25; --warn:#f0c274; --warnbg:#2a2113; } }
 * { box-sizing: border-box; }
-body { margin:0; padding:2rem 1rem 5rem; background:var(--bg); color:var(--ink);
-       font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-main { max-width: 52rem; margin: 0 auto; }
-h1 { font-size:1.6rem; line-height:1.2; margin:0 0 1.5rem; }
-h2 { font-size:1.15rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
+body { margin:0; padding:1.5rem 1rem 4rem; background:var(--bg); color:var(--ink);
+       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 44rem; margin: 0 auto; }
+h1 { font-size:1.4rem; line-height:1.2; margin:0 0 1.5rem; }
+h2 { font-size:1.05rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
      border-top:1px solid var(--line); }
 h2:first-of-type { border-top:0; padding-top:0; }
 p { margin:.6rem 0; }
 ol { padding-left:0; list-style:none; counter-reset:step; margin:1.5rem 0; }
-ol > li { counter-increment:step; margin:0 0 2rem; padding-left:3rem; position:relative; }
-ol > li::before { content:counter(step); position:absolute; left:0; top:-.1rem;
-  width:2rem; height:2rem; border-radius:50%; background:var(--ink); color:var(--bg);
-  font-weight:700; font-size:1rem; display:grid; place-items:center; }
-li strong:first-child { display:block; font-size:1.02rem; margin-bottom:.2rem; }
-img { display:block; width:100%; height:auto; margin:.9rem 0 0;
-      border:1px solid var(--line); border-radius:10px; background:var(--card); }
+ol > li { counter-increment:step; margin:0 0 1.4rem; padding-left:2.4rem; position:relative; }
+ol > li::before { content:counter(step); position:absolute; left:0; top:0;
+  width:1.6rem; height:1.6rem; border-radius:50%; background:var(--ink); color:var(--bg);
+  font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+li strong:first-child { display:block; font-size:.98rem; margin-bottom:.2rem; }
+a.shot { display:inline-block; margin:.6rem 0 0; line-height:0; }
+a.shot img { display:block; max-width:100%; max-height:210px; width:auto; height:auto;
+      border:1px solid var(--line); border-radius:8px; background:var(--card);
+      cursor:zoom-in; transition:border-color .12s; }
+a.shot:hover img { border-color:var(--dim); }
 table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
 th,td { text-align:left; padding:.7rem .8rem; border-bottom:1px solid var(--line); }
 th { font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
@@ -36,9 +39,17 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 .warn { margin:1.5rem 0; padding:1rem 1.2rem; background:var(--warnbg);
         border-radius:10px; color:var(--warn); }
 .warn h2 { border:0; padding:0; margin:0 0 .4rem; font-size:1.1rem; color:inherit; }
-.handover { margin:3rem 0 0; padding:1rem; border:2px dashed var(--line);
+.handover { margin:2.5rem 0 0; padding:1rem; border:2px dashed var(--line);
             border-radius:12px; text-align:center; color:var(--dim); font-size:.95rem; }
-@media (max-width:34rem) { body { font-size:15px; padding:1.25rem .9rem 4rem; } }
+
+#lb { position:fixed; inset:0; z-index:99; display:none; place-items:center;
+      background:rgba(0,0,0,.86); padding:2rem 1rem; cursor:zoom-out; }
+#lb.open { display:grid; }
+#lb img { max-width:96vw; max-height:88vh; width:auto; height:auto;
+          border-radius:8px; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+#lb p { position:absolute; bottom:1.1rem; left:0; right:0; margin:0;
+        text-align:center; color:#cfd6dd; font-size:.85rem; }
+@media (max-width:34rem) { body { font-size:14px; padding:1.25rem .9rem 4rem; } }
 </style>
 </head>
 <body>
@@ -64,15 +75,15 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 <ol>
 <li><strong>Click Settings, then the AI tab</strong>
 <p>The gear at the bottom of the left-hand menu, then <strong>AI</strong>, the first tab.</p>
-<img src="img/sub-1-ai-tab.png" alt="Click Settings, then the AI tab" loading="lazy">
+<a class="shot" href="img/sub-1-ai-tab.png" title="Click to see it full size"><img src="img/sub-1-ai-tab.png" alt="Click Settings, then the AI tab" loading="lazy"></a>
 </li>
 <li><strong>Scroll down to Providers</strong>
 <p>Past the list of models, to the part headed Providers.</p>
-<img src="img/sub-2-providers.png" alt="Scroll down to the part headed Providers" loading="lazy">
+<a class="shot" href="img/sub-2-providers.png" title="Click to see it full size"><img src="img/sub-2-providers.png" alt="Scroll down to the part headed Providers" loading="lazy"></a>
 </li>
 <li><strong>Click Connect on the one you pay for</strong>
 <p><strong>Codex</strong> if you pay for ChatGPT. <strong>Claude Code</strong> if you pay for Claude.</p>
-<img src="img/sub-3-connect.png" alt="Click Connect next to Codex or Claude Code" loading="lazy">
+<a class="shot" href="img/sub-3-connect.png" title="Click to see it full size"><img src="img/sub-3-connect.png" alt="Click Connect next to Codex or Claude Code" loading="lazy"></a>
 <p>Now follow whichever of the two below matches what you clicked.</p>
 </li></ol>
 <h2>If you clicked Codex (you pay for ChatGPT)</h2>
@@ -80,19 +91,19 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 <ol>
 <li><strong>Copy the one-time code</strong>
 <p>Zo shows a short code like <code>V3QC-I2INZ</code>. Click the copy button beside it.</p>
-<img src="img/sub-codex-1-code.png" alt="Copy the short one-time code Zo shows you" loading="lazy">
+<a class="shot" href="img/sub-codex-1-code.png" title="Click to see it full size"><img src="img/sub-codex-1-code.png" alt="Copy the short one-time code Zo shows you" loading="lazy"></a>
 </li>
 <li><strong>Click Open authorization page and sign in</strong>
 <p>Sign in with the ChatGPT account you pay for.</p>
-<img src="img/sub-codex-2-signin.png" alt="Sign in with the ChatGPT account you pay for" loading="lazy">
+<a class="shot" href="img/sub-codex-2-signin.png" title="Click to see it full size"><img src="img/sub-codex-2-signin.png" alt="Sign in with the ChatGPT account you pay for" loading="lazy"></a>
 </li>
 <li><strong>Paste the code</strong>
 <p>Paste the code you copied in step 1, and confirm.</p>
-<img src="img/sub-codex-3-paste.png" alt="Paste the code you copied from Zo" loading="lazy">
+<a class="shot" href="img/sub-codex-3-paste.png" title="Click to see it full size"><img src="img/sub-codex-3-paste.png" alt="Paste the code you copied from Zo" loading="lazy"></a>
 </li>
 <li><strong>Turn the models on</strong>
 <p>Back in Zo, switch the models on so it can use them.</p>
-<img src="img/sub-codex-4-models.png" alt="Switch the models on" loading="lazy">
+<a class="shot" href="img/sub-codex-4-models.png" title="Click to see it full size"><img src="img/sub-codex-4-models.png" alt="Switch the models on" loading="lazy"></a>
 <p>Zo notices on its own when you are done and closes the box.</p>
 </li></ol>
 <h2>If you clicked Claude Code (you pay for Claude)</h2>
@@ -100,22 +111,22 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 <p>copy afterwards.</p>
 <ol>
 <li><strong>Click Open authorization page</strong>
-<img src="img/sub-claude-1-open.png" alt="Click Open authorization page" loading="lazy">
+<a class="shot" href="img/sub-claude-1-open.png" title="Click to see it full size"><img src="img/sub-claude-1-open.png" alt="Click Open authorization page" loading="lazy"></a>
 </li>
 <li><strong>Sign in, then click Authorize</strong>
 <p>Anthropic lists what Zo will be allowed to do, then asks you to confirm.</p>
-<img src="img/sub-claude-2-authorize.png" alt="Sign in, then click Authorize" loading="lazy">
+<a class="shot" href="img/sub-claude-2-authorize.png" title="Click to see it full size"><img src="img/sub-claude-2-authorize.png" alt="Sign in, then click Authorize" loading="lazy"></a>
 </li>
 <li><strong>Copy the code it gives you</strong>
 <p>After authorizing, Anthropic shows a long code. Copy it.</p>
-<img src="img/sub-claude-3-copy.png" alt="Copy the long code shown after authorizing" loading="lazy">
+<a class="shot" href="img/sub-claude-3-copy.png" title="Click to see it full size"><img src="img/sub-claude-3-copy.png" alt="Copy the long code shown after authorizing" loading="lazy"></a>
 </li>
 <li><strong>Paste it back into Zo and click Submit</strong>
 <p>Back in the Zo box, paste the code into the field and click <strong>Submit</strong>.</p>
-<img src="img/sub-claude-4-paste.png" alt="Paste the code back into Zo and click Submit" loading="lazy">
+<a class="shot" href="img/sub-claude-4-paste.png" title="Click to see it full size"><img src="img/sub-claude-4-paste.png" alt="Paste the code back into Zo and click Submit" loading="lazy"></a>
 </li>
 <li><strong>Turn the models on</strong>
-<img src="img/sub-claude-5-models.png" alt="Switch the models on" loading="lazy">
+<a class="shot" href="img/sub-claude-5-models.png" title="Click to see it full size"><img src="img/sub-claude-5-models.png" alt="Switch the models on" loading="lazy"></a>
 </li></ol>
 <div class="warn">
 <h2>Careful</h2>
@@ -128,5 +139,26 @@ code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:
 </div>
 <p class="handover">If your screen doesn't look like this, tell me &mdash; I'll walk you through it instead.</p>
 </main>
+
+<div id="lb" role="dialog" aria-modal="true" aria-label="Screenshot">
+<img alt=""><p>Click anywhere, or press Esc, to close</p></div>
+<script>
+(function () {
+  var lb = document.getElementById('lb'), big = lb.querySelector('img');
+  function close() { lb.classList.remove('open'); big.removeAttribute('src'); }
+  document.querySelectorAll('a.shot').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      big.src = a.getAttribute('href');
+      big.alt = a.querySelector('img').alt;
+      lb.classList.add('open');
+    });
+  });
+  lb.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && lb.classList.contains('open')) close();
+  });
+})();
+</script>
 </body>
 </html>
