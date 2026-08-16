@@ -31,11 +31,28 @@ function listOf(doc) {
   return null;
 }
 
-// Every path comes off the network, and this writes to disk. A relative path
-// that climbs out of the setup folder would land anywhere in the home folder.
+// Every path comes off the network, and this writes to disk.
+//
+// Two layers, because the containment check alone is a rule about where a file
+// may land and says nothing about what it may be called. Attacked with fourteen
+// traversal payloads, containment refused twelve and contained the other two -
+// '~/evil.txt' and a percent-encoded '../..' - as literal filenames inside the
+// setup folder. Neither escaped, but neither is a file this setup has any
+// business creating, and the list they would arrive in comes over the network.
+//
+// The allowlist is what the published tree already looks like: all 39 real
+// paths pass it unchanged.
+const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 function safe(rel) {
   if (typeof rel !== 'string' || !rel) return null;
   if (path.isAbsolute(rel) || /^[A-Za-z]:/.test(rel)) return null;
+
+  const parts = rel.split('/');
+  if (!parts.every((s) => s !== '..' && SEGMENT.test(s))) return null;
+
+  // Kept as well as, not instead of. An allowlist is only as good as the
+  // characters somebody thought of; this one answers the actual question.
   const full = path.resolve(ROOT, rel);
   const inside = path.relative(ROOT, full);
   if (inside.startsWith('..') || path.isAbsolute(inside)) return null;
