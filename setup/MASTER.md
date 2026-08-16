@@ -130,7 +130,6 @@ Rows run in order, and the required ones gate the optional ones. Nothing below
 | `zo` | `steps/03-zo/` | yes |
 | `whatsapp` | `optional/whatsapp/` | only when asked |
 | `hcs-fix` | `optional/hcs-fix/` | only when they report Cowork broken |
-| `hermes` | `optional/hermes/` | only when asked |
 
 ### Fetching an optional part
 
@@ -153,13 +152,6 @@ Windows starts, and that change left two laptops of different makes unable to
 boot at an event, with nobody since working out why. `verify.js` says which you
 have. **Never improvise past a refusal**: an AI reasoning carefully toward a
 boot configuration change on a stranger's laptop is still an AI making one.
-
-### `hermes` is last, and finishes without a key
-
-Hermes One needs its own AI provider key, and **their ChatGPT or Claude
-subscription does not include one.** Say so before installing, not after. The
-row is done when the app is installed; the key is theirs to decide on later and
-nothing else depends on it.
 
 ## Check before you do anything — every row, every time
 

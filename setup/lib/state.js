@@ -13,7 +13,6 @@ const ROWS = [
   { id: 'zo',           title: 'Your Zo account',          waiting: 'not started yet',    optional: false },
   { id: 'whatsapp',     title: 'WhatsApp',                 waiting: 'only if you want it', optional: true },
   { id: 'hcs-fix',      title: 'The Cowork fix',           waiting: 'only if you need it', optional: true },
-  { id: 'hermes',       title: 'Hermes',                   waiting: 'only if you want it', optional: true },
 ];
 const STATUSES = ['done', 'doing', 'todo', 'blocked', 'not_asked'];
 const GLYPH = { done: '✓', doing: '◐', todo: '●', blocked: '✗', not_asked: '·' };
@@ -98,14 +97,21 @@ function read({ createIfMissing = false } = {}) {
       die(3, 'state file is not readable');
     }
   }
-  // Add rows introduced since the file was written; never drop or reorder.
+  // Add rows introduced since the file was written.
   for (const r of ROWS) {
     if (!raw.rows.some((x) => x.id === r.id)) {
       raw.rows.push({ id: r.id, status: r.optional ? 'not_asked' : 'todo', evidence: null });
     }
   }
+  // And drop rows that have since been withdrawn. This used to only add, which
+  // left a machine showing a row nothing could do any more - and the sort below
+  // uses findIndex, which answers -1 for a row the code does not know, so the
+  // withdrawn one would have sorted to the very top of the owner's checklist.
+  raw.rows = raw.rows.filter((x) => ROWS.some((r) => r.id === x.id));
+  raw.blocked = Array.isArray(raw.blocked)
+    ? raw.blocked.filter((b) => b && ROWS.some((r) => r.id === b.id))
+    : [];
   raw.rows.sort((a, b) => ROWS.findIndex((r) => r.id === a.id) - ROWS.findIndex((r) => r.id === b.id));
-  if (!Array.isArray(raw.blocked)) raw.blocked = [];
   return raw;
 }
 
