@@ -10,9 +10,24 @@ Zo, not from anything on this machine.
 
     node lib/state.js set zo done --evidence "<evidence from verify.js>"
 
+## If it is already working, leave it alone
+
+Run `verify.js` before anything else. If it passes, this row is done — mark it
+and move on. Do not re-register anything and **do not ask for the key again.**
+
+You may already have a key without the owner touching anything. Before you ask
+them for one, look for a Zo entry in the client configs listed in the platform
+file beside this — a setup that got this far yesterday, or was interrupted by a
+restart, left one there. Try `verify.js` with that key first.
+
+Asking somebody to fetch a key they gave you an hour ago is the moment a setup
+stops looking like it knows what it is doing, and it is the one step here they
+cannot do quickly.
+
 ## The only thing the owner does
 
-Sign up and copy their key. Everything else is yours.
+Only when there is no working key already. Sign up and copy their key;
+everything else is yours.
 
 Send them to the Vimigo referral link — never the plain sign-up page, or the
 account is not attributed. Then:

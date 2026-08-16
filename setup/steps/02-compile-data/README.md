@@ -11,6 +11,16 @@ makes `/compile-data` a command the owner can type.
 
     node lib/state.js set compile-data done --evidence "<evidence from verify.js>"
 
+## If it is already there, leave it alone
+
+Run `verify.js` first. If all three files are present it passes, and this row is
+done — mark it and move on. Copying over a skill that is already installed
+gains nothing and costs a Claude Code restart the owner did not need.
+
+Only copy the files `verify.js` reports as missing. A partly-installed row is
+the usual shape here: Claude has it, Codex does not, because a previous run
+stopped halfway.
+
 ## Where the file comes from
 
 `steps/02-compile-data/skill/SKILL.md`, in this published tree. Copy it into

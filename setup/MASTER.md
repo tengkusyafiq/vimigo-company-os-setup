@@ -62,9 +62,27 @@ instructions that say how to do it safely are not written. An AI improvising
 inside the guardrails further down this file is still an AI improvising a boot
 configuration change.
 
-For each row: read the step's `README.md`, then `windows.md` or `macos.md`, do
-the work, run its `verify.js`, and mark the row with the evidence that came
-back.
+## Check before you do anything — every row, every time
+
+**Run the row's `verify.js` first.** Not after. Machines arrive with things
+already on them: Node because they write code, the setup half-finished from
+yesterday, a Zo key pasted an hour ago before the laptop restarted.
+
+For each row, in this order:
+
+1. Run `steps/<row>/verify.js`.
+2. **If it passes, mark the row done with the evidence it returned and move on.
+   Change nothing.** It already works. Installing over it wastes their time and
+   occasionally breaks the thing that was fine.
+3. Only if it fails: read the step's `README.md`, then `windows.md` or
+   `macos.md`, do the work, run `verify.js` again, and mark the row.
+
+The rows the owner has to help with are the expensive ones to repeat. Asking
+somebody to paste a key they already pasted, or to link a phone that is already
+linked, is how a setup stops feeling like it knows what it is doing.
+
+Say nothing about the ones that were already fine. Show the checklist; the
+ticks say it.
 
 ## Marking a row
 

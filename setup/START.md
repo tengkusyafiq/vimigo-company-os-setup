@@ -69,11 +69,28 @@ Copy `MASTER.md` to `<home>/.claude/skills/vimigo-ai-setup/SKILL.md`, creating
 the folders. This is what lets the owner come back after a restart by saying
 *"continue my vimigo ai setup"* instead of pasting anything again.
 
-## 5. Show the checklist and begin
+## 5. Find out what is already working
+
+Before you change anything, run all three checks and mark whatever already
+passes:
+
+    node steps/01-runtimes/verify.js
+    node steps/02-compile-data/verify.js
+    node steps/03-zo/verify.js <key, only if you already have one>
+
+Mark every row that came back ok, using the evidence it returned. A machine
+that arrives with Node already on it, or half-finished from yesterday, should
+show that on the first screen — not get it reinstalled.
+
+## 6. Show the checklist and begin
 
     node lib/state.js show
 
-Then say:
+If everything is already ticked, say so and stop. Do not go looking for work:
+
+> *"Good news — this is all set up already. Nothing for me to do."*
+
+Otherwise:
 
 > *"Right — I can see what your computer needs. I'll work through it and tell
 > you whenever I need you for anything. It'll take a little while."*
