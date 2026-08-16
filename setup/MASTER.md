@@ -5,6 +5,16 @@ description: Set up, resume, or repair a business owner's vimigo AI installation
 
 # vimigo ai setup
 
+## Where everything is
+
+The setup lives in `<home>/.vimigo/setup` — `%USERPROFILE%\.vimigo\setup` on
+Windows, `$HOME/.vimigo/setup` on macOS. Every command in this file is written
+relative to that folder, so work from there.
+
+If that folder is not there, this setup was never downloaded. Fetch
+`https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/START.md`
+and follow it from the top instead of guessing.
+
 ## Before anything else
 
     node lib/state.js json
