@@ -26,7 +26,13 @@ function pass(where) {
   out({ ok: true, evidence, where });
 }
 
-if (process.platform === 'darwin') {
+// Seams, matching the Zo check's VIMIGO_ZO_VERIFY. Without them the Mac path
+// ships never having run at all, and the Windows success path only runs on a
+// machine that already has Hermes One - which is not the machine this gets
+// written on, and is where the leaking-pipeline bug lived.
+const platform = process.env.VIMIGO_FAKE_PLATFORM || process.platform;
+
+if (platform === 'darwin') {
   for (const dir of [path.join(home, 'Applications'), '/Applications']) {
     const app = path.join(dir, APP + '.app');
     if (fs.existsSync(app)) pass(app);
@@ -34,7 +40,7 @@ if (process.platform === 'darwin') {
   out({ ok: false, evidence: 'Hermes One is not installed yet', where: '' });
 }
 
-if (process.platform !== 'win32') {
+if (platform !== 'win32') {
   out({ ok: false, evidence: 'Hermes One is not installed yet', where: '' });
 }
 
@@ -58,9 +64,16 @@ try {
     + ' -ErrorAction SilentlyContinue'
     + ` | Where-Object { $_.DisplayName -eq '${APP}' }`
     + ' | Select-Object -First 1 -ExpandProperty InstallLocation';
-  const where = execFileSync('powershell.exe',
-    ['-NoProfile', '-NonInteractive', '-Command', script],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  // VIMIGO_FAKE_REGISTRY injects what Windows would have answered, so the
+  // success path can be exercised on a machine that has never had this app -
+  // which is the only kind of machine this gets written on, and is why the
+  // leaking pipeline below shipped. Data, not a stand-in program: current Node
+  // refuses to launch a .cmd, so a fake binary silently never runs.
+  const where = (process.env.VIMIGO_FAKE_REGISTRY !== undefined
+    ? process.env.VIMIGO_FAKE_REGISTRY
+    : execFileSync('powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })).trim();
   // One install location, or nothing. Anything with a line break in it is not a
   // path - it is a pipeline that leaked, and trusting it marks the row on
   // whatever happened to be printed.

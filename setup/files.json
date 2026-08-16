@@ -4,6 +4,7 @@
     "START.md",
     "files.json",
     "lib/fetch-setup.js",
+    "lib/fetch-setup.js.bak",
     "lib/manifest.js",
     "lib/receipt.js",
     "lib/state.js",

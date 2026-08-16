@@ -13,6 +13,28 @@ const { execFileSync } = require('node:child_process');
 
 const SERVICES = ['vmcompute', 'hns', 'vfpext'];
 
+// A seam for the decision logic, like VIMIGO_ZO_VERIFY in the Zo check.
+//
+// Four of the five answers this file can give need a machine in a state no
+// developer's laptop is in, so without this they ship having never run - and
+// the one branch a healthy laptop does reach is the one where nothing is wrong.
+// The bug found in the Hermes check lived in its success path for exactly that
+// reason.
+//
+// The injected value is what Windows would have said, not a fake program:
+// execFileSync refuses to launch a .cmd at all on current Node, so a stand-in
+// binary cannot be run, and a test written around one passes while never
+// executing the code it claims to cover.
+//
+//   VIMIGO_FAKE_HCS={"firmware":true,"services":{"vmcompute":"Running",...}}
+const FAKE = (() => {
+  try {
+    return process.env.VIMIGO_FAKE_HCS ? JSON.parse(process.env.VIMIGO_FAKE_HCS) : null;
+  } catch {
+    return null;
+  }
+})();
+
 function ps(script) {
   return execFileSync('powershell.exe',
     ['-NoProfile', '-NonInteractive', '-Command', script],
@@ -27,7 +49,9 @@ function out(o) {
   process.exit(o.ok ? 0 : 1);
 }
 
-if (process.platform !== 'win32') {
+const platform = process.env.VIMIGO_FAKE_PLATFORM || process.platform;
+
+if (platform !== 'win32') {
   out({ ok: true, fix: 'none', evidence: 'not a Windows computer, so Cowork needs nothing here' });
 }
 
@@ -35,22 +59,30 @@ if (process.platform !== 'win32') {
 // that cannot answer counts as yes - this decides whether to offer a repair,
 // and one that cannot say should not be refused one.
 let firmware = true;
-try {
-  const answer = ps(
-    '$c = Get-CimInstance Win32_Processor | Select-Object -First 1;'
-    + ' if ($null -eq $c.VirtualizationFirmwareEnabled) { "unknown" }'
-    + ' else { [string]$c.VirtualizationFirmwareEnabled }');
-  if (/^false$/i.test(answer)) firmware = false;
-} catch { /* unknown counts as yes */ }
+if (FAKE) {
+  firmware = FAKE.firmware !== false;
+} else {
+  try {
+    const answer = ps(
+      '$c = Get-CimInstance Win32_Processor | Select-Object -First 1;'
+      + ' if ($null -eq $c.VirtualizationFirmwareEnabled) { "unknown" }'
+      + ' else { [string]$c.VirtualizationFirmwareEnabled }');
+    if (/^false$/i.test(answer)) firmware = false;
+  } catch { /* unknown counts as yes */ }
+}
 
 let states;
-try {
-  states = SERVICES.map((name) => {
-    const s = ps(`(Get-Service -Name '${name}' -ErrorAction SilentlyContinue).Status`);
-    return { name, state: s || 'absent' };
-  });
-} catch {
-  out({ ok: false, fix: 'unknown', evidence: 'could not ask Windows about those services' });
+if (FAKE) {
+  states = SERVICES.map((name) => ({ name, state: (FAKE.services || {})[name] || 'absent' }));
+} else {
+  try {
+    states = SERVICES.map((name) => {
+      const s = ps(`(Get-Service -Name '${name}' -ErrorAction SilentlyContinue).Status`);
+      return { name, state: s || 'absent' };
+    });
+  } catch {
+    out({ ok: false, fix: 'unknown', evidence: 'could not ask Windows about those services' });
+  }
 }
 
 const running = states.filter((s) => /^Running$/i.test(s.state));

@@ -38,7 +38,7 @@ function safe(rel) {
   if (path.isAbsolute(rel) || /^[A-Za-z]:/.test(rel)) return null;
   const full = path.resolve(ROOT, rel);
   const inside = path.relative(ROOT, full);
-  if (false) return null;
+  if (inside.startsWith('..') || path.isAbsolute(inside)) return null;
   return full;
 }
 
