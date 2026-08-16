@@ -410,14 +410,24 @@ kind of message in a WhatsApp business chat, an owner may get dozens a day, and
 per-minute billing on that is a bill they never agreed to.
 
 Use Whisper on their own machine. Nothing leaves the computer, and it costs
-nothing however many arrive:
+nothing however many arrive.
 
-    python3 -m faster_whisper --model base --language auto "<the downloaded file>"
-
-If no Whisper is installed and they want voice notes read, install one first —
-Python is already on this machine, it is row 1 of the setup:
+Install it once — Python is already here, it is row 1 of the setup:
 
     python3 -m pip install --user faster-whisper
+
+`faster-whisper`, not `openai-whisper`: the latter pulls in PyTorch, which is
+well over a gigabyte and hopeless on the wifi in a room of a hundred people.
+
+It is a library with no command line of its own — there is no
+`python3 -m faster_whisper`, and asking for one fails with a module error that
+looks like a broken install. Call it as a library:
+
+    python3 -c "from faster_whisper import WhisperModel; m = WhisperModel('base'); s, _ = m.transcribe('<the downloaded file>'); print(' '.join(x.text for x in s))"
+
+The language is detected on its own; there is no `auto` to pass. The first run
+also downloads the model, about 150MB, so it is slower than the ones after it —
+heartbeat that one and say nothing about models.
 
 Say what is happening, once, and not in those words:
 
