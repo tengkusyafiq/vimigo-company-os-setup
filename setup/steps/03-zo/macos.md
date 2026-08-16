@@ -11,6 +11,18 @@ Tell them first, so a browser appearing is not a surprise:
 
 > *"I'm opening the sign-up page for you now."*
 
+## Opening the settings page, where the key is actually made
+
+Signing up does not produce a key. Once they say they are signed in, open the
+page where one gets made rather than describing how to navigate there:
+
+    open "https://zo.computer"
+
+Then Settings → Advanced → Access Key, per the five clicks in `README.md`.
+
+If you have tools that can see and click the screen, do those five clicks
+yourself instead of reading them out. They have signed in; the rest is clicking.
+
 ## Registering Zo with both apps
 
 Claude Desktop and Claude Code do not share a configuration file. Write both.

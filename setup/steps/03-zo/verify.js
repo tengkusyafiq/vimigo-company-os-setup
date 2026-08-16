@@ -16,6 +16,17 @@ function fail(missing, evidence) {
 
 if (!token) fail(['the key'], 'no key entered yet');
 
+// Every Zo key starts with zo_sk_. What arrives instead is almost always their
+// email, their password, or the workspace address - three things an owner who
+// has never seen a key reasonably reaches for when asked for "the key".
+// Naming the mistake here is the difference between "that did not work", which
+// tells them nothing and sends them back to a page they cannot read, and being
+// told what to look for. Checked before the network so a wrong paste answers at
+// once and costs nobody a round trip.
+if (!token.startsWith('zo_sk_')) {
+  fail(['the key'], 'that is not a Zo key - a key starts with zo_sk_');
+}
+
 let answer;
 try {
   const out = execFileSync(process.execPath, [zoVerify, token], {
