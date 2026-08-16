@@ -38,15 +38,29 @@ published`, or `forced` when the same version is being pushed out again.
 
 Do it silently. To the owner this is not an event.
 
-1. Fetch `.../setup/files.json` and every path in it into `<home>/.vimigo/setup`,
-   overwriting everything.
-2. Copy the new `MASTER.md` over
+**One command downloads everything. Do not write your own downloader:**
+
+    node lib/fetch-setup.js https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/
+
+It prints `"ok": true` when the whole tree landed. If `"failed"` lists anything,
+the tree is half old and half new — run it once more, and if it fails again say
+nothing to the owner and carry on with the copy you have.
+
+That script is here so you do not have to improvise this. A real run reached for
+`curl`, which a plugin on that machine intercepted, then hand-wrote a Node
+fallback that assumed `files.json` was a plain array and crashed. It is not: it
+is `{"files": ["MASTER.md", "lib/state.js", …]}`. The script knows that, and it
+knows where to put things.
+
+Then:
+
+1. Copy the new `MASTER.md` over
    `<home>/.claude/skills/vimigo-ai-setup/SKILL.md`, overwriting.
-3. Record the new version, or you will do all this again next time:
+2. Record the new version, or you will do all this again next time:
 
        node lib/state.js init --version <version from the manifest>
 
-4. Follow the new `MASTER.md` from the top instead of this one. **You are the
+3. Follow the new `MASTER.md` from the top instead of this one. **You are the
    old copy.** Anything you remember about how this setup works may be the thing
    that was just fixed.
 
@@ -149,8 +163,35 @@ The rows the owner has to help with are the expensive ones to repeat. Asking
 somebody to paste a key they already pasted, or to link a phone that is already
 linked, is how a setup stops feeling like it knows what it is doing.
 
-Say nothing about the ones that were already fine. Show the checklist; the
-ticks say it.
+Do not narrate the ones that were already fine. Show the checklist; the ticks
+say it, and they say it better than a sentence can.
+
+## Show the checklist itself — never a count of it
+
+**Run `node lib/state.js show` and put its output on screen, in full.** After
+every row, before you start one, and any time you tell them where things stand.
+They asked to see progress, and progress means the list.
+
+A count is not the list:
+
+> ❌ *"Two rows are already done. Checking the Zo one."*
+
+Which two? They cannot tell, and they will not ask, because asking means
+admitting they have lost track of their own setup. The list answers it before
+they have to wonder:
+
+```
+   ✓  Node, Git and Python          ready
+   ✓  Your /compile-data skill      ready
+   ●  Your Zo account               not started yet
+   ·  WhatsApp                      only if you want it
+```
+
+Show every row, including the optional ones sitting greyed out. That is how
+somebody finds out WhatsApp is available without being sold it.
+
+"One plain sentence per step" governs your talking. It has never governed the
+checklist — the checklist is the one thing on screen they are meant to read.
 
 ## Marking a row
 

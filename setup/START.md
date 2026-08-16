@@ -14,13 +14,40 @@ Say this first, then go quiet and work:
 
 ## 0. Put the setup on this computer
 
-Fetch this:
+One command decides how this goes:
+
+    node --version
+
+**If it answers, let the shipped downloader do the work.** It reads
+`files.json` — the list of everything this setup needs — and pulls the whole
+tree down for you. Fetch that one file to
+`<home>/.vimigo/setup/lib/fetch-setup.js` first:
+
+    https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/lib/fetch-setup.js
+
+then run it, and skip to step 1:
+
+    node lib/fetch-setup.js https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/
+
+**If it does not answer**, Node is missing — step 1 installs it — so do this
+part by hand. Fetch this:
 
     https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/files.json
 
-It lists every file this setup needs. Fetch each one from
+It is an object with one key, **not a bare array**:
+
+```json
+{ "files": ["MASTER.md", "START.md", "lib/state.js", "steps/01-runtimes/README.md"] }
+```
+
+Read `files.json`'s `files` list. Fetch each entry from
 `https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/<path>`
 and write it to `<home>/.vimigo/setup/<path>`, keeping the folders.
+
+**Use your own tools for this — the ones you use to read a web page and write a
+file.** Do not shell out to `curl`, `wget`, or `Invoke-WebRequest`: on a real
+machine `curl` was intercepted by a plugin and never reached the network, and
+the improvised fallback that followed guessed the shape above wrong and crashed.
 
 **Overwrite whatever is already there. Every file, every time.** A folder that
 already exists means a previous run, and a previous run means older
@@ -28,9 +55,9 @@ instructions — quite possibly the ones with the fault somebody has since fixed
 Skipping a file because it is present is how a machine keeps running a version
 nobody can reach.
 
-Use whatever you normally use to fetch a file and write it. **You do not need
-git for this, and you do not need Node yet** — both may be missing, and one of
-them is the first thing on the checklist.
+**You never need git for this**, either way, and the by-hand path needs nothing
+installed at all — which is the point of having one. Both git and Node may be
+missing on this machine; installing them is row 1 of the checklist.
 
 `<home>` is the owner's home folder: `%USERPROFILE%` on Windows,
 `$HOME` on macOS. Everything below runs from `<home>/.vimigo/setup`.

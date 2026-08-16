@@ -3,6 +3,7 @@
     "MASTER.md",
     "START.md",
     "files.json",
+    "lib/fetch-setup.js",
     "lib/manifest.js",
     "lib/receipt.js",
     "lib/state.js",
