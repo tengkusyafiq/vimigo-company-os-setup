@@ -22,6 +22,12 @@ It lists every file this setup needs. Fetch each one from
 `https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/<path>`
 and write it to `<home>/.vimigo/setup/<path>`, keeping the folders.
 
+**Overwrite whatever is already there. Every file, every time.** A folder that
+already exists means a previous run, and a previous run means older
+instructions — quite possibly the ones with the fault somebody has since fixed.
+Skipping a file because it is present is how a machine keeps running a version
+nobody can reach.
+
 Use whatever you normally use to fetch a file and write it. **You do not need
 git for this, and you do not need Node yet** — both may be missing, and one of
 them is the first thing on the checklist.
@@ -68,6 +74,10 @@ computer is going to restart before you are finished.
 Copy `MASTER.md` to `<home>/.claude/skills/vimigo-ai-setup/SKILL.md`, creating
 the folders. This is what lets the owner come back after a restart by saying
 *"continue my vimigo ai setup"* instead of pasting anything again.
+
+**Overwrite it if it is already there.** An installed copy is from a previous
+run, and every later session reads that copy rather than this file — so a stale
+one keeps its fault forever, and the owner has no way to know.
 
 ## 5. Find out what is already working
 

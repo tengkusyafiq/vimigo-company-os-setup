@@ -15,7 +15,29 @@ If that folder is not there, this setup was never downloaded. Fetch
 `https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/START.md`
 and follow it from the top instead of guessing.
 
-## Before anything else
+## Before anything else, every session
+
+Two commands, in this order, before you say anything to the owner.
+
+**First, the manifest:**
+
+    node lib/manifest.js https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/manifest.json
+
+- `"action": "halt"` — stop. Say the `notice` in your own plain words and do
+  nothing else.
+- `"action": "refetch"` — re-download the whole setup before continuing: fetch
+  `.../setup/files.json` and every path in it into `<home>/.vimigo/setup`,
+  overwriting, then copy the new `MASTER.md` over
+  `<home>/.claude/skills/vimigo-ai-setup/SKILL.md` and follow that instead of
+  this. You are the old copy.
+- anything else, or `"offline": true` — carry on, and say nothing about it.
+
+This is why it is here rather than only in `START.md`. Sessions after the first
+one reach you through the installed skill and never read `START.md` again, so a
+check that lives only there reaches nobody who is already running — which is
+everybody, by the second day.
+
+**Then the state:**
 
     node lib/state.js json
 
