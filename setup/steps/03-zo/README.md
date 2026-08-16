@@ -67,7 +67,7 @@ When you cannot drive the screen yourself, open the page instead. It carries
 the same clicks with a picture of each:
 
 ```text
-https://tengkusyafiq.github.io/vimigo-company-os-setup/help/zo-key.html
+https://tengkusyafiq.github.io/vimigo-company-os-setup/setup/help/zo-key.html
 ```
 
 If that will not load, fetch the local copy and open the file:
@@ -96,10 +96,10 @@ are signed in; this part is clicking, and clicking is your job:
 Otherwise read the five clicks out, one line at a time, and wait after each:
 
 1. Click **Settings**, then **Advanced**
-2. Find **Access Key**
+2. Scroll down to **Access Tokens**
 3. Type any name in the box — *my computer* does
 4. Click **Add**
-5. Zo shows you a long line of letters starting with `zo_sk_` — copy it
+5. Zo shows you a long line starting with `zo_sk_` — click **Copy**
 
 Then, and only then, ask for it — naming the thing you can both see:
 
@@ -144,7 +144,7 @@ questions when it goes wrong.
 > one. Nothing extra to pay. Want me to show you?"*
 
 ```text
-https://tengkusyafiq.github.io/vimigo-company-os-setup/help/ai-subscription.html
+https://tengkusyafiq.github.io/vimigo-company-os-setup/setup/help/ai-subscription.html
 ```
 
 **The names on that screen do not match what they pay for.** ChatGPT is called
@@ -162,7 +162,7 @@ other one.
 > always at their desk. Want that?"*
 
 ```text
-https://tengkusyafiq.github.io/vimigo-company-os-setup/help/telegram.html
+https://tengkusyafiq.github.io/vimigo-company-os-setup/setup/help/telegram.html
 ```
 
 ### Checking they are signed in somewhere
