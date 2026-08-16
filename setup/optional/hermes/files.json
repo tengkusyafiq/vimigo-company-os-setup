@@ -1,0 +1,9 @@
+{
+  "files": [
+    "optional/hermes/README.md",
+    "optional/hermes/files.json",
+    "optional/hermes/macos.md",
+    "optional/hermes/verify.js",
+    "optional/hermes/windows.md"
+  ]
+}
