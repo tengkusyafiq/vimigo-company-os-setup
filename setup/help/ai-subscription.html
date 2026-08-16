@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connecting your AI subscription</title>
+<style>
+:root { color-scheme: light dark; --ink:#101418; --dim:#5b6672; --line:#dfe4e9;
+        --bg:#fff; --card:#f6f8fa; --warn:#8a5a00; --warnbg:#fff8e6; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink:#e8edf2; --dim:#9aa6b2; --line:#2a3138; --bg:#12161a;
+          --card:#1a1f25; --warn:#f0c274; --warnbg:#2a2113; } }
+* { box-sizing: border-box; }
+body { margin:0; padding:2rem 1rem 5rem; background:var(--bg); color:var(--ink);
+       font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 52rem; margin: 0 auto; }
+h1 { font-size:1.6rem; line-height:1.2; margin:0 0 1.5rem; }
+h2 { font-size:1.15rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
+     border-top:1px solid var(--line); }
+h2:first-of-type { border-top:0; padding-top:0; }
+p { margin:.6rem 0; }
+ol { padding-left:0; list-style:none; counter-reset:step; margin:1.5rem 0; }
+ol > li { counter-increment:step; margin:0 0 2rem; padding-left:3rem; position:relative; }
+ol > li::before { content:counter(step); position:absolute; left:0; top:-.1rem;
+  width:2rem; height:2rem; border-radius:50%; background:var(--ink); color:var(--bg);
+  font-weight:700; font-size:1rem; display:grid; place-items:center; }
+li strong:first-child { display:block; font-size:1.02rem; margin-bottom:.2rem; }
+img { display:block; width:100%; height:auto; margin:.9rem 0 0;
+      border:1px solid var(--line); border-radius:10px; background:var(--card); }
+table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+th,td { text-align:left; padding:.7rem .8rem; border-bottom:1px solid var(--line); }
+th { font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+blockquote { margin:1rem 0; padding:.9rem 1.1rem; background:var(--card);
+             border-left:4px solid var(--dim); border-radius:0 8px 8px 0; }
+code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:.9em; }
+.warn { margin:1.5rem 0; padding:1rem 1.2rem; background:var(--warnbg);
+        border-radius:10px; color:var(--warn); }
+.warn h2 { border:0; padding:0; margin:0 0 .4rem; font-size:1.1rem; color:inherit; }
+.handover { margin:3rem 0 0; padding:1rem; border:2px dashed var(--line);
+            border-radius:12px; text-align:center; color:var(--dim); font-size:.95rem; }
+@media (max-width:34rem) { body { font-size:15px; padding:1.25rem .9rem 4rem; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Connecting your AI subscription</h1>
+<h2>Why</h2>
+<p>Your Zo needs a brain to think with. You already pay for one — your ChatGPT or</p>
+<p>Claude subscription — so we point Zo at that instead of buying a second one.</p>
+<p><strong>Nothing extra to pay.</strong> This is the subscription you already have, doing more</p>
+<p>work.</p>
+<h2>First, the names do not match</h2>
+<p>This is the one part that catches people out. On the Zo screen the buttons are</p>
+<p>named after the developer tools, not after what you pay for:</p>
+<table><tr><th>You pay for</th><th>Click Connect next to</th></tr>
+<tr><td><strong>ChatGPT</strong></td><td><strong>Codex</strong></td></tr>
+<tr><td><strong>Claude</strong></td><td><strong>Claude Code</strong></td></tr>
+</table>
+<p>If you pay for ChatGPT and go looking for a button saying ChatGPT, you will not</p>
+<p>find one. It says <strong>Codex</strong>.</p>
+<p>Only pick the one you actually pay for. Connecting the other will ask you to</p>
+<p>sign in to an account you do not have.</p>
+<h2>Getting to the right screen</h2>
+<ol>
+<li><strong>Click Settings, then the AI tab</strong>
+<p>The gear at the bottom of the left-hand menu, then <strong>AI</strong>, the first tab.</p>
+<img src="img/sub-1-ai-tab.png" alt="Click Settings, then the AI tab" loading="lazy">
+</li>
+<li><strong>Scroll down to Providers</strong>
+<p>Past the list of models, to the part headed Providers.</p>
+<img src="img/sub-2-providers.png" alt="Scroll down to the part headed Providers" loading="lazy">
+</li>
+<li><strong>Click Connect on the one you pay for</strong>
+<p><strong>Codex</strong> if you pay for ChatGPT. <strong>Claude Code</strong> if you pay for Claude.</p>
+<img src="img/sub-3-connect.png" alt="Click Connect next to Codex or Claude Code" loading="lazy">
+<p>Now follow whichever of the two below matches what you clicked.</p>
+</li></ol>
+<h2>If you clicked Codex (you pay for ChatGPT)</h2>
+<p>The code goes <strong>from Zo to the sign-in page</strong>. Copy it first, then go.</p>
+<ol>
+<li><strong>Copy the one-time code</strong>
+<p>Zo shows a short code like <code>V3QC-I2INZ</code>. Click the copy button beside it.</p>
+<img src="img/sub-codex-1-code.png" alt="Copy the short one-time code Zo shows you" loading="lazy">
+</li>
+<li><strong>Click Open authorization page and sign in</strong>
+<p>Sign in with the ChatGPT account you pay for.</p>
+<img src="img/sub-codex-2-signin.png" alt="Sign in with the ChatGPT account you pay for" loading="lazy">
+</li>
+<li><strong>Paste the code</strong>
+<p>Paste the code you copied in step 1, and confirm.</p>
+<img src="img/sub-codex-3-paste.png" alt="Paste the code you copied from Zo" loading="lazy">
+</li>
+<li><strong>Turn the models on</strong>
+<p>Back in Zo, switch the models on so it can use them.</p>
+<img src="img/sub-codex-4-models.png" alt="Switch the models on" loading="lazy">
+<p>Zo notices on its own when you are done and closes the box.</p>
+</li></ol>
+<h2>If you clicked Claude Code (you pay for Claude)</h2>
+<p>The code goes <strong>the other way</strong> — from the sign-in page back to Zo. Go first,</p>
+<p>copy afterwards.</p>
+<ol>
+<li><strong>Click Open authorization page</strong>
+<img src="img/sub-claude-1-open.png" alt="Click Open authorization page" loading="lazy">
+</li>
+<li><strong>Sign in, then click Authorize</strong>
+<p>Anthropic lists what Zo will be allowed to do, then asks you to confirm.</p>
+<img src="img/sub-claude-2-authorize.png" alt="Sign in, then click Authorize" loading="lazy">
+</li>
+<li><strong>Copy the code it gives you</strong>
+<p>After authorizing, Anthropic shows a long code. Copy it.</p>
+<img src="img/sub-claude-3-copy.png" alt="Copy the long code shown after authorizing" loading="lazy">
+</li>
+<li><strong>Paste it back into Zo and click Submit</strong>
+<p>Back in the Zo box, paste the code into the field and click <strong>Submit</strong>.</p>
+<img src="img/sub-claude-4-paste.png" alt="Paste the code back into Zo and click Submit" loading="lazy">
+</li>
+<li><strong>Turn the models on</strong>
+<img src="img/sub-claude-5-models.png" alt="Switch the models on" loading="lazy">
+</li></ol>
+<div class="warn">
+<h2>Careful</h2>
+<p>These two run in opposite directions, so do not go by memory if you have done</p>
+<p>the other one before:</p>
+<p>&bull; <strong>Codex</strong> — copy the code, <em>then</em> go and sign in.</p>
+<p>&bull; <strong>Claude Code</strong> — go and sign in, <em>then</em> copy the code back.</p>
+<p>If a code is refused, it has probably expired. Close the box, click Connect</p>
+<p>again, and use the fresh one.</p>
+</div>
+<p class="handover">If your screen doesn't look like this, tell me &mdash; I'll walk you through it instead.</p>
+</main>
+</body>
+</html>

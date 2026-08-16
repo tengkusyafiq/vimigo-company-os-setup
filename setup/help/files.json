@@ -1,0 +1,28 @@
+{
+  "files": [
+    "help/ai-subscription.html",
+    "help/ai-subscription.md",
+    "help/files.json",
+    "help/img/sub-1-ai-tab.png",
+    "help/img/sub-2-providers.png",
+    "help/img/sub-3-connect.png",
+    "help/img/sub-claude-1-open.png",
+    "help/img/sub-claude-2-authorize.png",
+    "help/img/sub-claude-3-copy.png",
+    "help/img/sub-claude-4-paste.png",
+    "help/img/sub-claude-5-models.png",
+    "help/img/sub-codex-1-code.png",
+    "help/img/sub-codex-2-signin.png",
+    "help/img/sub-codex-3-paste.png",
+    "help/img/sub-codex-4-models.png",
+    "help/img/telegram-1-setup.png",
+    "help/img/zo-key-1-settings.png",
+    "help/img/zo-key-2-advanced.png",
+    "help/img/zo-key-3-create.png",
+    "help/img/zo-key-4-copy.png",
+    "help/telegram.html",
+    "help/telegram.md",
+    "help/zo-key.html",
+    "help/zo-key.md"
+  ]
+}

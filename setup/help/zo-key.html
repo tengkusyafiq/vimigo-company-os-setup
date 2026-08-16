@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Getting your Zo key</title>
+<style>
+:root { color-scheme: light dark; --ink:#101418; --dim:#5b6672; --line:#dfe4e9;
+        --bg:#fff; --card:#f6f8fa; --warn:#8a5a00; --warnbg:#fff8e6; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink:#e8edf2; --dim:#9aa6b2; --line:#2a3138; --bg:#12161a;
+          --card:#1a1f25; --warn:#f0c274; --warnbg:#2a2113; } }
+* { box-sizing: border-box; }
+body { margin:0; padding:2rem 1rem 5rem; background:var(--bg); color:var(--ink);
+       font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 52rem; margin: 0 auto; }
+h1 { font-size:1.6rem; line-height:1.2; margin:0 0 1.5rem; }
+h2 { font-size:1.15rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
+     border-top:1px solid var(--line); }
+h2:first-of-type { border-top:0; padding-top:0; }
+p { margin:.6rem 0; }
+ol { padding-left:0; list-style:none; counter-reset:step; margin:1.5rem 0; }
+ol > li { counter-increment:step; margin:0 0 2rem; padding-left:3rem; position:relative; }
+ol > li::before { content:counter(step); position:absolute; left:0; top:-.1rem;
+  width:2rem; height:2rem; border-radius:50%; background:var(--ink); color:var(--bg);
+  font-weight:700; font-size:1rem; display:grid; place-items:center; }
+li strong:first-child { display:block; font-size:1.02rem; margin-bottom:.2rem; }
+img { display:block; width:100%; height:auto; margin:.9rem 0 0;
+      border:1px solid var(--line); border-radius:10px; background:var(--card); }
+table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+th,td { text-align:left; padding:.7rem .8rem; border-bottom:1px solid var(--line); }
+th { font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+blockquote { margin:1rem 0; padding:.9rem 1.1rem; background:var(--card);
+             border-left:4px solid var(--dim); border-radius:0 8px 8px 0; }
+code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:.9em; }
+.warn { margin:1.5rem 0; padding:1rem 1.2rem; background:var(--warnbg);
+        border-radius:10px; color:var(--warn); }
+.warn h2 { border:0; padding:0; margin:0 0 .4rem; font-size:1.1rem; color:inherit; }
+.handover { margin:3rem 0 0; padding:1rem; border:2px dashed var(--line);
+            border-radius:12px; text-align:center; color:var(--dim); font-size:.95rem; }
+@media (max-width:34rem) { body { font-size:15px; padding:1.25rem .9rem 4rem; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Getting your Zo key</h1>
+<h2>Why</h2>
+<p>Your Zo needs to let Claude and ChatGPT talk to it, and a key is how it knows</p>
+<p>it is really you asking. You make it once and you never think about it again.</p>
+<h2>Steps</h2>
+<ol>
+<li><strong>Click Settings</strong>
+<p>The gear at the bottom of the left-hand menu.</p>
+<img src="img/zo-key-1-settings.png" alt="Click Settings, the gear at the bottom of the left-hand menu" loading="lazy">
+</li>
+<li><strong>Click Advanced</strong>
+<p>Along the row of tabs at the top — AI, Channels, Tools, UX, Advanced. It is</p>
+<p>the last one.</p>
+<img src="img/zo-key-2-advanced.png" alt="Click Advanced, the last tab in the row along the top" loading="lazy">
+</li>
+<li><strong>Find Access Tokens and give the key a name</strong>
+<p>Scroll down to the part headed Access Tokens. Type any name you like in the</p>
+<p>box — <em>my computer</em> is fine — then click <strong>Add</strong>.</p>
+<img src="img/zo-key-3-create.png" alt="Type a name in the Access Tokens box, then click Add" loading="lazy">
+</li>
+<li><strong>Copy the key</strong>
+<p>Zo shows you a long line starting <code>zo_sk_</code>. Click <strong>Copy</strong>, then paste it to</p>
+<p>me here.</p>
+<img src="img/zo-key-4-copy.png" alt="Click Copy to copy the long line starting zo_sk_" loading="lazy">
+</li></ol>
+<div class="warn">
+<h2>Careful</h2>
+<p>Zo shows this key <strong>once</strong>, and says so on the screen. If you close that box</p>
+<p>before copying it, nothing is broken — just make another one the same way.</p>
+<p>Nobody needs this key except your own computer. Do not send it to anyone,</p>
+<p>including anyone claiming to be from Vimigo.</p>
+</div>
+<p class="handover">If your screen doesn't look like this, tell me &mdash; I'll walk you through it instead.</p>
+</main>
+</body>
+</html>

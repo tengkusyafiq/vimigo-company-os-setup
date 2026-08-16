@@ -20,6 +20,7 @@
     "steps/02-compile-data/windows.md",
     "steps/03-zo/README.md",
     "steps/03-zo/macos.md",
+    "steps/03-zo/signed-in.js",
     "steps/03-zo/verify.js",
     "steps/03-zo/windows.md"
   ]

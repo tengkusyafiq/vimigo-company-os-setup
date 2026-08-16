@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Talking to your Zo from your phone</title>
+<style>
+:root { color-scheme: light dark; --ink:#101418; --dim:#5b6672; --line:#dfe4e9;
+        --bg:#fff; --card:#f6f8fa; --warn:#8a5a00; --warnbg:#fff8e6; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink:#e8edf2; --dim:#9aa6b2; --line:#2a3138; --bg:#12161a;
+          --card:#1a1f25; --warn:#f0c274; --warnbg:#2a2113; } }
+* { box-sizing: border-box; }
+body { margin:0; padding:2rem 1rem 5rem; background:var(--bg); color:var(--ink);
+       font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 52rem; margin: 0 auto; }
+h1 { font-size:1.6rem; line-height:1.2; margin:0 0 1.5rem; }
+h2 { font-size:1.15rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
+     border-top:1px solid var(--line); }
+h2:first-of-type { border-top:0; padding-top:0; }
+p { margin:.6rem 0; }
+ol { padding-left:0; list-style:none; counter-reset:step; margin:1.5rem 0; }
+ol > li { counter-increment:step; margin:0 0 2rem; padding-left:3rem; position:relative; }
+ol > li::before { content:counter(step); position:absolute; left:0; top:-.1rem;
+  width:2rem; height:2rem; border-radius:50%; background:var(--ink); color:var(--bg);
+  font-weight:700; font-size:1rem; display:grid; place-items:center; }
+li strong:first-child { display:block; font-size:1.02rem; margin-bottom:.2rem; }
+img { display:block; width:100%; height:auto; margin:.9rem 0 0;
+      border:1px solid var(--line); border-radius:10px; background:var(--card); }
+table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+th,td { text-align:left; padding:.7rem .8rem; border-bottom:1px solid var(--line); }
+th { font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+blockquote { margin:1rem 0; padding:.9rem 1.1rem; background:var(--card);
+             border-left:4px solid var(--dim); border-radius:0 8px 8px 0; }
+code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:.9em; }
+.warn { margin:1.5rem 0; padding:1rem 1.2rem; background:var(--warnbg);
+        border-radius:10px; color:var(--warn); }
+.warn h2 { border:0; padding:0; margin:0 0 .4rem; font-size:1.1rem; color:inherit; }
+.handover { margin:3rem 0 0; padding:1rem; border:2px dashed var(--line);
+            border-radius:12px; text-align:center; color:var(--dim); font-size:.95rem; }
+@media (max-width:34rem) { body { font-size:15px; padding:1.25rem .9rem 4rem; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Talking to your Zo from your phone</h1>
+<h2>Why</h2>
+<p>Right now you can only talk to your Zo when you are sitting at this computer.</p>
+<p>Link Telegram and you can message it from your phone, from anywhere — like</p>
+<p>texting a colleague who is always at their desk. Ask it something on the way to</p>
+<p>a meeting and the answer is waiting for you.</p>
+<p>Telegram is a free messaging app, like WhatsApp. If you do not already use it,</p>
+<p>you will need to install it on your phone first.</p>
+<h2>Steps</h2>
+<ol>
+<li><strong>Click Settings, then the AI tab</strong>
+<p>The gear at the bottom of the left-hand menu, then <strong>AI</strong>, the first tab.</p>
+</li>
+<li><strong>Find Telegram in the list and click Set up</strong>
+<p>It sits in the list of ways to reach your Zo — Chat, Text, Email, Telegram,</p>
+<p>Discord, Slack. Click <strong>Set up</strong> on the Telegram row.</p>
+<img src="img/telegram-1-setup.png" alt="Click Set up on the Telegram row" loading="lazy">
+</li>
+<li><strong>Follow what Zo asks</strong>
+<p>It will send you to Telegram to connect the two. Everything from here happens</p>
+<p>on your phone.</p>
+</li></ol>
+<div class="warn">
+<h2>Careful</h2>
+<p>Anyone who can message that Telegram account can ask your Zo things. Keep it to</p>
+<p>your own account, and do not add it to a group chat.</p>
+<p>This one is entirely optional. Skipping it changes nothing else — your Zo works</p>
+<p>exactly the same from this computer.</p>
+</div>
+<p class="handover">If your screen doesn't look like this, tell me &mdash; I'll walk you through it instead.</p>
+</main>
+</body>
+</html>

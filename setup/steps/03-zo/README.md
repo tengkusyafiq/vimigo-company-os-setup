@@ -61,6 +61,27 @@ Say what is about to happen, then wait:
 
 Wait for them to say they are in. Do not ask for anything yet.
 
+### Show them the page rather than reading five clicks aloud
+
+When you cannot drive the screen yourself, open the page instead. It carries
+the same clicks with a picture of each:
+
+```text
+https://tengkusyafiq.github.io/vimigo-company-os-setup/help/zo-key.html
+```
+
+If that will not load, fetch the local copy and open the file:
+
+    node lib/fetch-setup.js <base> help/files.json
+
+It lands at `<home>/.vimigo/setup/help/zo-key.html`. Beside it, `help/zo-key.md`
+is the same words with no pictures — read from that when neither page opens.
+
+> *"I've opened a page that shows you exactly where to click. Follow it, and
+> paste me the key when you've got it."*
+
+Then be quiet and let them read. Do not narrate the page back at them.
+
 ### The sign-up page does not give them a key
 
 This is where the old wording sent people looking for something that was never
@@ -109,6 +130,59 @@ Do not run it through `verify.js` and report a failure; say what to look for:
 > just under where you clicked Add."*
 
 Then run `verify.js` and let Zo answer.
+
+## After the key works: two things they will want
+
+Both are optional, both need a person, and both have a page. Say the reason
+before you open either — an owner who knows why a step exists asks better
+questions when it goes wrong.
+
+### Connecting their AI subscription
+
+> *"Your Zo needs a brain to think with. You already pay for one — your ChatGPT
+> or Claude subscription — so we point Zo at that instead of buying a second
+> one. Nothing extra to pay. Want me to show you?"*
+
+```text
+https://tengkusyafiq.github.io/vimigo-company-os-setup/help/ai-subscription.html
+```
+
+**The names on that screen do not match what they pay for.** ChatGPT is called
+**Codex**, Claude is called **Claude Code**. Say which one to click before they
+go looking, or they will hunt for a ChatGPT button that is not there.
+
+The two routes also run in opposite directions — Codex copies a code out to the
+sign-in page, Claude Code brings one back — so never help from memory of the
+other one.
+
+### Talking to their Zo from their phone
+
+> *"Right now you can only talk to your Zo at this computer. Link Telegram and
+> you can message it from your phone, anywhere — like texting a colleague who's
+> always at their desk. Want that?"*
+
+```text
+https://tengkusyafiq.github.io/vimigo-company-os-setup/help/telegram.html
+```
+
+### Checking they are signed in somewhere
+
+    node steps/03-zo/signed-in.js
+
+- `"state": "found"` — leave it alone, say nothing.
+- `"state": "unknown"` — **not a failure.** It cannot see Claude Desktop, which
+  is a perfectly normal thing to be using. Ask, because they can answer by
+  looking:
+
+  > *"Is your Claude or ChatGPT app open and signed in? You should see your own
+  > name or picture in the corner."*
+
+  Yes: accept it and move on. Unsure: open the subscription page above. No: walk
+  them through signing in, then ask again.
+
+**Never block the `zo` row on this.** Signing in is not something you can do for
+them, and refusing to finish over a question you cannot answer is worse than
+asking.
 
 ## Never
 
