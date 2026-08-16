@@ -25,7 +25,15 @@ ol > li::before { content:counter(step); position:absolute; left:0; top:0;
   width:1.6rem; height:1.6rem; border-radius:50%; background:var(--ink); color:var(--bg);
   font-weight:700; font-size:.85rem; display:grid; place-items:center; }
 li strong:first-child { display:block; font-size:.98rem; margin-bottom:.2rem; }
-a.shot { display:inline-block; margin:.6rem 0 0; line-height:0; }
+a.shot { display:inline-block; margin:.6rem 0 0; line-height:0; position:relative; }
+/* A hint, not a target. The whole picture is the link; this only says so, which
+   is why it never takes the click - an owner who aims for a 26px icon and
+   misses learns the picture is not clickable, which is the opposite of true. */
+a.shot::after { content:''; position:absolute; right:7px; bottom:7px;
+  width:26px; height:26px; border-radius:6px; pointer-events:none;
+  background:rgba(12,16,20,.66) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3Cpath d='M10.5 7.8v5.4M7.8 10.5h5.4'/%3E%3C/svg%3E") center/15px no-repeat;
+  box-shadow:0 1px 5px rgba(0,0,0,.4); transition:background-color .12s; }
+a.shot:hover::after { background-color:rgba(12,16,20,.92); }
 a.shot img { display:block; max-width:100%; max-height:210px; width:auto; height:auto;
       border:1px solid var(--line); border-radius:8px; background:var(--card);
       cursor:zoom-in; transition:border-color .12s; }
