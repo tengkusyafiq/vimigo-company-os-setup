@@ -1,7 +1,0 @@
-interface:
-  display_name: "WhatsApp MCP Setup"
-  short_description: "Install and repair the WhatsApp MCP bridge"
-  default_prompt: "Use $whatsapp-mcp-setup to install or diagnose my local WhatsApp MCP connection safely."
-
-policy:
-  allow_implicit_invocation: true
