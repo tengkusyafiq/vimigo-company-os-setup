@@ -64,10 +64,16 @@ run.
 
 ## 3. Read or create the state
 
-    node lib/state.js init
+Use the `version` that step 2 printed:
+
+    node lib/state.js init --version <version from step 2>
 
 This is the checklist, and it lives on disk in `state.json` because this
 computer is going to restart before you are finished.
+
+Recording the version is what lets a later session notice it is running old
+instructions and fetch new ones by itself. Leave it out and this machine keeps
+whatever it downloaded today, forever.
 
 ## 4. Install the master skill
 
