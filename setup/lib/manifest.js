@@ -10,22 +10,29 @@ const path = require('node:path');
 // What this machine last downloaded. Read here rather than passed in, because
 // the caller is an AI reading a markdown file, and every value it has to thread
 // from one command into another is a value it can get wrong.
-function installedVersion() {
+// Three states, not two. No state file means a first run - there is nothing to
+// update and START.md is already downloading everything. A state file with no
+// version means a build from before versions were recorded, which is the one
+// case that must NOT be read as "up to date": those machines carry the faults
+// that made versioning necessary, and treating them as current strands them
+// there permanently.
+function installed() {
+  const p = path.join(
+    process.env.VIMIGO_HOME || path.join(os.homedir(), '.vimigo'), 'state.json');
   try {
-    const p = path.join(
-      process.env.VIMIGO_HOME || path.join(os.homedir(), '.vimigo'), 'state.json');
     const s = JSON.parse(fs.readFileSync(p, 'utf8'));
-    return typeof s.version === 'string' && s.version ? s.version : null;
+    return { setUp: true, version: typeof s.version === 'string' && s.version ? s.version : null };
   } catch {
-    return null;
+    return { setUp: false, version: null };
   }
 }
 
 async function main() {
   const url = process.argv[2];
-  const installed = installedVersion();
+  const have = installed();
   const out = {
-    action: 'proceed', version: null, installed, notice: '', offline: false, reason: '',
+    action: 'proceed', version: null, installed: have.version,
+    notice: '', offline: false, reason: '',
   };
   if (!url) { print(out); return; }
 
@@ -50,7 +57,10 @@ async function main() {
   } else if (m.force_refetch === true) {
     out.action = 'refetch';
     out.reason = 'forced';
-  } else if (installed && out.version && installed !== out.version) {
+  } else if (have.setUp && !have.version) {
+    out.action = 'refetch';
+    out.reason = 'set up before versions were recorded';
+  } else if (have.setUp && out.version && have.version !== out.version) {
     // The ordinary case, and the reason this check exists at all. A machine set
     // up yesterday runs yesterday's instructions until something tells it not
     // to, and nobody is going to repaste a command they used once. Updating is
