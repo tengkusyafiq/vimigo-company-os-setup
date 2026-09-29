@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { home, brain } = require('./paths.js');
+const hooks = require('./hooks.js');
 
 const START = '<!-- second-brain:start -->';
 const END = '<!-- second-brain:end -->';
@@ -11,9 +12,10 @@ const BLOCK = [
   '## Your Second Brain',
   '',
   'This person keeps a Second Brain: a folder called "Second Brain" in their home folder.',
-  'At the start of every conversation, use the `second-brain` skill — read their "About me"',
-  'page and today\'s daily page, and run its start-up check. As you work, save what matters',
-  'there, the way the skill describes. Never write keys or passwords into it.',
+  'Before your first reply in every conversation, use the `second-brain` skill — read their',
+  '"About me" page and today\'s daily page, and run its start-up check. As you work, save what',
+  'matters there, the way the skill describes, and after any reply where you did real work',
+  'for them, add a line or two to today\'s page. Never write keys or passwords into it.',
   END,
 ].join('\n');
 
@@ -34,7 +36,10 @@ function init({ name, company, role }) {
   ].join('\n'));
   writeIfMissing(path.join(root, 'Daily', `${today()}.md`), `# ${today()}\n\n`);
   const instructions = mergeInstructions();
-  return { ok: true, instructions };
+  // Claude Code: load the Second Brain into every chat, and nudge a line onto
+  // today's page after real work - done by the app, not left to the AI.
+  let claudeHooks; try { claudeHooks = hooks.install(); } catch { claudeHooks = { ok: false }; }
+  return { ok: true, instructions, hooks: claudeHooks };
 }
 
 const targets = () => ({ claude: path.join(home(), '.claude', 'CLAUDE.md'), codex: path.join(home(), '.codex', 'AGENTS.md') });
@@ -72,7 +77,7 @@ function has(file) { try { const x = fs.readFileSync(file, 'utf8'); return x.inc
 function status() {
   const t = targets();
   return { brain: fs.existsSync(brain()), aboutMe: fs.existsSync(path.join(brain(), 'About me.md')),
-    instructions: { claude: has(t.claude), codex: has(t.codex) } };
+    instructions: { claude: has(t.claude), codex: has(t.codex) }, hooks: hooks.status() };
 }
 
 if (require.main === module) {

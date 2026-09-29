@@ -12,6 +12,7 @@
     "lib/enrol.js",
     "lib/event.js",
     "lib/fetch-setup.js",
+    "lib/hooks.js",
     "lib/identity.js",
     "lib/manifest.js",
     "lib/paths.js",

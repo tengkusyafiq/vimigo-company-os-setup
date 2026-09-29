@@ -50,6 +50,11 @@ async function check({ skipSkills = false } = {}) {
   else { try { s = await skills.sync(); } catch { s = { updated: [], error: true }; } }
   let sync; try { sync = await syncHealth(); } catch { sync = 'error'; }
   let zoState; try { zoState = zo(); } catch { zoState = { claude: false, codex: false }; }
+  // Put back the two Claude Code hooks if something removed them.
+  try {
+    const hooks = require('./hooks.js');
+    if (fs.existsSync(require('./paths.js').brain()) && !hooks.status().installed) hooks.install();
+  } catch { /* next time */ }
   return {
     ok: true,
     skills: { updated: s.updated, ...(s.offline ? { offline: true } : {}), ...(s.error ? { error: true } : {}) },

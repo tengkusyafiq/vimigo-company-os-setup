@@ -14,6 +14,9 @@ if (!skill(path.join(home(), '.claude', 'skills'))) missing.push('Claude');
 if (!skill(path.join(home(), '.agents', 'skills'))) missing.push('ChatGPT');
 if (fs.existsSync(path.join(home(), '.codex', 'skills', 'second-brain'))) missing.push('a duplicate to remove');
 if (!st.instructions.claude || !st.instructions.codex) missing.push('the standing instruction');
+// A settings file that isn't valid JSON is never rewritten (it may hold the
+// person's own settings), so it cannot hold this row back either.
+if (!st.hooks.installed && !st.hooks.invalid) missing.push('the automatic start in Claude Code');
 const ok = missing.length === 0;
 const evidence = ok ? 'ready for Claude and ChatGPT' : `not finished - ${missing.join(', ')}`;
 if (ok) receipt.write('second-brain', { ok, evidence }); else receipt.clear('second-brain');
