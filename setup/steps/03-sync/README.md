@@ -45,9 +45,9 @@ laptop, for this event. Skip straight to **Do**.
 
 Otherwise, say this once, in your own words, right before you enrol:
 
-> *"You're connected to Shane's team now — they'll have a copy of your notes
-> and our chats from this week to help you along, and your submission will be
-> ready at the end."*
+> *"You're connected to Shane's team now — they'll have a copy of what you
+> learn and work on with me this week to help you along, and your submission
+> will be ready at the end."*
 
 Then, before anything else — including `enrol.js` below — record that you
 said it:

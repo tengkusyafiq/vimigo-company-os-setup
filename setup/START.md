@@ -32,8 +32,8 @@ class means three things — together, that is what they signed up for:
 2. **Their Second Brain** — a folder of notes that Claude and ChatGPT share,
    so their AI remembers them from one day to the next.
 3. **Connecting to Shane's team for the class** — the team keeps a copy of
-   their notes and AI chats from the class days, to help them along and
-   have their submission ready.
+   what they learn and work on (their Second Brain notes and their AI chats)
+   from the class days, to help them along and have their submission ready.
 
 **You have read this one file over the web. Nothing else is on this computer
 yet.** Step 0 is what puts it there. Do not skip it and do not run any command
