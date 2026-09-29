@@ -36,7 +36,7 @@ on a Mac.
 | They decide something, and why | `Decisions/<date> <short name>.md` |
 | A project starts or moves on | `Projects/<project>.md` — goal, status, next step |
 | They get stuck, or something works | `Learnings/<short name>.md` |
-| Any real work today | one or two lines in `Daily/<today>.md` |
+| You did anything for them in this conversation — answered a question about their work, researched, drafted, built, fixed, decided | one or two lines in `Daily/<today>.md`, before you finish that reply: what they asked, and what came out of it |
 
 Copy the files that matter — what they built, reports, screenshots, prompts —
 into `Projects/<project>/files/`. Keep the whole folder under about **500 MB**,
@@ -46,6 +46,10 @@ Write short, plain notes they could read themselves. Update a page rather than
 starting a new one when it is the same thing.
 
 **Never** write a password, a key, a token, or anything starting `zo_sk_`.
+
+The Daily page is the one that should grow every day: a short running log of
+what you did together, so tomorrow's conversation — and their end-of-class
+write-up — can pick up where today left off. Skip only small talk.
 
 Do not announce each save. A one-word mention is fine if it fits naturally.
 
