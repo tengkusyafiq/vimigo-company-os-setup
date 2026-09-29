@@ -262,6 +262,24 @@ async function runSync({ final = false, finish = false, scheduled = false, budge
   const started = Date.now();
   hardDeadline = final ? started + finalBudget() : Infinity;
   let id = identity.read();
+  // A wrap-up run again after an earlier one finished: WRAP-UP updates the
+  // submission, and they may have made more since - so this sends what is new
+  // or changed, instead of answering "all sent" from the old finish. It is a
+  // wrap-up in progress again until it finishes, with the job back on, so
+  // anything that cannot go right now still goes by itself. (If the laptop's
+  // own event has closed, the hello below says so and switches it off again.)
+  // With nothing new or changed since, it stays finished and says so, even
+  // offline (round-4 re-review m-2).
+  if (final && finish && id && id.token && id.finished && !id.declined && !id.closed) {
+    const led = readLedger(id.event);
+    const changed = sources(identity.sinceMs(id) || 0).flatMap((s) => walk(s, PER_FILE))
+      .some((f) => !led[f.key] || led[f.key].mtimeMs !== f.mtimeMs);
+    if (changed) {
+      patch({ finished: false, finalWanted: true });
+      id = identity.read();
+      if (!schedulerOff()) { try { require('./scheduler.js').install(); } catch { /* the final itself still runs */ } }
+    }
+  }
   const early = settled(id);
   if (early) return early;
   // Task 14: a wrap-up's `--final --finish` is recorded before it sends
