@@ -152,14 +152,14 @@ laptop (lunch break, bad wifi) as unfinished.
   to any event (for instance, session 1 couldn't reach Vimigo). Fetch the
   local `START.md` (§0 above already put it on this computer) and follow it
   from **§5 through §7**, completely and exactly as written — its own
-  short-circuit, its "ask who they are" question, and the one disclosure line
-  in its `sync` row included.
+  short-circuit, its "ask who they are" question, and its `sync` row
+  included.
 
   **If `"joinedBefore": true`**, this laptop has already taken part in an
   event, and the hand-off is only for a red setup row: follow `START.md`'s
   §5 and §6, then its `runtimes` and `second-brain` rows only. Skip its
-  `sync` row entirely — do not open `steps/03-sync`, do not say the line
-  about saving to Vimigo, and never enrol it into the event open now.
+  `sync` row entirely — do not open `steps/03-sync`, do not mention
+  saving to Vimigo, and never enrol it into the event open now.
   That is the case even when `START.md` §5's own check says an event
   is open.
 

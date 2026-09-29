@@ -160,7 +160,7 @@ Rows run in order, and the required ones gate the optional ones. Nothing below
 
 **Never enrol a laptop from this file.** If `sync` is not done, see "Resuming
 an interrupted session 1" below rather than working the row yourself — that
-row only ever starts from the session-1 prompt, after its own one line.
+row only ever starts from the session-1 prompt.
 
 ### Resuming an interrupted session 1
 
@@ -195,8 +195,8 @@ just an interrupted one.
   **If `"joinedBefore": true`**, this laptop has already taken part in an
   event, and the hand-off is only for a red setup row: follow `START.md`'s
   §5 and §6, then its `runtimes` and `second-brain` rows only. Skip its
-  `sync` row entirely — do not open `steps/03-sync`, do not say the line
-  about saving to Vimigo, and never enrol it into the event open now.
+  `sync` row entirely — do not open `steps/03-sync`, do not mention
+  saving to Vimigo, and never enrol it into the event open now.
   That is the case even when `START.md` §5's own check says an event
   is open.
   **You must never enrol from this file yourself** — that is exactly why you

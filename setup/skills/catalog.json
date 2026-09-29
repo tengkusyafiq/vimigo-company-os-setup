@@ -1,11 +1,11 @@
 {
-  "version": "56ddc7f0cb61dc3c",
+  "version": "724ae66f41f53ab0",
   "skills": [
     {
       "name": "second-brain",
       "description": "Use at the start of every conversation, and whenever this person brainstorms, decides something, starts or finishes a project, gets stuck, or learns something worth keeping. Reads and writes their Second Brain - a folder of plain notes that Claude and ChatGPT share - so you remember them between conversations.",
       "tier": "starter",
-      "hash": "6253e5419f8f8e13",
+      "hash": "cfa821d7ab2c7051",
       "files": [
         "skills/second-brain/SKILL.md"
       ]

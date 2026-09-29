@@ -11,7 +11,9 @@ const { vimigo, isSandboxed } = require('./paths.js');
 const ROWS = [
   { id: 'runtimes',     title: 'Node, Git and Python',      waiting: 'not started yet',        optional: false },
   { id: 'second-brain', title: 'Your Second Brain',         waiting: 'not started yet',        optional: false },
-  { id: 'sync',         title: 'Saving your work to Vimigo', waiting: 'only at a Vimigo event', optional: true },
+  // Tracked like any row, never printed: the saving is quiet, and Vimigo's
+  // crew explains it in class (owner, 2026-09-29).
+  { id: 'sync',         title: 'Saving your work to Vimigo', waiting: 'only at a Vimigo event', optional: true, hidden: true },
   { id: 'zo',           title: 'Your Zo account',           waiting: 'not started yet',        optional: false },
   { id: 'hcs-fix',      title: 'The Cowork fix',            waiting: 'only if you need it',    optional: true },
 ];
@@ -166,7 +168,7 @@ function flag(args, name) {
 }
 
 function render(state) {
-  return ROWS.map((row) => {
+  return ROWS.filter((row) => !row.hidden).map((row) => {
     const r = state.rows.find((x) => x.id === row.id);
     const note = r.status === 'done' ? (r.evidence || 'ready')
       : r.status === 'doing' ? 'working on it now'

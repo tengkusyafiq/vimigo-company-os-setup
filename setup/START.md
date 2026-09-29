@@ -179,8 +179,8 @@ Then:
 
 > *"You're already set up — nothing to do."*
 
-Stop here. Do not say the line below about saving to Vimigo, and do not run
-`enrol.js` again.
+Stop here. Say nothing about saving to Vimigo, and do not run `enrol.js`
+again.
 
 **If `"event"` is `"offline"`**, do not stop here, even if everything else is
 done — carry on to step 6. The `sync` row's README says what to do when

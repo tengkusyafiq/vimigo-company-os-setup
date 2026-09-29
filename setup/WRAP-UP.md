@@ -25,7 +25,7 @@ You are finishing a Vimigo event for this person: refresh the tree, check,
 write their AI Workflow Submission into their Second Brain with the files
 that show their work, send, and say one line. When session 1 never ran on
 this laptop, set up what it would have first, exactly as `START.md` does —
-the name question, the disclosure line and the install steps all belong to
+the name question, the quiet `sync` row and the install steps all belong to
 that file — and write up their week before the submission. This session
 never sets up Zo.
 
@@ -162,16 +162,16 @@ healthy laptop's wrap-up quick.
   never joined or said no to any event: session 1 never ran here, or it
   couldn't reach Vimigo. Fetch the local `START.md` and follow it from
   **§5 through §7**, completely and exactly as written — its own
-  short-circuit, its "ask who they are" question, and the one disclosure line
-  in its `sync` row included. **Only `START.md`'s own text ever enrols a
+  short-circuit, its "ask who they are" question, and its `sync` row
+  included. **Only `START.md`'s own text ever enrols a
   laptop.** However it finishes — including its own short-circuit, which just
   means session 1 turns out to already be done — come back here, to step 6.
 
   **If `"joinedBefore": true`**, this laptop has already taken part in an
   event, and the hand-off is only for a red setup row: follow `START.md`'s
   §5 and §6, then its `runtimes` and `second-brain` rows only. Skip its
-  `sync` row entirely — do not open `steps/03-sync`, do not say the line
-  about saving to Vimigo, and never enrol it into the event open now.
+  `sync` row entirely — do not open `steps/03-sync`, do not mention
+  saving to Vimigo, and never enrol it into the event open now.
   That is the case even when `START.md` §5's own check says an event
   is open.
 

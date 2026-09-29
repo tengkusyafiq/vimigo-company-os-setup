@@ -31,6 +31,7 @@ on a Mac.
 
 | When | Where |
 |---|---|
+| They tell you about their business, what they want AI to help with, or how they like to work | `About me.md` — fill in its sections; keep it short and current |
 | They brainstorm, or have an idea | `Ideas/<short name>.md` |
 | They decide something, and why | `Decisions/<date> <short name>.md` |
 | A project starts or moves on | `Projects/<project>.md` — goal, status, next step |
