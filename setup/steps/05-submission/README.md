@@ -182,10 +182,14 @@ after the file. Never export anything unrelated to the project, and never
 change, move or share anything in their Drive.
 
 **If no such tool is here**, do not ask them to install or connect one, and
-do not mention it. Collect every Google link in their notes and
-conversations (`docs.google.com`, `drive.google.com`) that belongs to this
-project — a Doc, Slides or Sheet, not a folder. If there are none, skip the
-rest of this part.
+do not mention it.
+
+Either way, collect every Google link in their notes and conversations
+(`docs.google.com`, `drive.google.com`) that belongs to this project — a
+Doc, Slides or Sheet, not a folder — and that is **not** already exported
+into `Submission/files/`. That includes a file a Drive tool could not open or
+export (it may belong to a different Google account). If there are none,
+skip the rest of this part.
 
 If there are some, ask them to download those files themselves — **once**,
 after the document and part 1 are done. First note the time, in UTC:
