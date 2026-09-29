@@ -52,7 +52,10 @@ function walk(src, perFileMax, onTooBig) {
     for (const e of entries) {
       const abs = path.join(dir, e.name); const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isSymbolicLink()) continue;
-      if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) visit(abs, r); continue; }
+      // A conversation's `subagents/` folder holds the AI's own helper runs -
+      // what each was asked and what it reported is already in the main
+      // conversation, and they were ~70% of a heavy user's upload.
+      if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name) && !(src.kind !== 'brain' && e.name === 'subagents')) visit(abs, r); continue; }
       if (!e.isFile() || SKIP_FILE.some((re) => re.test(e.name))) continue;
       if (src.only && !src.only.test(e.name)) continue;
       let st; try { st = fs.statSync(abs); } catch { continue; }
