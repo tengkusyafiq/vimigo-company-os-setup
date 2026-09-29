@@ -182,9 +182,36 @@ after the file. Never export anything unrelated to the project, and never
 change, move or share anything in their Drive.
 
 **If no such tool is here**, do not ask them to install or connect one, and
-do not mention it. List every Google link you find in their notes and
-conversations (`docs.google.com`, `drive.google.com`) in section 15, each
-marked **not attached — link only**.
+do not mention it. Collect every Google link in their notes and
+conversations (`docs.google.com`, `drive.google.com`) that belongs to this
+project — a Doc, Slides or Sheet, not a folder. If there are none, skip the
+rest of this part.
+
+If there are some, ask them to download those files themselves — **once**,
+after the document and part 1 are done. First note the time, in UTC:
+
+    node -e "console.log(new Date().toISOString())"
+
+Then say this, with each file on its own line — its name if their notes or
+conversations give one, otherwise the link — at most eight, the most
+important first:
+
+> *"You made some Google files this week that I can't open myself:*
+> *(the list)*
+> *To include them: open each one, click **File**, then **Download**, then **PDF Document** (for a spreadsheet: **Microsoft Excel**). Tell me **done** when you've finished — or **skip** to leave them out."*
+
+Then stop and wait for their answer.
+
+- **"done"** (or anything that means it): look in their Downloads folder
+  (the platform file says where) for PDF and XLSX files modified after the
+  time you noted. Copy each one that matches a file in your list into
+  `Submission/files/`, named after the Google file. Copy, never move.
+  A listed file you did not find stays in section 15 marked **not attached —
+  link only**. Do not ask again, and do not ask where it saved.
+- **"skip"**, or they say they cannot: list every link in section 15, marked
+  **not attached — link only**, and carry on.
+
+Never ask them to make a file public or change who can see it.
 
 ### 3. The list
 

@@ -13,6 +13,8 @@ says where things tend to be.
   name; otherwise Desktop, Downloads and Documents, and screenshots in
   `Pictures\Screenshots`. Only files from the event days that belong to the
   project.
+- **Google files they downloaded:** `%USERPROFILE%\Downloads`. A browser
+  set to save elsewhere puts them there instead; look only in Downloads.
 - **OneDrive:** a file there can be "online only" — a cloud icon, no real
   bytes on this computer. Copying it makes Windows download it first. If it
   will not copy, leave it out and name it in the list instead.

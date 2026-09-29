@@ -14,6 +14,8 @@ says where things tend to be.
   name; otherwise Desktop, Downloads and Documents — screenshots land on the
   Desktop by default. Only files from the event days that belong to the
   project.
+- **Google files they downloaded:** `~/Downloads`. A browser set to save
+  elsewhere puts them there instead; look only in Downloads.
 - **Asking permission:** macOS may ask whether your app can see Desktop,
   Documents or Downloads. That is expected; if they say no, leave those
   files out and name them in the list instead. Never ask them to change

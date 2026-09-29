@@ -244,7 +244,10 @@ work.
 
 Keep to about **10 minutes** for this step. If it runs long, stop and go to
 step 9 anyway — the send takes whatever is written by then. The final send
-is never held up for the write-up.
+is never held up for the write-up. That README's one question about Google
+files is the only thing this step may ask them; time spent waiting for their
+answer does not count toward the 10 minutes. After their answer, finish that
+README, then go to step 9.
 
 ## 9. Send the last of it, and say one line
 
