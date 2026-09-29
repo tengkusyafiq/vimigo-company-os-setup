@@ -4,8 +4,8 @@
 // event wifi drops, and an alarming message about a version check is the last
 // thing a nervous owner needs to read.
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
+const { vimigo } = require('./paths.js');
 
 // What this machine last downloaded. Read here rather than passed in, because
 // the caller is an AI reading a markdown file, and every value it has to thread
@@ -17,8 +17,9 @@ const path = require('node:path');
 // that made versioning necessary, and treating them as current strands them
 // there permanently.
 function installed() {
-  const p = path.join(
-    process.env.VIMIGO_HOME || path.join(os.homedir(), '.vimigo'), 'state.json');
+  // Routed through paths.js's vimigo(), not VIMIGO_HOME read directly - see
+  // receipt.js for why that mistake matters (it once wrote to a real home).
+  const p = path.join(vimigo(), 'state.json');
   try {
     const s = JSON.parse(fs.readFileSync(p, 'utf8'));
     return { setUp: true, version: typeof s.version === 'string' && s.version ? s.version : null };

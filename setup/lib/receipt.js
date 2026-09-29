@@ -10,11 +10,14 @@
 // unless a passing receipt exists AND the evidence matches it exactly. Marking
 // a row done now requires having actually run the check.
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
+const { vimigo } = require('./paths.js');
 
-const dir = () =>
-  path.join(process.env.VIMIGO_HOME || path.join(os.homedir(), '.vimigo'), 'receipts');
+// Routed through paths.js's vimigo() rather than reading VIMIGO_HOME
+// directly - VIMIGO_HOME alone falls straight through to the real
+// os.homedir() when a test (or a hand run) sets only VIMIGO_FAKE_HOME. That
+// mistake once wrote a real receipt to this machine's actual ~/.vimigo.
+const dir = () => path.join(vimigo(), 'receipts');
 
 function write(id, payload) {
   fs.mkdirSync(dir(), { recursive: true });

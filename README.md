@@ -1,32 +1,34 @@
 # Vimigo Company OS Setup
 
-Connects Claude or ChatGPT on your computer to your Zo.
+In the **Claude** app, click **Code**. Or open the **Codex** app. Paste one
+of these into it — the whole line, prompt included — and press Enter. Not
+Claude chat, ChatGPT chat, or Cowork. You do not need to know anything
+technical.
 
-You do not need to know anything technical. One line, once.
-
-## Mac
-
-1. Hold **Command** and press **Space**.
-2. Type `Terminal` and press **Enter**.
-3. Copy the line below, paste it, and press **Enter**.
+## Day 1, first session
 
 ```
-curl -fsSL https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-mac.sh | bash
+Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/START.md and follow it exactly.
 ```
 
-## Windows
-
-1. Click **Start**.
-2. Type `PowerShell` and press **Enter**.
-3. Copy the line below, paste it, and press **Enter**.
+## The Zo session
 
 ```
-irm https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/install-windows.ps1 | iex
+Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/ZO.md and follow it exactly.
+```
+
+## Last day, closing session
+
+```
+Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/WRAP-UP.md and follow it exactly.
 ```
 
 ---
 
-Helping someone through this using Claude or ChatGPT? Read
-[AGENT-NOTES.md](AGENT-NOTES.md).
+Helping someone through this? Read [AGENT-NOTES.md](AGENT-NOTES.md).
+Curious what your AI can already do for you once it's set up? Read
+[SKILLS.md](setup/SKILLS.md).
+
+---
 
 MIT licence.

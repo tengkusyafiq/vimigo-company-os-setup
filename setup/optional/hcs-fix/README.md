@@ -10,16 +10,15 @@ they are not running, Claude shows:
 
 and the Cowork button stays greyed out.
 
-## There are two different faults here, and only one is safe to fix
+## Read `verify.js`'s answer before you touch anything
 
-This is the whole of this document. Read `verify.js`'s answer before you touch
-anything.
+This is the whole of this document.
 
 | What `verify.js` says | What it means | What you do |
 |---|---|---|
-| `"fix": "start"` | The services are installed but stopped | Start them. Safe. |
-| `"fix": "features"` | The services are not installed at all | **Refuse.** See below. |
-| `"fix": "firmware"` | Virtualization is off in the laptop's firmware | **Refuse.** Nothing works until it is on, and that is not a thing software changes. |
+| `"fix": "start"` | The services are installed but stopped | Start them. Safe — see `windows.md`. |
+| `"fix": "features"` | The services are not installed at all | You decide — see "You decide" below. |
+| `"fix": "firmware"` | Virtualization is off in the laptop's firmware | Refuse. Nothing works until it is on, and that is not a thing software changes. |
 | `"ok": true` | All three already running | Nothing to do. Say so and stop. |
 
 ### `"start"` — do this one
@@ -39,52 +38,53 @@ Then check again with `verify.js`. If all three are running:
 
 > *"Done. Close Claude completely and open it again, and Cowork should work."*
 
-### `"features"` — refuse this one
+## You decide — these are the facts, not a script
 
-The services are not installed. Installing them means turning on Windows
-features with `dism` and restarting so Windows can apply them.
+Starting stopped services (`"fix": "start"`) is safe and reversible: do it.
 
-**Two laptops did not come back from that restart.** A Legion and an MSI,
-different makes, at an event: ran the setup, restarted when asked, and met
-*"Your device ran into a problem and couldn't be repaired."* Neither reached
-Windows again without recovery. Nobody has since worked out why, and the setup
-script that did it has had that step switched off ever since.
+Turning on Windows features that change how the computer starts
+(`"fix": "features"`) left two laptops of different makes unable to boot at a
+past event, and nobody established why. You may do it **only when every one of
+these holds** — check each, do not assume:
 
-So this is not a matter of doing it carefully. **The failure was never
-explained**, which means there is no "carefully" to be careful about. Do not
-enable the features. Do not restart the machine to apply anything. Do not
-research a safer way to do it during an event on somebody else's laptop.
+1. **BitLocker is off, or its recovery key is saved somewhere off this laptop.**
+   `manage-bde -status C:` shows it. If it is on, the owner's Microsoft account
+   usually holds the key (they can look on their phone). No key off the laptop,
+   no change — every recovery path asks for it.
+2. **System Restore is on, and a restore point named `Before Cowork fix` exists.**
+   Turn protection on for the system drive if it is off, create the point, then
+   confirm it is listed. This needs one administrator prompt — warn first.
+3. **No other virtual-machine software is installed** — VirtualBox, VMware,
+   BlueStacks, Android emulators, other hypervisors. If one is, refuse.
+4. **Virtualization is on in the firmware** (`"fix": "firmware"` means it is not).
+   If it is off, stop: say Cowork will not work on this laptop and that Claude
+   Code does everything they need.
+5. **They say yes** to: *"This changes how your computer starts up. It's the only
+   way to make Cowork work here — is it okay if I do it?"*
+6. **Before restarting,** open the recovery page and ask them to keep it on their
+   phone — photograph it or open the same address there:
 
-Say it plainly, and make clear what they still have:
+       https://tengkusyafiq.github.io/vimigo-company-os-setup/setup/help/boot-recovery.html
 
-> *"I can't switch this one on safely — it needs a change to how Windows starts
-> up, and we've seen that stop a laptop booting. Everything else is working:
-> your Zo, your commands, all of it. Cowork is the only part that won't run, and
-> you can still use Claude normally."*
+   > *"Keep this on your phone, just in case. If the computer won't start, it shows you the way back — all clicking, no typing."*
+7. Only then make the change and restart.
 
-Then mark the row blocked and carry on:
+If any one does not hold: say in one sentence that Cowork cannot be switched on
+safely on this laptop, and that Claude Code does the same work. Move on.
+
+Either way you land — a safeguard did not hold, or the owner said no — block
+the row instead of leaving it hanging:
 
     node lib/state.js block hcs-fix --reason "Cowork needs a Windows change that isn't safe to make here"
 
-### `"firmware"` — refuse this one too
-
-The laptop's own firmware has virtualization switched off. Nothing above can
-work until it is on, and it is a setting in the start-up screen that is named
-differently on every make of laptop.
-
-Nothing has been changed and no restart is needed. Say that, because a machine
-that cannot do this is not a machine that has been broken:
-
-> *"This laptop has a setting switched off that Cowork needs, and it's not
-> something I can change from here — it's in the start-up screen. Everything
-> else is set up and working."*
-
-Block the row with the same command and move on.
+If you went ahead instead and `verify.js` now says `"ok": true`, mark the row
+done with that evidence, exactly as any other check.
 
 ## Never
 
 - Never run this because you saw the error. Run it because they asked.
-- Never enable a Windows feature, run `dism`, or restart the computer for this.
+- Never enable a Windows feature, run `dism`, or restart the computer for this
+  unless every one of the seven safeguards above holds.
 - Never turn Secure Boot off. Nothing here needs it and it makes them less safe.
 - Never tell them to change a firmware setting themselves.
 - Never leave the impression their setup failed. One button is greyed out.

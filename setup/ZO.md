@@ -19,19 +19,14 @@ above. Participants' computers are only Windows or macOS — never Linux.
 
 ---
 
-# vimigo ai setup — start here
+# vimigo ai setup — Zo (session 2)
 
-You are setting up a business owner's computer. They have never opened a
-terminal. Read "Who you are talking to" in `MASTER.md` before you say anything
-to them.
-
-**You have read this one file over the web. Nothing else is on this computer
-yet.** Step 0 is what puts it there. Do not skip it and do not run any command
-below before it — none of those files exist until you fetch them.
-
-Say this first, then go quiet and work:
-
-> *"Right — give me a moment to get set up, then I'll walk you through it."*
+You are setting up a business owner's Zo account. Read "Who you are talking
+to" in `MASTER.md` before you say anything to them. This file may be fetched
+and read entirely on its own, with nothing else on the computer yet — so §0
+through §4 below are `START.md`'s own §0 through §4, **verbatim**. Keep them
+identical if either file changes; a laptop with no Node yet needs §1 exactly
+as much here as it does there.
 
 ## 0. Put the setup on this computer
 
@@ -143,86 +138,57 @@ twice in its skill list.
 run, and every later session reads that copy rather than this file — so a stale
 one keeps its fault forever, and the owner has no way to know.
 
-## 5. Find out what is already working
+## 5. Finish session 1 first, if it was skipped
 
-    node steps/01-runtimes/verify.js
-    node steps/02-second-brain/verify.js
-    node steps/03-sync/verify.js
+    node lib/session1.js
 
-Mark every row that passed, with its evidence. Then show the checklist:
+Never decide this from the sync row's own liveness check — that only proves
+the last two-minute job ran recently, and reads a perfectly healthy but quiet
+laptop (lunch break, bad wifi) as unfinished.
 
-    node lib/state.js show
+- **`"handoff": false`** — carry straight on to step 6.
+- **`"handoff": true`** — `runtimes` or `second-brain` isn't done, or a
+  Vimigo event is open right now and this laptop has never joined or said no
+  to any event (for instance, session 1 couldn't reach Vimigo). Fetch the
+  local `START.md` (§0 above already put it on this computer) and follow it
+  from **§5 through §7**, completely and exactly as written — its own
+  short-circuit, its "ask who they are" question, and the one disclosure line
+  in its `sync` row included.
 
-Check whether this session has nothing left to do — never guess this from the
-checklist or from `steps/03-sync/verify.js`'s liveness check, which only
-proves the last two-minute job ran recently and says nothing about a laptop
-that has gone quiet for an ordinary reason:
+  **If `"joinedBefore": true`**, this laptop has already taken part in an
+  event, and the hand-off is only for a red setup row: follow `START.md`'s
+  §5 and §6, then its `runtimes` and `second-brain` rows only. Skip its
+  `sync` row entirely — do not open `steps/03-sync`, do not say the line
+  about saving to Vimigo, and never enrol it into the event open now.
+  That is the case even when `START.md` §5's own check says an event
+  is open.
 
-    node lib/session1.js --start
+A laptop that has already taken part in an event — joined one, or said no to
+one — is never handed off for saving to Vimigo from here, whatever event is
+open now: `"handoff"` stays `false` for that, and you say nothing about it.
+The same when no event is open, or Vimigo can't be reached.
 
-`"handoff"` is `true` when `runtimes` or `second-brain` is not done yet, or
-when a Vimigo event is open right now (`"event": "open"`) that this laptop has
-neither joined nor said no to. Vimigo's own server says which event that is;
-anything this laptop did at an earlier event that has ended does not count,
-so a laptop from a past event joins this one here. It is `false` otherwise —
-including when no event is open (`"event": "none"`), when Vimigo couldn't be
-reached (`"event": "offline"`), and when this laptop is still saving to an
-earlier event whose window hasn't closed yet (`"stillSaving": true`): that
-keeps going until that event closes, and is never moved to this one.
+**Only `START.md`'s own text ever enrols a laptop.** This file hands off to
+it rather than doing any of that itself. However it finishes — including its
+own §5 short-circuit, which just means session 1 turns out to already be
+done — come back here either way and carry on to step 6.
 
-**If `"handoff"` is `false` and `"event"` is not `"offline"`**, mark that this
-session is done:
+## 6. Connect Zo
 
-    node lib/state.js session1
+Follow `steps/04-zo/README.md` completely, from the top. Do everything it
+says, including the platform file beside it.
 
-Then:
+## 7. Show the checklist and finish
 
-> *"You're already set up — nothing to do."*
-
-Stop here. Do not say the line below about saving to Vimigo, and do not run
-`enrol.js` again.
-
-**If `"event"` is `"offline"`**, do not stop here, even if everything else is
-done — carry on to step 6. The `sync` row's README says what to do when
-Vimigo can't be reached, and step 8 ends with the one sentence that asks them
-to try again once they're online.
-
-**If `"handoff"` is `true`**, carry on to step 6.
-
-## 6. Ask who they are — once
-
-Ask one friendly question when `second-brain` is not yet green, **or** when
-`sync` still has to run this session and you do not already have their answers
-— check `Second Brain/About me.md` first; if it already has a real name,
-company and role there (not blank), use those instead of asking again:
-
-> *"Before I start — what's your name, your company, and your role there?"*
-
-Keep the three answers exactly as they gave them. Do not correct spelling.
-
-## 7. Work the rows in order
-
-`runtimes` → `second-brain` → `sync`. For each: read the step's `README.md`,
-then `windows.md` or `macos.md`, do it, run its `verify.js`, mark it, show the
-checklist. Skip a row step 5 already marked done. `sync` is optional in the
-checklist but **is** part of this session — do it unless its own README tells
-you to skip it (it does when it already works, when the owner has already
-said no to this event, when no Vimigo event is open, and when Vimigo can't be
-reached).
-
-## 8. Finish
-
-    node lib/state.js session1
     node lib/state.js show
 
 Then one sentence:
 
-> *"You're set up. Your AI will keep notes for you as you work from now on."*
+> *"Your Zo is connected. You can talk to it from here now."*
 
-**If the `sync` row was left because Vimigo couldn't be reached** (you marked
-it `"couldn't reach Vimigo"` this session), add this one sentence, and say
-nothing else about it:
+## Never
 
-> *"One last thing: part of this needs the internet, and it couldn't connect just now. Once you're online, paste the same message you started with again and I'll finish it."*
-
-The Zo account is the next session — do not start it now.
+- **Never enrol by this file's own instructions.** The only file that ever
+  enrols a laptop is `START.md`, through its `steps/03-sync` row, which is
+  exactly why an unfinished session 1 is handed to it rather than repeated
+  here.

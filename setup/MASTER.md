@@ -1,6 +1,27 @@
 ---
 name: vimigo-ai-setup
-description: Set up, resume, or repair a business owner's vimigo AI installation — Node, Git and Python, the /compile-data command, and their Zo account with their own Claude and ChatGPT subscriptions. Use when someone asks to continue their vimigo ai setup, when a setup was interrupted by a restart, or when a row of their setup checklist is not finished.
+description: Set up, resume, or repair a business owner's vimigo AI installation — Node, Git and Python, their Second Brain, and their Zo account with their own Claude and ChatGPT subscriptions. Use when someone asks to continue their vimigo ai setup, when a setup was interrupted by a restart, or when a row of their setup checklist is not finished.
+---
+
+Before anything else — this applies to every file in this setup, not only
+this one:
+
+If you cannot run commands on this computer at all, stop and reply only:
+
+> *"This needs to run in Claude Code or Codex, not here. In the Claude app,
+> click **Code**. Or open the **Codex** app. Then paste the same message
+> there."*
+
+Then run one command to see which operating system your commands actually
+run on — `uname -s` with a shell tool, or
+`[System.Environment]::OSVersion.Platform` with PowerShell only:
+
+    uname -s
+
+If it says `Linux`, you are inside a sandbox (for example Claude Cowork), not
+on their Windows or Mac computer. Stop and reply with the same sentence
+above. Participants' computers are only Windows or macOS — never Linux.
+
 ---
 
 # vimigo ai setup
@@ -54,8 +75,12 @@ knows where to put things.
 
 Then:
 
-1. Copy the new `MASTER.md` over
-   `<home>/.claude/skills/vimigo-ai-setup/SKILL.md`, overwriting.
+1. Copy the new `MASTER.md` over **both**
+   `<home>/.claude/skills/vimigo-ai-setup/SKILL.md` and
+   `<home>/.agents/skills/vimigo-ai-setup/SKILL.md`, overwriting. If
+   `<home>/.codex/skills/vimigo-ai-setup/` exists, delete it — Codex reads
+   both `~/.agents/skills` and `~/.codex/skills`, and a copy in both places
+   is listed twice.
 2. Record the new version, or you will do all this again next time:
 
        node lib/state.js init --version <version from the manifest>
@@ -84,9 +109,10 @@ a path, a command, a port or a log is, and they will not say so.
 - Never show them a path, a command, a log line, an error, a version number they
   did not ask for, a port, or a key.
 - One plain sentence per step, then go quiet.
-- The only things you may ask of them: something on their phone, clicking a
-  button you warned them about, and copying their Zo key off a page you walked
-  them to.
+- The only things you may ask of them: their name, company and role, once, at
+  the start of session 1; whether they already have a Zo account; something on
+  their phone; clicking a button you warned them about; and copying their Zo
+  key off a page you walked them to.
 - **Never name a thing they have to find without saying where it is on screen.**
   "Paste your key here" is not an instruction to somebody who has never seen a
   key — it is a test they did not know they were sitting. Name the button, the
@@ -115,8 +141,9 @@ rows, and say what is outstanding at the end in plain words. Never turn a
 missing instruction into homework.
 
 The only things you may ever ask for are the ones named in "Who you are talking
-to" above — something on their phone, a button you warned them about, and their
-Zo key.
+to" above — their name, company and role once at the start of session 1,
+whether they already have a Zo account, something on their phone, a button
+you warned them about, and their Zo key.
 
 ## The order
 
@@ -126,10 +153,54 @@ Rows run in order, and the required ones gate the optional ones. Nothing below
 | Row | Step folder | Required |
 |---|---|---|
 | `runtimes` | `steps/01-runtimes/` | yes |
-| `compile-data` | `steps/02-compile-data/` | yes |
-| `zo` | `steps/03-zo/` | yes |
-| `whatsapp` | `optional/whatsapp/` | only when asked |
+| `second-brain` | `steps/02-second-brain/` | yes |
+| `sync` | `steps/03-sync/` | **only from `START.md` at an event — never from here** |
+| `zo` | `steps/04-zo/` | yes |
 | `hcs-fix` | `optional/hcs-fix/` | only when they report Cowork broken |
+
+**Never enrol a laptop from this file.** If `sync` is not done, see "Resuming
+an interrupted session 1" below rather than working the row yourself — that
+row only ever starts from the session-1 prompt, after its own one line.
+
+### Resuming an interrupted session 1
+
+Before you touch `zo` or anything else:
+
+    node lib/session1.js
+
+Never decide this from the sync row's own liveness check — that only proves
+the last two-minute job ran recently, not a record of whether session 1 ran.
+An enrolled laptop that has gone quiet for an ordinary reason (a lunch break,
+bad event wifi) is `doctor.js`'s job to notice at the next conversation, not a
+reason to resume session 1 — and every Zo session ends with a restart that
+brings the owner straight back here, so getting this wrong here means it
+fires on every ordinary "continue my vimigo ai setup" after the event, not
+just an interrupted one.
+
+- **`"handoff": false`** — `runtimes` and `second-brain` are both done, and
+  either no Vimigo event is open right now (`"event": "none"`), Vimigo can't
+  be reached from here right now (`"event": "offline"` — say nothing about
+  it), or this laptop has already taken part in an event — joined one, or
+  said no to one. A laptop that took part in one event is never moved into a
+  different one from here; only `START.md`, pasted at that event, does that.
+  Carry on below as usual, all the way to `zo` — there is nothing to resume.
+- **`"handoff": true`** — `runtimes` or `second-brain` isn't done, or a
+  Vimigo event is open right now and this laptop has never joined or said no
+  to any event (for instance, session 1 couldn't reach Vimigo). Re-fetch the
+  tree (the downloader above) and follow the
+  local `START.md` from **§5 through §7**, completely and exactly as written.
+  However it finishes — its own §5 short-circuit included — come back here
+  and carry on below as usual, all the way to `zo`.
+
+  **If `"joinedBefore": true`**, this laptop has already taken part in an
+  event, and the hand-off is only for a red setup row: follow `START.md`'s
+  §5 and §6, then its `runtimes` and `second-brain` rows only. Skip its
+  `sync` row entirely — do not open `steps/03-sync`, do not say the line
+  about saving to Vimigo, and never enrol it into the event open now.
+  That is the case even when `START.md` §5's own check says an event
+  is open.
+  **You must never enrol from this file yourself** — that is exactly why you
+  hand off to `START.md`, the one place that does.
 
 ### Fetching an optional part
 
@@ -143,15 +214,9 @@ Then read its `README.md` before doing anything, exactly as with a required row.
 
 ### `hcs-fix` is asked for, never offered
 
-Run it when the owner says Cowork is broken. Do not offer it because you saw an
-error, and do not fold it into the checklist.
-
-**Its `README.md` splits one fault into three, and refuses two of them.** One is
-starting a stopped service — safe, no restart. The others need a change to how
-Windows starts, and that change left two laptops of different makes unable to
-boot at an event, with nobody since working out why. `verify.js` says which you
-have. **Never improvise past a refusal**: an AI reasoning carefully toward a
-boot configuration change on a stranger's laptop is still an AI making one.
+Run it when the owner says Cowork is broken. Its `README.md` is reference, not
+a script: read it, then decide — including a change to how Windows starts,
+**only** when every safeguard in it holds.
 
 ## Check before you do anything — every row, every time
 
@@ -191,13 +256,13 @@ they have to wonder:
 
 ```
    ✓  Node, Git and Python          ready
-   ✓  Your /compile-data skill      ready
+   ✓  Your Second Brain             ready
    ●  Your Zo account               not started yet
-   ·  WhatsApp                      only if you want it
+   ·  The Cowork fix                only if you need it
 ```
 
 Show every row, including the optional ones sitting greyed out. That is how
-somebody finds out WhatsApp is available without being sold it.
+somebody finds out the Cowork fix is there without being sold it.
 
 "One plain sentence per step" governs your talking. It has never governed the
 checklist — the checklist is the one thing on screen they are meant to read.
@@ -238,8 +303,9 @@ Claude:
 
 The computer:
 
-> *"Restart your computer whenever you're ready. When it's back, open Claude
-> Code and say: continue my vimigo ai setup."*
+> *"Restart your computer whenever you're ready. When it's back, open
+> Claude Code — the **Code** tab in the Claude app — or the **Codex** app,
+> and say: continue my vimigo ai setup."*
 
 Both work because the checklist is on disk. Read it first thing when you return.
 
@@ -252,9 +318,10 @@ Try, then stop. Do not spend twenty minutes on one row.
 Then **move to the next row** — a stuck row must never block an unrelated one.
 At the end, say what is outstanding and what it means for them:
 
-> *"Everything's set up except WhatsApp — this laptop won't let programs start
-> themselves automatically, so it'd stop working every time you shut down.
-> Better to leave it off than have it break on you."*
+> *"Everything's set up except the Cowork fix — this laptop's virtualization
+> isn't switched on, and turning it on needs a restart I'm not going to risk
+> without checking with you first. Better to leave it off than have it break
+> on you."*
 
 ## Anything that changes how the computer starts
 

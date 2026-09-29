@@ -1,7 +1,8 @@
 # The Cowork fix on Windows
 
 Only reachable when `verify.js` said `"fix": "start"`. For any other answer,
-read `README.md` — the other two are refusals, not commands.
+read `README.md` first: `"firmware"` is refused outright, and `"features"` is
+a decision behind seven safeguards, not a command in this file.
 
 ## Warn before the box appears
 
@@ -51,5 +52,6 @@ not:
 
 ## What you never do here
 
-No `dism`. No enabling Windows features. No restarting the computer. Those are
-the `"features"` path, and `README.md` says why that one is refused.
+No `dism`. No enabling Windows features. No restarting the computer. Those
+belong to the `"features"` path in `README.md`, behind its seven safeguards —
+never here, and never without every one of them holding.

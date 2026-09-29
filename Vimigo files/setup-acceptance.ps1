@@ -1873,10 +1873,11 @@ releaseDate: '2026-07-22T11:44:41.451Z'
     foreach ($installer in @(
         @{ Published = 'install-windows.ps1'
            Development = 'public-install-windows.ps1'
-           What = 'the one-line installer' },
-        @{ Published = 'install-assistant-windows.ps1'
-           Development = 'public-install-assistant-windows.ps1'
-           What = 'the assistant one-liner' }
+           What = 'the one-line installer' }
+        # install-assistant-windows.ps1 was withdrawn from what is published
+        # (Task 12) - this table checked it existed at the public repo's
+        # root, which is no longer true even though public-install-
+        # assistant-windows.ps1 still exists as a private-repo source file.
     )) {
         $text = Get-InstallerText -Published $installer.Published -Development $installer.Development
         Assert-True ($text -ne '') "$($installer.What) was found to check"

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>If your computer won&#x27;t start after the Cowork fix</title>
+<style>
+:root { color-scheme: light dark; --ink:#101418; --dim:#5b6672; --line:#dfe4e9;
+        --bg:#fff; --card:#f6f8fa; --warn:#8a5a00; --warnbg:#fff8e6; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink:#e8edf2; --dim:#9aa6b2; --line:#2a3138; --bg:#12161a;
+          --card:#1a1f25; --warn:#f0c274; --warnbg:#2a2113; } }
+* { box-sizing: border-box; }
+body { margin:0; padding:1.5rem 1rem 4rem; background:var(--bg); color:var(--ink);
+       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 44rem; margin: 0 auto; }
+h1 { font-size:1.4rem; line-height:1.2; margin:0 0 1.5rem; }
+h2 { font-size:1.05rem; margin:2.5rem 0 .75rem; padding-top:1.25rem;
+     border-top:1px solid var(--line); }
+h2:first-of-type { border-top:0; padding-top:0; }
+p { margin:.6rem 0; }
+ol { padding-left:0; list-style:none; counter-reset:step; margin:1.5rem 0; }
+ol > li { counter-increment:step; margin:0 0 1.4rem; padding-left:2.4rem; position:relative; }
+ol > li::before { content:counter(step); position:absolute; left:0; top:0;
+  width:1.6rem; height:1.6rem; border-radius:50%; background:var(--ink); color:var(--bg);
+  font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+li strong:first-child { display:block; font-size:.98rem; margin-bottom:.2rem; }
+a.shot { display:inline-block; margin:.6rem 0 0; line-height:0; position:relative; }
+/* A hint, not a target. The whole picture is the link; this only says so, which
+   is why it never takes the click - an owner who aims for a 26px icon and
+   misses learns the picture is not clickable, which is the opposite of true. */
+a.shot::after { content:''; position:absolute; right:7px; bottom:7px;
+  width:26px; height:26px; border-radius:6px; pointer-events:none;
+  background:rgba(12,16,20,.66) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3Cpath d='M10.5 7.8v5.4M7.8 10.5h5.4'/%3E%3C/svg%3E") center/15px no-repeat;
+  box-shadow:0 1px 5px rgba(0,0,0,.4); transition:background-color .12s; }
+a.shot:hover::after { background-color:rgba(12,16,20,.92); }
+a.shot img { display:block; max-width:100%; max-height:210px; width:auto; height:auto;
+      border:1px solid var(--line); border-radius:8px; background:var(--card);
+      cursor:zoom-in; transition:border-color .12s; }
+a.shot:hover img { border-color:var(--dim); }
+table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+th,td { text-align:left; padding:.7rem .8rem; border-bottom:1px solid var(--line); }
+th { font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+blockquote { margin:1rem 0; padding:.9rem 1.1rem; background:var(--card);
+             border-left:4px solid var(--dim); border-radius:0 8px 8px 0; }
+code { background:var(--card); padding:.15em .4em; border-radius:5px; font-size:.9em; }
+.warn { margin:1.5rem 0; padding:1rem 1.2rem; background:var(--warnbg);
+        border-radius:10px; color:var(--warn); }
+.warn h2 { border:0; padding:0; margin:0 0 .4rem; font-size:1.1rem; color:inherit; }
+.handover { margin:2.5rem 0 0; padding:1rem; border:2px dashed var(--line);
+            border-radius:12px; text-align:center; color:var(--dim); font-size:.95rem; }
+
+#lb { position:fixed; inset:0; z-index:99; display:none; place-items:center;
+      background:rgba(0,0,0,.86); padding:2rem 1rem; cursor:zoom-out; }
+#lb.open { display:grid; }
+#lb img { max-width:96vw; max-height:88vh; width:auto; height:auto;
+          border-radius:8px; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+#lb p { position:absolute; bottom:1.1rem; left:0; right:0; margin:0;
+        text-align:center; color:#cfd6dd; font-size:.85rem; }
+@media (max-width:34rem) { body { font-size:14px; padding:1.25rem .9rem 4rem; } }
+</style>
+</head>
+<body>
+<main>
+<h1>If your computer won't start after the Cowork fix</h1>
+<p>Nothing is lost. Your files are safe. This puts Windows back the way it was</p>
+<p>before the change.</p>
+<h2>The clicking way (try this first)</h2>
+<ol>
+<li>Turn the computer on. If Windows fails to start twice, it opens a blue
+<p>screen by itself. (Or hold <strong>Shift</strong> while clicking <strong>Restart</strong>.)</p>
+</li>
+<li>Click <strong>Troubleshoot</strong>.
+</li>
+<li>Click <strong>Advanced options</strong>.
+</li>
+<li>Click <strong>System Restore</strong>.
+</li>
+<li>If it asks for a <strong>BitLocker recovery key</strong>, it is in your Microsoft account —
+<p>on your phone, open <strong>aka.ms/myrecoverykey</strong> and sign in.</p>
+</li>
+<li>Pick the restore point called <strong>Before Cowork fix</strong>, then <strong>Next</strong>, then <strong>Finish</strong>.
+</li>
+<li>Wait. The computer restarts on its own, back to normal.
+</li></ol>
+<h2>For the Vimigo team — if System Restore fails</h2>
+<p>From the same blue screen: <strong>Troubleshoot → Advanced options → Command Prompt</strong></p>
+<p>(needs the BitLocker key if the drive is encrypted), then:</p>
+<p>bcdedit /set {default} hypervisorlaunchtype off</p>
+<p>Close the window, choose <strong>Continue</strong>. Windows starts without the virtualization</p>
+<p>layer that failed. Cowork will not work on this laptop; Claude Code will.</p>
+<p class="handover">If your screen doesn't look like this, tell me &mdash; I'll walk you through it instead.</p>
+</main>
+
+<div id="lb" role="dialog" aria-modal="true" aria-label="Screenshot">
+<img alt=""><p>Click anywhere, or press Esc, to close</p></div>
+<script>
+(function () {
+  var lb = document.getElementById('lb'), big = lb.querySelector('img');
+  function close() { lb.classList.remove('open'); big.removeAttribute('src'); }
+  document.querySelectorAll('a.shot').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      big.src = a.getAttribute('href');
+      big.alt = a.querySelector('img').alt;
+      lb.classList.add('open');
+    });
+  });
+  lb.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && lb.classList.contains('open')) close();
+  });
+})();
+</script>
+</body>
+</html>

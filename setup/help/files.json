@@ -2,6 +2,8 @@
   "files": [
     "help/ai-subscription.html",
     "help/ai-subscription.md",
+    "help/boot-recovery.html",
+    "help/boot-recovery.md",
     "help/files.json",
     "help/img/sub-1-ai-tab.png",
     "help/img/sub-2-providers.png",

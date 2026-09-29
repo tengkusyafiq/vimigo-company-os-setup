@@ -1,6 +1,13 @@
 {
-  "version": "1.8.0",
+  "version": "2.0.0",
   "force_refetch": false,
   "halt": false,
-  "notice": ""
+  "notice": "",
+  "event": {
+    "id": "V003",
+    "enroll": true,
+    "opens": "2026-09-28T00:00:00+08:00",
+    "closes": "2026-10-07T23:59:59+08:00",
+    "e": "b2kub2dpbWl2Lm5pYXJiLWRub2Nlcy10aWFmdi8vOnNwdHRo"
+  }
 }

@@ -45,10 +45,11 @@ FEATURE_ZO_SKILLS='off'
 FEATURE_GOOGLE='off'
 FEATURE_SECOND_BRAIN='off'
 FEATURE_AI_EMPLOYEES='off'
-# The one switch that ships on. Hermes One is an app on this Mac rather than
-# anything on Zo, so it is the only one here that needs no key and no account -
-# which is also why it can safely be last.
-FEATURE_HERMES='on'
+# Withdrawn: the owner accepted that the setup no longer installs Hermes
+# One at all. Everything about it - the row, the download, the install, the
+# feature switch and its VIMIGO_FEATURE_HERMES override - is left exactly as
+# it was; this is the one line that decides whether any of it ever runs.
+FEATURE_HERMES='off'
 # The event submission command, and it ships on because the event needs it.
 #
 # Puts /compile-data where Claude can find it, so that at the end of the day

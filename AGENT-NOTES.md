@@ -1,5 +1,36 @@
 # Notes for an AI helping someone through this
 
+## If you are the AI reading this
+
+Read
+[`setup/START.md`](setup/START.md) first and follow it exactly — it is written
+for you, not for the owner. Session 2 starts from
+[`setup/ZO.md`](setup/ZO.md), the last session from
+[`setup/WRAP-UP.md`](setup/WRAP-UP.md) — both below, and both fall back to
+`START.md`'s own steps if session 1 was skipped. Asked to resume or continue
+a setup with no link at all? Read [`setup/MASTER.md`](setup/MASTER.md)
+instead. [`setup/SKILLS.md`](setup/SKILLS.md) lists what you can already do
+for this person once their setup is installed — ask for one of these, don't
+wait to be told.
+
+These prompts only work in **Claude Code** (the **Code** tab in the Claude
+app) or the **Codex** app — never Claude chat, ChatGPT chat, or Cowork; the
+setup files themselves refuse to run anywhere else. The owner can paste one
+of these three, depending on where they are:
+
+> Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/START.md and follow it exactly.
+
+> Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/ZO.md and follow it exactly.
+
+> Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/WRAP-UP.md and follow it exactly.
+
+**The owner is not technical.** Assume someone over 60 who has never opened a
+terminal. Ask what is on their screen before you tell them the next thing to
+do — your guess about where they are is not the truth; `START.md`'s own
+checks are.
+
+## Older way — terminal (past batches)
+
 The owner can paste this to Claude or ChatGPT:
 
 > I am setting up Vimigo Company OS on my [Windows PC / Mac]. I am not
@@ -9,9 +40,7 @@ The owner can paste this to Claude or ChatGPT:
 > the next thing to do, and never give me commands to type unless there is no
 > other way.
 
-## If you are the AI reading this
-
-Notes from the people who built it.
+### Notes from the people who built it
 
 - **The owner is not technical.** Assume someone over 60 who has never opened a
   terminal. They can click, tap a phone, sign in on a website, type a short
@@ -35,18 +64,6 @@ Notes from the people who built it.
   touches, and it verifies rather than trusting an installer. "Run it again" is
   a real fix for most things, and every fix we ship reaches them on the next
   run.
-
-- **There are only three things they must do themselves:** choose Claude or
-  ChatGPT, sign in to that app and leave it open, and paste their Zo key. If
-  they are doing anything else by hand, something has gone wrong.
-
-- **The last step installs Hermes One, and it is finished once it is
-  installed.** The setup opens it, and Hermes One then asks for an AI provider
-  key of its own. **That key is not their ChatGPT or Claude subscription** — a
-  paid ChatGPT or Claude plan does not include one; it is a separate signup with
-  separate billing. Do not send them off to buy one, and do not treat a closed
-  Hermes One window as a failed setup. Nothing else depends on it. If they want
-  it later, they can open the app any time and finish it there.
 
 - **Signing in is the step people skip.** The Zo connection is written into a
   file the app keeps for a signed-in user, so an app nobody has opened looks

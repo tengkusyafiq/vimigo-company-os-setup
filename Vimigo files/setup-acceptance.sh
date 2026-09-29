@@ -1487,9 +1487,9 @@ assert $? 'both scripts ship the same answer for the Claude Desktop features'
 # machine that can be rebuilt.
 [ "$(mac_default CLAUDE_FEATURES)" = 'off' ]
 assert $? 'and that answer is OFF, because it stopped two laptops booting'
-# The only one that ships on, so it is worth stating rather than implying.
-[ "$(mac_default HERMES)" = 'on' ]
-assert $? 'and that answer is on, because it was asked for by name'
+# Withdrawn: the owner accepted that the setup no longer installs it.
+[ "$(mac_default HERMES)" = 'off' ]
+assert $? 'and that answer is off, because Hermes One is withdrawn'
 
 printf '\n\033[36mThe switch is generous about what counts as yes\033[0m\n'
 

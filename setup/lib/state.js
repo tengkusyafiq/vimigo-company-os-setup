@@ -6,18 +6,24 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const receipt = require('./receipt.js');
+const { vimigo, isSandboxed } = require('./paths.js');
 
 const ROWS = [
-  { id: 'runtimes',     title: 'Node, Git and Python',     waiting: 'not started yet',    optional: false },
-  { id: 'compile-data', title: 'Your /compile-data skill', waiting: 'not started yet',    optional: false },
-  { id: 'zo',           title: 'Your Zo account',          waiting: 'not started yet',    optional: false },
-  { id: 'whatsapp',     title: 'WhatsApp',                 waiting: 'only if you want it', optional: true },
-  { id: 'hcs-fix',      title: 'The Cowork fix',           waiting: 'only if you need it', optional: true },
+  { id: 'runtimes',     title: 'Node, Git and Python',      waiting: 'not started yet',        optional: false },
+  { id: 'second-brain', title: 'Your Second Brain',         waiting: 'not started yet',        optional: false },
+  { id: 'sync',         title: 'Saving your work to Vimigo', waiting: 'only at a Vimigo event', optional: true },
+  { id: 'zo',           title: 'Your Zo account',           waiting: 'not started yet',        optional: false },
+  { id: 'hcs-fix',      title: 'The Cowork fix',            waiting: 'only if you need it',    optional: true },
 ];
 const STATUSES = ['done', 'doing', 'todo', 'blocked', 'not_asked'];
 const GLYPH = { done: '✓', doing: '◐', todo: '●', blocked: '✗', not_asked: '·' };
 
-const homeDir = () => process.env.VIMIGO_HOME || path.join(os.homedir(), '.vimigo');
+// Routed through paths.js's vimigo(), not VIMIGO_HOME read directly - reading
+// VIMIGO_HOME alone falls straight through to the real os.homedir() when
+// only VIMIGO_FAKE_HOME is set (a hand run, or a test that forgot the
+// second variable), which once wrote real progress to this machine's actual
+// ~/.vimigo/state.json during a review.
+const homeDir = () => vimigo();
 const statePath = () => path.join(homeDir(), 'state.json');
 
 function die(code, message) {
@@ -60,10 +66,35 @@ function fresh() {
       evidence: null,
     })),
     blocked: [],
+    // Written by START.md itself, at its §5 short-circuit and at its §8
+    // finish. A record that session 1 ran here, reported by lib/session1.js -
+    // since fix round 4 it never decides a hand-off on its own: a session 1
+    // that could not reach Vimigo must still be retried once online.
+    session1: false,
   };
 }
 
+class Unreadable extends Error {}
+
 function read({ createIfMissing = false } = {}) {
+  try {
+    return load(createIfMissing);
+  } catch (e) {
+    // Never overwrite. A corrupt file is somebody's progress, and guessing at
+    // it is worse than stopping.
+    if (e instanceof Unreadable) die(3, 'state file is not readable');
+    throw e;
+  }
+}
+
+// For the background sync job, which only glances at the zo row: an
+// unreadable file must never kill the one job carrying the submission (fix
+// round 4, m-2) - read() exits the process, which a catch cannot stop.
+function readSafe() {
+  try { return load(false); } catch { return null; }
+}
+
+function load(createIfMissing) {
   const p = statePath();
   if (!fs.existsSync(p)) {
     if (!createIfMissing) return fresh();
@@ -76,27 +107,27 @@ function read({ createIfMissing = false } = {}) {
   try {
     raw = JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch {
-    // Never overwrite. A corrupt file is somebody's progress, and guessing at
-    // it is worse than stopping.
-    die(3, 'state file is not readable');
+    throw new Unreadable();
   }
-  if (!raw || !Array.isArray(raw.rows)) die(3, 'state file is not readable');
+  if (!raw || !Array.isArray(raw.rows)) throw new Unreadable();
   // A file that parses is not a file that is shaped right. A half-written row
   // is null, and reaching into it throws a stack trace carrying an absolute
   // path - the one thing this program exists to keep off an owner's screen.
   for (const r of raw.rows) {
     if (!r || typeof r !== 'object' || typeof r.id !== 'string'
         || !STATUSES.includes(r.status)) {
-      die(3, 'state file is not readable');
+      throw new Unreadable();
     }
     // done without evidence is the invariant this whole program exists to hold.
     // Enforcing it only on the way in left a hand-edited or half-written file
     // rendering a green tick beside the word "ready", which is exactly the lie
     // the evidence rule is meant to make impossible.
     if (r.status === 'done' && (typeof r.evidence !== 'string' || !r.evidence.trim())) {
-      die(3, 'state file is not readable');
+      throw new Unreadable();
     }
   }
+  // A file written before session1 existed has none - false, not missing.
+  if (typeof raw.session1 !== 'boolean') raw.session1 = false;
   // Add rows introduced since the file was written.
   for (const r of ROWS) {
     if (!raw.rows.some((x) => x.id === r.id)) {
@@ -149,9 +180,24 @@ function main() {
   const [cmd, ...args] = process.argv.slice(2);
 
   if (cmd === 'init') {
+    // The very first write this whole setup ever makes on a fresh laptop.
+    // Refusing here, rather than letting a sandboxed AI merrily "install"
+    // Node/Git/Python and enrol into an event inside a container the owner
+    // never sees, is what stops that happening silently.
+    if (isSandboxed()) {
+      process.stdout.write(JSON.stringify({ ok: false, reason: 'sandbox' }) + '\n');
+      process.exit(1);
+    }
     const s = read({ createIfMissing: true });
     const v = flag(args, '--version');
     if (v) s.version = v;
+    write(s);
+    process.stdout.write(render(s) + '\n');
+    return;
+  }
+  if (cmd === 'session1') {
+    const s = read({ createIfMissing: true });
+    s.session1 = true;
     write(s);
     process.stdout.write(render(s) + '\n');
     return;
@@ -214,8 +260,8 @@ function main() {
     process.stdout.write(render(s) + '\n');
     return;
   }
-  die(2, 'usage: state.js init [--version V]|show|json|set <id> <status> [--evidence T]|block <id> --reason T');
+  die(2, 'usage: state.js init [--version V]|show|json|session1|set <id> <status> [--evidence T]|block <id> --reason T');
 }
 
 if (require.main === module) main();
-module.exports = { ROWS, STATUSES, render, read };
+module.exports = { ROWS, STATUSES, render, read, readSafe };

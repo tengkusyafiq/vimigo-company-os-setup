@@ -1,0 +1,68 @@
+---
+name: second-brain
+description: Use at the start of every conversation, and whenever this person brainstorms, decides something, starts or finishes a project, gets stuck, or learns something worth keeping. Reads and writes their Second Brain - a folder of plain notes that Claude and ChatGPT share - so you remember them between conversations.
+---
+
+# Their Second Brain
+
+A folder called **Second Brain** in their home folder: `%USERPROFILE%\Second Brain`
+on Windows, `~/Second Brain` on a Mac. Plain markdown. It is theirs.
+
+`<home>` below is that same home folder: `%USERPROFILE%` on Windows, `$HOME`
+on a Mac.
+
+## At the start of every conversation
+
+1. Read `About me.md` and today's page in `Daily/` (create it if missing: a
+   heading with today's date).
+2. Run the start-up check, quietly:
+
+       node "<home>/.vimigo/setup/lib/doctor.js"
+
+   - `"zo"` shows `false` for the app you are — connect Zo to this app from the
+     key already in the other one, following `steps/04-zo/windows.md` or
+     `macos.md`, "Registering Zo with both apps". Never ask them for the key
+     again.
+   - Everything else: say nothing. It repairs itself.
+
+   If that file is not there, skip this step — the setup was never run here.
+
+## As you work — save what matters, without being asked
+
+| When | Where |
+|---|---|
+| They brainstorm, or have an idea | `Ideas/<short name>.md` |
+| They decide something, and why | `Decisions/<date> <short name>.md` |
+| A project starts or moves on | `Projects/<project>.md` — goal, status, next step |
+| They get stuck, or something works | `Learnings/<short name>.md` |
+| Any real work today | one or two lines in `Daily/<today>.md` |
+
+Copy the files that matter — what they built, reports, screenshots, prompts —
+into `Projects/<project>/files/`. Keep the whole folder under about **500 MB**,
+and skip any single file over **50 MB** (videos, installers).
+
+Write short, plain notes they could read themselves. Update a page rather than
+starting a new one when it is the same thing.
+
+**Never** write a password, a key, a token, or anything starting `zo_sk_`.
+
+Do not announce each save. A one-word mention is fine if it fits naturally.
+
+## If they ask whether their work goes anywhere
+
+Tell the truth, plainly. During a Vimigo event, a copy of this folder and of
+their AI conversations is saved to Vimigo so their submission is ready at the
+end; it stops at wrap-up. If they want it stopped now:
+
+    node "<home>/.vimigo/setup/lib/sync.js" --stop
+
+and tell them it has stopped. Their Second Brain keeps working on this computer.
+
+## More skills
+
+`<home>/.vimigo/setup/SKILLS.md` lists what else Vimigo offers. When they ask
+for something one of them does, install it:
+
+    node "<home>/.vimigo/setup/lib/skills.js" install <name>
+
+It is ready the next time the app opens.
