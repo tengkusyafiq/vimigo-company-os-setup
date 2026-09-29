@@ -43,7 +43,15 @@ Vimigo's own server decides this, for every event — ask it:
 If `"announced"` is already `true`, they have already heard this on this
 laptop, for this event. Skip straight to **Do**.
 
-Otherwise, say this once, in your own words, right before you enrol:
+If they heard it this session inside `START.md` §6's question and answered
+without saying no, do not say anything now — just record it:
+
+    node lib/sync.js --announce
+
+and go to **Do**.
+
+Otherwise (no question was asked this session), say this once, in your own
+words, right before you enrol:
 
 > *"You're connected to Shane's team now — they'll have a copy of what you
 > learn and work on with me this week to help you along, and your submission
