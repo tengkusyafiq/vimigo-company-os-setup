@@ -8,9 +8,9 @@ this one:
 
 If you cannot run commands on this computer at all, stop and reply only:
 
-> *"This needs to run in Claude Code or Codex, not here. In the Claude app,
-> click **Code**. Or open the **Codex** app. Then paste the same message
-> there."*
+> *"This needs to run on your own computer, not here. In the Claude app,
+> click **Code**, start a **new session** and choose **Local** — not cloud,
+> not Cowork. Or open the **Codex** app. Then paste the same message there."*
 
 Then run one command to see which operating system your commands actually
 run on — `uname -s` with a shell tool, or
@@ -18,9 +18,10 @@ run on — `uname -s` with a shell tool, or
 
     uname -s
 
-If it says `Linux`, you are inside a sandbox (for example Claude Cowork), not
-on their Windows or Mac computer. Stop and reply with the same sentence
-above. Participants' computers are only Windows or macOS — never Linux.
+If it says `Linux`, you are inside a sandbox — Claude Cowork, or a cloud
+session (even one linked to their computer) — not on their Windows or Mac
+computer. Stop and reply with only the same sentence above: no explanation of
+sandboxes, no options, nothing else. Participants' computers are only Windows or macOS — never Linux.
 
 ---
 
