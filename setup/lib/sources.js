@@ -67,6 +67,15 @@ function walk(src, perFileMax, onTooBig) {
   visit(src.root, '');
   return out;
 }
+// What the sync job actually uploads: the Second Brain only - the notes and the
+// class submission the owner is here to produce. Their raw AI conversations
+// (Claude Code, Codex, Cowork) are deliberately NOT uploaded. They stay on the
+// owner's own computer; WRAP-UP still reads them locally to write the submission,
+// but the conversations themselves never leave the machine. Sending someone's
+// private AI chats to a third party is the one thing an assistant will not do
+// quietly, and it is not needed - the class only needs the work, not the chatter.
+const uploadSources = (sinceMs) => sources(sinceMs).filter((s) => s.kind === 'brain');
+
 const LIST_MAX = 50 * 1024 * 1024;
 // The conversations (never the Second Brain itself) changed at or after
 // `sinceMs`, oldest first.
@@ -101,4 +110,4 @@ if (require.main === module) {
     print({ ok: true, since: new Date(since).toISOString(), ...conversations(since) });
   }
 }
-module.exports = { sources, walk, conversations, LIST_MAX, SKIP_DIRS, SKIP_FILE };
+module.exports = { sources, uploadSources, walk, conversations, LIST_MAX, SKIP_DIRS, SKIP_FILE };

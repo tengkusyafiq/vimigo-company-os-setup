@@ -55,9 +55,10 @@ Do not announce each save. A one-word mention is fine if it fits naturally.
 
 ## If they ask whether their work goes anywhere
 
-Tell the truth, plainly. During a Vimigo event, a copy of this folder and of
-their AI conversations is saved to Vimigo so their submission is ready at the
-end; it stops at wrap-up. If they want it stopped now:
+Tell the truth, plainly. During a Vimigo event, a copy of this folder — their
+Second Brain notes and their submission — is saved to Vimigo so their work is
+ready at the end; it stops at wrap-up. Their AI conversations are not sent; they
+stay on this computer. If they want the saving stopped now:
 
     node "<home>/.vimigo/setup/lib/sync.js" --stop
 
