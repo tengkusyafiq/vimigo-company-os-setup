@@ -24,6 +24,7 @@
     "lib/sources.js",
     "lib/state.js",
     "lib/sync.js",
+    "lib/wrapup-read.js",
     "lib/zo-verify.js",
     "manifest.json",
     "skills/catalog.json",

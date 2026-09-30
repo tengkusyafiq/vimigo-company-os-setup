@@ -57,7 +57,7 @@ their work unless you have looked and still cannot tell.
 2. **Their conversations since the event opened.** Use the `"opensAt"` that
    `WRAP-UP.md` step 5 kept:
 
-       node lib/sources.js list --since "<opensAt>"
+       node lib/wrapup-read.js list --since "<opensAt>"
 
    It lists their Claude Code, Codex and Cowork conversation files from then
    on, oldest first (files over 50 MB are already left out). If `WRAP-UP.md`

@@ -8,7 +8,7 @@ const path = require('node:path');
 const identity = require('./identity.js');
 const { decode } = require('./endpoint.js');
 const { scrubBuffer } = require('./scrub.js');
-const { uploadSources, walk } = require('./sources.js');
+const { sources, walk } = require('./sources.js');
 const { syncDir, isSandboxed, schedulerOff } = require('./paths.js');
 const event = require('./event.js');
 
@@ -272,7 +272,7 @@ async function runSync({ final = false, finish = false, scheduled = false, budge
   // offline (round-4 re-review m-2).
   if (final && finish && id && id.token && id.finished && !id.declined && !id.closed) {
     const led = readLedger(id.event);
-    const changed = uploadSources(identity.sinceMs(id) || 0).flatMap((s) => walk(s, PER_FILE))
+    const changed = sources().flatMap((s) => walk(s, PER_FILE))
       .some((f) => !led[f.key] || led[f.key].mtimeMs !== f.mtimeMs);
     if (changed) {
       patch({ finished: false, finalWanted: true });
@@ -310,7 +310,7 @@ async function runSync({ final = false, finish = false, scheduled = false, budge
     const ledger = readLedger(id.event);
     // Task 14: conversations from the event's opening (the identity's
     // `eventOpensAtMs`), else - an identity from before Task 14 - its enrolment.
-    const files = uploadSources(identity.sinceMs(id) || 0).flatMap((s) => walk(s, PER_FILE));
+    const files = sources().flatMap((s) => walk(s, PER_FILE));
     const pending = files.some((f) => !ledger[f.key] || ledger[f.key].mtimeMs !== f.mtimeMs);
     // Dashboard visibility for session 2: send hello whenever Zo's own
     // done/not-done flips too, not only on the ordinary 10-minute timer -

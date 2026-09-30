@@ -5,7 +5,7 @@ says where things tend to be.
 
 - **Their Second Brain:** `%USERPROFILE%\Second Brain`. Write the document
   and `Submission\files\` there, never in Documents, Desktop or OneDrive.
-- **Their conversations:** `node lib/sources.js list --since "<opensAt>"`
+- **Their conversations:** `node lib/wrapup-read.js list --since "<opensAt>"`
   already finds Claude Code (`%USERPROFILE%\.claude\projects`), Codex
   (`%USERPROFILE%\.codex\sessions`) and Cowork (under `%APPDATA%\Claude` or
   the Store app's own folder). Use its list rather than looking yourself.

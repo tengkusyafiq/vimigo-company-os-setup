@@ -201,7 +201,7 @@ Only when step 5's `"joinSync"` was `true`. Otherwise go straight to step 8.
 List their conversations on this computer since the event opened, with the
 `"opensAt"` from step 5:
 
-    node lib/sources.js list --since "<opensAt from step 5>"
+    node lib/wrapup-read.js list --since "<opensAt from step 5>"
 
 It lists their Claude Code, Codex and Cowork conversation files changed since
 then, oldest first, each with its `path`. Files over 50 MB are already left
