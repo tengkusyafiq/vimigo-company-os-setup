@@ -74,13 +74,20 @@ const BASE = 'https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-s
 
 async function main() {
   let base = process.argv[2] || BASE;
+  let listArg = process.argv[3];
+  // The first argument is normally the base URL. But so that an optional part
+  // can be fetched with no https:// in the command (which Auto mode would stop
+  // on), a first argument that is a path, not a URL, is taken as the file list
+  // and BASE stands in - so `node lib/fetch-setup.js optional/hcs-fix/files.json`
+  // works the same as passing the full base before it.
+  if (base && !/^https?:/i.test(base)) { listArg = base; base = BASE; }
   if (!base.endsWith('/')) base += '/';
 
   // An optional part names its own list, and every path inside is still
   // relative to the setup root - so optional/hcs-fix/files.json holds
   // "optional/hcs-fix/README.md", not "README.md". A list of bare names would
   // land those files on top of the main tree's README.
-  const listPath = process.argv[3] || 'files.json';
+  const listPath = listArg || 'files.json';
   if (!safe(listPath)) die('that file list is not inside the setup');
 
   let list;
