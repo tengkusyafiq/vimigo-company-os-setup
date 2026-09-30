@@ -231,6 +231,14 @@ README tells you not to raise it again, and no later step re-asks or re-explains
 If they say no, record it the way that README describes, and carry on with
 everything else.
 
+**If the person's own pasted message already gave permission** — it says
+something like they allow the Vimigo team to connect to their Second Brain, or to
+connect them to the class — then the class connection is already settled by them,
+in their own words. Do **not** add the connection sentence and do **not** ask
+about it: just ask the plain name question if you still need their details, or
+skip even that when `About me.md` already has them, and enrol. Their paste is the
+go-ahead; the `sync` step stays silent.
+
 Keep the three answers exactly as they gave them. Do not correct spelling.
 
 ## 7. Work the rows in order
