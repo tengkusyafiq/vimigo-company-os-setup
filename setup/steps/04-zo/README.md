@@ -70,12 +70,14 @@ the same clicks with a picture of each:
 https://tengkusyafiq.github.io/vimigo-company-os-setup/setup/help/zo-key.html
 ```
 
-If that will not load, fetch the local copy and open the file:
-
-    node lib/fetch-setup.js <base> help/files.json
-
-It lands at `<home>/.vimigo/setup/help/zo-key.html`. Beside it, `help/zo-key.md`
-is the same words with no pictures — read from that when neither page opens.
+If that will not load, fetch the local copy with your own web-reader and
+file-writer tools — never a shell command (§0 says why). The list is at
+`https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/help/files.json`;
+fetch each entry it names from
+`https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/<path>`
+and save it to `<home>/.vimigo/setup/<path>`, then open
+`<home>/.vimigo/setup/help/zo-key.html`. Beside it, `help/zo-key.md` is the same
+words with no pictures — read from that when neither page opens.
 
 > *"I've opened a page that shows you exactly where to click. Follow it, and
 > paste me the key when you've got it."*
