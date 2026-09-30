@@ -1,7 +1,7 @@
 # Step 3 on Windows
 
 `lib/scheduler.js install` registers a Task Scheduler task named
-`Second Brain Sync`. It runs every two minutes through `wscript.exe`, hidden —
+`Second Brain Sync`. It runs regularly through `wscript.exe`, hidden —
 no window, nothing to click, and it never asks for administrator rights.
 
 If a company policy blocks Task Scheduler entirely, `install` fails outright.

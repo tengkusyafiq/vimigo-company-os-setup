@@ -1,7 +1,7 @@
 # Step 3 on macOS
 
 `lib/scheduler.js install` registers a launch agent named
-`com.vimigo.second-brain-sync`, which runs every two minutes in the background.
+`com.vimigo.second-brain-sync`, which runs regularly in the background.
 macOS may show a Login Items notice that something was added — that is this
 agent, and there is nothing to click.
 
