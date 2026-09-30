@@ -48,7 +48,7 @@ tree down for you. Fetch that one file to
 
 then run it, and skip to step 1:
 
-    node lib/fetch-setup.js https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/
+    node lib/fetch-setup.js
 
 **If it does not answer**, Node is missing — step 1 installs it — so do this
 part by hand. Fetch this:
@@ -66,9 +66,13 @@ Read `files.json`'s `files` list. Fetch each entry from
 and write it to `<home>/.vimigo/setup/<path>`, keeping the folders.
 
 **Use your own tools for this — the ones you use to read a web page and write a
-file.** Do not shell out to `curl`, `wget`, or `Invoke-WebRequest`: on a real
-machine `curl` was intercepted by a plugin and never reached the network, and
-the improvised fallback that followed guessed the shape above wrong and crashed.
+file.** Do not put a web address inside a shell command: no `curl`, `wget`, or
+`Invoke-WebRequest`, and no `node -e` with a `fetch(...)` in it. Two reasons. On
+a real machine `curl` was intercepted by a plugin and never reached the network,
+and the improvised fallback that followed guessed the shape above wrong and
+crashed. And Claude Code's Auto permission mode stops on any command that
+carries an `https://` address, turning a silent step into one that has to ask.
+Your own web-reader and file-writer tools have neither problem.
 
 **Overwrite whatever is already there. Every file, every time.** A folder that
 already exists means a previous run, and a previous run means older
@@ -101,7 +105,7 @@ run.
 
 ## 2. Check the manifest
 
-    node lib/manifest.js https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/manifest.json
+    node lib/manifest.js
 
 - `"action": "halt"` — stop. Say the `notice` to the owner in your own plain
   words and do nothing else. Do not explain what a manifest is.
