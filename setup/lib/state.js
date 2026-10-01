@@ -169,18 +169,34 @@ function flag(args, name) {
   return v === undefined || v.startsWith('--') ? null : v;
 }
 
+// A finished row is listed item by item, so the owner sees every piece that was
+// set up rather than one line. Each item here is something the row's own check
+// (steps/*/verify.js) really verifies - nothing is listed that was not checked.
+const PARTS = {
+  runtimes: [['Node', /Node\s+v?([\d.]+)/i], ['Git', /Git\s+v?([\d.]+)/i], ['Python', /Python\s+v?([\d.]+)/i]],
+  'second-brain': [['Your Second Brain folder'], ['Your "About me" page'], ['Claude set up to use it'],
+    ['ChatGPT and Codex set up to use it'], ['A standing instruction for your AI']],
+};
+
 function render(state) {
+  const line = (glyph, title, note) => `   ${glyph}  ${title.padEnd(36)}${note}`;
   return ROWS.filter((row) => {
     if (row.hidden) return false;
     const r = state.rows.find((x) => x.id === row.id);
     return !(row.hideWhile && r && r.status === row.hideWhile);
-  }).map((row) => {
+  }).flatMap((row) => {
     const r = state.rows.find((x) => x.id === row.id);
+    if (r.status === 'done' && PARTS[row.id]) {
+      return PARTS[row.id].map(([title, re]) => {
+        const v = re && String(r.evidence || '').match(re);
+        return line(GLYPH.done, title, v ? `ready (${v[1]})` : 'ready');
+      });
+    }
     const note = r.status === 'done' ? (r.evidence || 'ready')
       : r.status === 'doing' ? 'working on it now'
       : r.status === 'blocked' ? (state.blocked.find((b) => b.id === row.id)?.reason || 'not possible on this computer')
       : row.waiting;
-    return `   ${GLYPH[r.status] || '·'}  ${row.title.padEnd(30)}${note}`;
+    return [line(GLYPH[r.status] || '·', row.title, note)];
   }).join('\n');
 }
 

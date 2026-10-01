@@ -200,7 +200,9 @@ says, including the platform file beside it.
 
 Then one sentence:
 
-> *"Your Zo is connected. You can talk to it from here now."*
+> *"All done."*
+
+Say nothing more: do not explain what was connected or how to use it.
 
 ## Never
 

@@ -258,9 +258,13 @@ reached).
     node lib/state.js session1
     node lib/state.js show
 
-Then one sentence:
+Then say just this, and nothing more:
 
-> *"You're set up. Your AI will keep notes for you as you work from now on."*
+> *"All done."*
+
+Do not summarise what you installed, where anything is, what it does or what
+comes next — the checklist above already shows it, and a long explanation is
+exactly what a non-technical owner does not want.
 
 **If the `sync` row was left because Vimigo couldn't be reached** (you marked
 it `"couldn't reach Vimigo"` this session), add this one sentence, and say
