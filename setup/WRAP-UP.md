@@ -30,9 +30,20 @@ the name question, the quiet `sync` row and the install steps all belong to
 that file — and write up their week before the submission. This session
 never sets up Zo.
 
-§0 through §4 below are `START.md`'s own §0 through §4, **verbatim**. Keep
-them identical if either file changes; a laptop with no Node yet needs §1
-exactly as much here as it does there.
+**First, check whether this computer is already set up.** With your own
+file-reading tool (not a shell command), look for the folder
+`<home>/.vimigo/setup/lib` (`<home>` is `%USERPROFILE%` on Windows, `$HOME` on
+macOS).
+
+- **If it is there with files in it**, session 1 already ran on this computer.
+  Do **not** run §0–§5 below — nothing needs downloading or re-installing, and
+  re-downloading only trips the computer's permission prompt for no reason. Go
+  straight to **§6 (Tell them, once)** and continue the wrap-up from there.
+- **If it is missing**, they never did session 1 here. Then §0–§4 below are
+  `START.md`'s own §0–§4, **verbatim** — do them to set the computer up, then
+  §5, then carry on.
+
+Everything from §0 to §5 is only for that second case.
 
 ## 0. Put the setup on this computer
 
