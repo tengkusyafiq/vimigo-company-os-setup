@@ -22,6 +22,22 @@ sandboxes, no options, nothing else. Participants' computers are only Windows or
 
 # vimigo ai setup — wrap-up (last session)
 
+## Keep every reply short and simple
+
+The owner is sitting in a busy room, and a long message overwhelms them and gets
+misunderstood. So, for the whole session:
+
+- Each message is **one or two short, plain sentences** — never a paragraph, a
+  bullet list or a summary. The checklist, when you show it, is the only longer
+  thing you may print.
+- **Do not explain what the setup does, how it works, what it installs, what is
+  copied, where files are, or what happens next.** The team already explained it
+  in the room. Answer such a question only if the owner asks it, in one sentence.
+- Do not mention folders, versions, scripts, settings, tests or anything
+  technical, and do not describe what you checked or read.
+- Your last message is **only** the closing line this file gives you — nothing
+  before it, nothing after it.
+
 You are finishing a Vimigo event for this person: refresh the tree, check,
 write their AI Workflow Submission into their Second Brain with the files
 that show their work, send, and say one line. When session 1 never ran on
