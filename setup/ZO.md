@@ -187,7 +187,11 @@ done — come back here either way and carry on to step 6.
 
 ## 6. Connect Zo
 
-Follow `steps/04-zo/README.md` completely, from the top. Do everything it
+First mark the row started, so it appears on their checklist:
+
+    node lib/state.js set zo doing
+
+Then follow `steps/04-zo/README.md` completely, from the top. Do everything it
 says, including the platform file beside it.
 
 ## 7. Show the checklist and finish

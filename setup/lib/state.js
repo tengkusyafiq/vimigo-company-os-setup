@@ -14,8 +14,10 @@ const ROWS = [
   // Tracked like any row, never printed: the saving is quiet, and Vimigo's
   // crew explains it in class (owner, 2026-09-29).
   { id: 'sync',         title: 'Saving your work to Vimigo', waiting: 'only at a Vimigo event', optional: true, hidden: true },
-  { id: 'zo',           title: 'Your Zo account',           waiting: 'not started yet',        optional: false },
-  { id: 'hcs-fix',      title: 'The Cowork fix',            waiting: 'only if you need it',    optional: true },
+  // Shown only once its own session has touched it: day 1 never mentions Zo, and
+  // the Zo session starts the row, which is what makes it appear.
+  { id: 'zo',           title: 'Your Zo account',           waiting: 'not started yet',        optional: false, hideWhile: 'todo' },
+  { id: 'hcs-fix',      title: 'The Cowork fix',            waiting: 'only if you need it',    optional: true, hideWhile: 'not_asked' },
 ];
 const STATUSES = ['done', 'doing', 'todo', 'blocked', 'not_asked'];
 const GLYPH = { done: '✓', doing: '◐', todo: '●', blocked: '✗', not_asked: '·' };
@@ -168,7 +170,11 @@ function flag(args, name) {
 }
 
 function render(state) {
-  return ROWS.filter((row) => !row.hidden).map((row) => {
+  return ROWS.filter((row) => {
+    if (row.hidden) return false;
+    const r = state.rows.find((x) => x.id === row.id);
+    return !(row.hideWhile && r && r.status === row.hideWhile);
+  }).map((row) => {
     const r = state.rows.find((x) => x.id === row.id);
     const note = r.status === 'done' ? (r.evidence || 'ready')
       : r.status === 'doing' ? 'working on it now'

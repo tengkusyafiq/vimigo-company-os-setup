@@ -267,5 +267,3 @@ it `"couldn't reach Vimigo"` this session), add this one sentence, and say
 nothing else about it:
 
 > *"One last thing: part of this needs the internet, and it couldn't connect just now. Once you're online, paste the same message you started with again and I'll finish it."*
-
-The Zo account is the next session — do not start it now.
