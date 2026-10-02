@@ -20,7 +20,7 @@ const LOCK_STALE = 10 * 60_000;
 // Task 14 (M-A): a final send waits at most 45 s for a scheduled run's lock -
 // well inside Claude Code's 2-minute command limit, so the AI is never killed
 // mid-wait (which used to leave the lock behind for 10 minutes). After that it
-// answers `busy-retry`, and WRAP-UP simply runs it once more. The test
+// answers `busy-retry`, and the last-day prompt simply runs it once more. The test
 // override exists only so a test need not sit through the real 45 s.
 const LOCK_WAIT = 45_000;
 const lockWait = () => Number(process.env.VIMIGO_TEST_LOCK_WAIT_MS) || LOCK_WAIT;
@@ -33,7 +33,7 @@ const lockWait = () => Number(process.env.VIMIGO_TEST_LOCK_WAIT_MS) || LOCK_WAIT
 // Fix round 1: 8 s. Codex runs a command for 10 s unless the AI asks for more
 // (codex-rs core/src/exec.rs: DEFAULT_EXEC_COMMAND_TIMEOUT_MS = 10_000);
 // Claude Code's default is 2 minutes. 8 s leaves room for Node's start-up and
-// the outcome itself; WRAP-UP.md simply runs it again while it says
+// the outcome itself; the last-day prompt simply runs it again while it says
 // `busy-retry`.
 const FINAL_BUDGET = 8_000;
 const finalBudget = () => Number(process.env.VIMIGO_TEST_FINAL_BUDGET_MS) || FINAL_BUDGET;
@@ -204,7 +204,7 @@ async function upload(base, id, ledger, files, deadline, { final = false } = {})
   return { uploaded, skipped, failed, paced, deferred, unfinished, open };
 }
 
-// Fix round 5 (N-2): WRAP-UP.md picks its one closing line from `outcome`,
+// Fix round 5 (N-2): the last-day prompt picks its one closing line from `outcome`,
 // never from `ok` or `reason` - each run of `--final` ends in exactly one:
 //   sent          the final send worked for this laptop's own event (now, or
 //                 in an earlier wrap-up)
@@ -262,7 +262,7 @@ async function runSync({ final = false, finish = false, scheduled = false, budge
   const started = Date.now();
   hardDeadline = final ? started + finalBudget() : Infinity;
   let id = identity.read();
-  // A wrap-up run again after an earlier one finished: WRAP-UP updates the
+  // A wrap-up run again after an earlier one finished: the last-day prompt updates the
   // submission, and they may have made more since - so this sends what is new
   // or changed, instead of answering "all sent" from the old finish. It is a
   // wrap-up in progress again until it finishes, with the job back on, so
@@ -470,7 +470,7 @@ async function main() {
     catch (e) { r = { ok: false, reason: 'error' }; log('error ' + (e && e.message)); }
     // Fix round 5 (N-2): a final run carries exactly one outcome, and `ok`
     // agrees with it - true only when the work actually went up - so no two
-    // of WRAP-UP.md's closing lines can match the same result.
+    // of the last-day prompt's closing lines can match the same result.
     if (final) { const outcome = await finalOutcome(r); r = { ...r, ok: outcome === 'sent', outcome }; }
   }
   log(JSON.stringify(r));

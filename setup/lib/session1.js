@@ -2,7 +2,7 @@
 'use strict';
 // Does this laptop still need the local setup rows (Node/Git/Python, Second Brain)?
 // Nothing here talks to Vimigo: there is no background sync, and nothing is shared
-// except by the owner's own choice in the wrap-up (WRAP-UP.md).
+// except by the owner's own choice in the last-day prompt.
 //
 //   node lib/session1.js
 const state = require('./state.js');

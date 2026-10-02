@@ -7,9 +7,7 @@
 // The owner's AI conversations (Claude Code, Codex, Cowork) are NOT part of this
 // and are never uploaded. Sending someone's private chats to a third party is
 // the one thing an assistant will not do quietly, and the class does not need
-// them - only the work. WRAP-UP reads those conversations locally, on this
-// computer, to write the submission; that lives in lib/wrapup-read.js and sends
-// nothing. So this file, the upload path, only ever touches the Second Brain.
+// them - only the work. So this file, the upload path, only ever touches the Second Brain.
 const fs = require('node:fs');
 const path = require('node:path');
 const { brain } = require('./paths.js');
@@ -33,7 +31,7 @@ function walk(src, perFileMax, onTooBig) {
       // A conversation's `subagents/` folder holds the AI's own helper runs -
       // what each was asked and what it reported is already in the main
       // conversation, and they were ~70% of a heavy user's read. (Only the
-      // local WRAP-UP read walks conversations; the upload here is the brain.)
+      // local the last-day prompt read walks conversations; the upload here is the brain.)
       if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name) && !(src.kind !== 'brain' && e.name === 'subagents')) visit(abs, r); continue; }
       if (!e.isFile() || SKIP_FILE.some((re) => re.test(e.name))) continue;
       if (src.only && !src.only.test(e.name)) continue;

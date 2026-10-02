@@ -5,8 +5,7 @@
 Read
 [`setup/START.md`](setup/START.md) first and follow it exactly — it is written
 for you, not for the owner. Session 2 starts from
-[`setup/ZO.md`](setup/ZO.md), the last session from
-[`setup/WRAP-UP.md`](setup/WRAP-UP.md) — both below, and both fall back to
+[`setup/ZO.md`](setup/ZO.md) — both below, and both fall back to
 `START.md`'s own steps if session 1 was skipped. Asked to resume or continue
 a setup with no link at all? Read [`setup/MASTER.md`](setup/MASTER.md)
 instead. [`setup/SKILLS.md`](setup/SKILLS.md) lists what you can already do
@@ -16,13 +15,11 @@ wait to be told.
 These prompts only work in **Claude Code** (the **Code** tab in the Claude
 app) or the **Codex** app — never Claude chat, ChatGPT chat, or Cowork; the
 setup files themselves refuse to run anywhere else. The owner can paste one
-of these three, depending on where they are:
+of these two, depending on where they are:
 
 > Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/START.md and follow it exactly.
 
 > Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/ZO.md and follow it exactly.
-
-> Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/WRAP-UP.md and follow it exactly.
 
 **The owner is not technical.** Assume someone over 60 who has never opened a
 terminal. Ask what is on their screen before you tell them the next thing to

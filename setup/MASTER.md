@@ -178,7 +178,7 @@ Before you touch `zo` or anything else:
   come back here and carry on below as usual.
 
 Nothing in this file ever sends anything anywhere. Only the owner pasting the
-last-day wrap-up message does that.
+last-day message does that.
 
 ### Fetching an optional part
 

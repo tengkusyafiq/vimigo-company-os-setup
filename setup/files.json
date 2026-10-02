@@ -3,7 +3,6 @@
     "MASTER.md",
     "SKILLS.md",
     "START.md",
-    "WRAP-UP.md",
     "ZO.md",
     "files.json",
     "lib/brain.js",
@@ -24,7 +23,6 @@
     "lib/sources.js",
     "lib/state.js",
     "lib/sync.js",
-    "lib/wrapup-read.js",
     "lib/zo-verify.js",
     "manifest.json",
     "skills/catalog.json",
@@ -43,10 +41,6 @@
     "steps/04-zo/macos.md",
     "steps/04-zo/signed-in.js",
     "steps/04-zo/verify.js",
-    "steps/04-zo/windows.md",
-    "steps/05-submission/README.md",
-    "steps/05-submission/macos.md",
-    "steps/05-submission/verify.js",
-    "steps/05-submission/windows.md"
+    "steps/04-zo/windows.md"
   ]
 }

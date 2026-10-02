@@ -17,12 +17,6 @@ Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main
 Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/ZO.md and follow it exactly.
 ```
 
-## Last day, closing session
-
-```
-Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/WRAP-UP.md and follow it exactly.
-```
-
 ---
 
 Helping someone through this? Read [AGENT-NOTES.md](AGENT-NOTES.md).

@@ -36,7 +36,7 @@ function eventOf(id) {
 }
 // Has this laptop already answered the saving question at SOME event -
 // enrolled in one (it still holds that event's token, finished or not), or
-// said no to one? Fix round 5: ZO.md, WRAP-UP.md and MASTER.md hand a laptop
+// said no to one? Fix round 5: ZO.md, the last-day prompt and MASTER.md hand a laptop
 // to START's sync row only when this is false, so nobody who took part in one
 // event is ever moved into a different event by a prompt they ran at home.
 // Every write that drops a token writes `declined` instead (sync.js --stop),
