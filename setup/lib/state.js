@@ -88,13 +88,6 @@ function read({ createIfMissing = false } = {}) {
   }
 }
 
-// For the background sync job, which only glances at the zo row: an
-// unreadable file must never kill the one job carrying the submission (fix
-// round 4, m-2) - read() exits the process, which a catch cannot stop.
-function readSafe() {
-  try { return load(false); } catch { return null; }
-}
-
 function load(createIfMissing) {
   const p = statePath();
   if (!fs.existsSync(p)) {
@@ -203,7 +196,7 @@ function main() {
   if (cmd === 'init') {
     // The very first write this whole setup ever makes on a fresh laptop.
     // Refusing here, rather than letting a sandboxed AI merrily "install"
-    // Node/Git/Python and enrol into an event inside a container the owner
+    // Node/Git/Python inside a container the owner
     // never sees, is what stops that happening silently.
     if (isSandboxed()) {
       process.stdout.write(JSON.stringify({ ok: false, reason: 'sandbox' }) + '\n');
@@ -285,4 +278,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { ROWS, STATUSES, render, read, readSafe };
+module.exports = { ROWS, STATUSES, render, read };

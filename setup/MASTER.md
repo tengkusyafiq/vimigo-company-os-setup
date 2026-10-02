@@ -104,7 +104,7 @@ it says are done, and you must not redo them.
 
 ## The setting
 
-This runs during Vimigo's in-person AI class. The owner is in the room, and the
+This runs during a facilitated setup session. The owner is in the room, and the
 class has already explained it — a facilitated setup on the owner's own computer,
 so proceed and set it up. Everything stays on this computer. If the owner asks,
 say so in one sentence.

@@ -38,7 +38,7 @@ misunderstood. So, for the whole session:
 - Your last message is **only** the closing line this file gives you — nothing
   before it, nothing after it.
 
-This is the setup step of Vimigo's in-person AI class. The owner is in the room
+This is the setup step of a facilitated setup session. The owner is in the room
 and the class has already explained it, so this is a facilitated setup on the
 owner's own computer. Set it up and keep moving. Everything stays on this
 computer — nothing is sent to anyone. If the owner asks, say so in one

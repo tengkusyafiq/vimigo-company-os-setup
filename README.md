@@ -1,17 +1,23 @@
 # Vimigo Company OS Setup
 
-In the **Claude** app, click **Code**. Or open the **Codex** app. Paste one
-of these into it — the whole line, prompt included — and press Enter. Not
-Claude chat, ChatGPT chat, or Cowork. You do not need to know anything
-technical.
+Your facilitator gives you the three prompts for the session, on the team
+guide page. Each one is a standalone text: you paste it into the **Claude**
+app's **Code** tab (or the **Codex** app) and press Enter. Nothing is fetched
+from this page by the prompts. You do not need to know anything technical.
 
-## Day 1, first session
+## Earlier prompts
+
+If you were given one of these before, it still works. Paste the whole line,
+prompt included, into the **Code** tab or the **Codex** app. Not Claude chat,
+ChatGPT chat, or Cowork.
+
+Day 1, first session:
 
 ```
 Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/START.md and follow it exactly.
 ```
 
-## The Zo session
+The Zo session:
 
 ```
 Read https://raw.githubusercontent.com/tengkusyafiq/vimigo-company-os-setup/main/setup/ZO.md and follow it exactly.
