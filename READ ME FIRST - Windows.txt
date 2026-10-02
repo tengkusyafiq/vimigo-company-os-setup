@@ -50,5 +50,5 @@ IF SOMETHING GOES WRONG
 
 Run it again. Most things fix themselves on a second run.
 
-If it happens twice, contact Vimigo support and tell them what the
-screen said.
+If it happens twice, tell your AI what the
+screen said and it will fix it.

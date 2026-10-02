@@ -33,7 +33,7 @@ stop() {
     printf '\n'
     red "  $1"
     plain ''
-    plain '  Nothing was changed. Tell Vimigo support what this said.'
+    plain '  Nothing was changed. Close this window and run it again in a few minutes.'
     plain ''
     exit 1
 }

@@ -2487,8 +2487,8 @@ connect_zo_to_claude() {
     ' "$CLAUDE_CONFIG" "$ZO_MCP_ENTRY" "$MCP_REMOTE_PACKAGE" "$ZO_MCP_URL" "$token" "$(npx_bin)"
     then
         bad "Claude's settings file is not readable, so it was left alone."
-        info 'Nothing was changed. Contact Vimigo support and they'
-        info 'will sort it out.'
+        info 'Nothing was changed. Close this window and run it again'
+        info 'in a few minutes.'
         return 1
     fi
 
@@ -2827,8 +2827,8 @@ install_whatsapp_on_zo() {
             *'"failed":true'*)
                 clear_wait_line
                 bad 'Your assistant could not be built just now.'
-                info 'Try this step again. If it happens twice, contact Vimigo'
-                info 'support and they will sort it out.'
+                info 'Try this step again. If it happens twice, tell your AI'
+                info 'what this screen said and it will fix it.'
                 return 1 ;;
         esac
     done

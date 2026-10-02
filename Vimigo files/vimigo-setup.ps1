@@ -528,7 +528,7 @@ function Invoke-Guarded {
         Write-Host ''
         Write-Bad "Something went wrong with $Whats, so it was left alone."
         Write-Info 'Nothing on your computer was changed by that. You can try'
-        Write-Info 'again, carry on with the rest, or contact Vimigo support.'
+        Write-Info 'again, or carry on with the rest.'
         # Kept for a support call, never shown: the owner has no use for it and
         # a stack trace on screen reads as a broken product.
         #
@@ -1662,7 +1662,7 @@ function Repair-HcsServices {
         Write-Info 'Cowork needs it. Everything else this setup installed works'
         Write-Info 'now, including your Zo inside Claude and ChatGPT.'
         Write-Host ''
-        Write-Warn 'Please ask Vimigo support to turn this on with you.'
+        Write-Warn 'Ask your AI to turn this on with you.'
         Write-Info 'It is a setting in the start-up screen, it is different on'
         Write-Info 'every make of laptop, and it is not worth guessing at alone.'
         Write-Host ''
@@ -1800,8 +1800,8 @@ function Repair-HcsServices {
         }
         Write-Host ''
         Write-Info 'Restart anyway: whatever did go on needs it, and Cowork may be'
-        Write-Info 'there afterwards. If it is still greyed out, send Vimigo support'
-        Write-Info 'the list above - it says which one refused and why.'
+        Write-Info 'there afterwards. If it is still greyed out, tell your AI'
+        Write-Info 'what the list above says - it says which one refused and why.'
     }
     Write-Host ''
 
@@ -3571,8 +3571,8 @@ function Connect-ZoToClaude {
                 # non-technical owner cannot act on, and it went to the screen
                 # rather than the support log where it belongs.
                 Write-Bad "Claude's settings file is not readable, so it was left alone."
-                Write-Info 'Nothing was changed. Contact Vimigo support and they'
-                Write-Info 'will sort it out.'
+                Write-Info 'Nothing was changed. Close this window and run it again'
+                Write-Info 'in a few minutes.'
                 Write-SetupLog "unreadable Claude config at $(Resolve-ClaudeConfigPath)"
                 return $false
             }
@@ -5367,8 +5367,8 @@ function Install-WhatsAppOnZo {
         if ((Test-ObjectHasProperty $progress 'failed') -and $progress.failed) {
             Write-Host ("`r" + (' ' * 72) + "`r") -NoNewline
             Write-Bad 'Your assistant could not be built just now.'
-            Write-Info 'Try this step again. If it happens twice, contact Vimigo'
-            Write-Info 'support and they will sort it out.'
+            Write-Info 'Try this step again. If it happens twice, tell your AI'
+            Write-Info 'what this screen said and it will fix it.'
             return $false
         }
     }
@@ -7150,7 +7150,7 @@ trap {
     Write-Bad '      Something unexpected happened, so the setup stopped here.'
     Write-Info '      Nothing was left in a state a second run cannot pick up.'
     Write-Info '      Start it again, and it carries on from where it got to.'
-    Write-Info '      If it stops here again, contact Vimigo support.'
+    Write-Info '      If it stops here again, tell your AI what this said.'
     Write-Host ''
     exit 1
 }

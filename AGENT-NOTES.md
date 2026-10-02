@@ -68,6 +68,6 @@ The owner can paste this to Claude or ChatGPT:
   whether they actually signed in.
 
 - **Do not invent troubleshooting.** If a step fails twice, the answer is
-  Vimigo support with what the screen said — not a workaround you thought of.
+  to say in plain words what the screen means and move on — not a workaround you thought of.
   Editing config files by hand is how a working setup becomes an unrecoverable
   one.

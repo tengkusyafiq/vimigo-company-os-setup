@@ -24,7 +24,7 @@ function Stop-Here {
     Write-Host ''
     Write-Host "  $Why" -ForegroundColor Red
     Write-Host ''
-    Write-Plain '  Nothing was changed. Tell Vimigo support what this said.'
+    Write-Plain '  Nothing was changed. Close this window and run it again in a few minutes.'
     Write-Host ''
     exit 1
 }
