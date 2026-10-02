@@ -1,15 +1,8 @@
 # Notes for an AI helping someone through this
 
-The facilitator gives the owner three prompts. Each is a standalone text:
+The facilitator gives the owner a few prompts. Each is a standalone text:
 everything you need is in the prompt itself, and nothing in this repository is
 fetched by them. Follow the prompt you were given.
-
-`setup/START.md` and `setup/ZO.md` are earlier prompts that still work until
-the V003 event ends on 5 Oct 2026. If you were pointed at one, read it first
-and follow it exactly. It is written for you, not for the owner. Asked to
-resume a setup with no link at all? Read [`setup/MASTER.md`](setup/MASTER.md).
-[`setup/SKILLS.md`](setup/SKILLS.md) lists what you can already do for this
-person once their setup is installed.
 
 These only work in **Claude Code** (the **Code** tab in the Claude app) or the
 **Codex** app, never Claude chat, ChatGPT chat, or Cowork. Nothing here uploads
