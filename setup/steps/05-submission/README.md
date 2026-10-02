@@ -5,9 +5,9 @@ checklist, and it installs nothing.
 
 You write up what this person built during the Vimigo event, as a business
 document, into their own Second Brain, and gather the files that show it.
-Their Second Brain goes to Vimigo with the final send, so this is how the
-submission reaches Vimigo — nothing is uploaded to their Google Drive, and
-nothing is shared with anyone.
+Their Second Brain is shared with the final send — which they chose to do — so
+this is how the submission reaches the Vimigo team. Nothing is uploaded to their
+Google Drive.
 
 Everything below runs from `<home>/.vimigo/setup`. `<home>` is `%USERPROFILE%`
 on Windows, `$HOME` on a Mac. The platform file beside this one
@@ -54,15 +54,13 @@ their work unless you have looked and still cannot tell.
 
 1. **Their Second Brain** — `About me.md`, `Projects/`, `Decisions/`,
    `Learnings/`, `Ideas/`, and the `Daily/` pages from the event days.
-2. **Their conversations since the event opened.** Use the `"opensAt"` that
-   `WRAP-UP.md` step 5 kept:
+2. **Their conversations from the last 7 days** (the class week), using the
+   date seven days ago:
 
-       node lib/wrapup-read.js list --since "<opensAt>"
+       node lib/wrapup-read.js list --since "<that date, YYYY-MM-DD>"
 
    It lists their Claude Code, Codex and Cowork conversation files from then
-   on, oldest first (files over 50 MB are already left out). If `WRAP-UP.md`
-   step 7 has just read them, use what you learned there instead of reading
-   them again. Read the ones about their project, not every one.
+   on, oldest first (files over 50 MB are already left out). Read the ones about their project, not every one.
 3. **The files they made** — `Projects/**/files/`, and any place their notes
    name.
 
@@ -175,8 +173,8 @@ instead.
 ### 2. Google Docs, Slides and Sheets
 
 **If a Google Drive (or Google Workspace) tool is available to you in this
-session**, find the files they **created or edited since** the event opened
-(`"opensAt"`) that belong to this project. Export each one into
+session**, find the files they **created or edited**
+(from the last 7 days) that belong to this project. Export each one into
 `Submission/files/`: Docs and Slides as **PDF**, Sheets as **XLSX**, named
 after the file. Never export anything unrelated to the project, and never
 change, move or share anything in their Drive.

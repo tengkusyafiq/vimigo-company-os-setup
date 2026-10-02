@@ -19,31 +19,10 @@ function zo() {
     codex: has(path.join(h, '.codex', 'config.toml'), 'zo.computer'),
   };
 }
-async function syncHealth() {
-  const id = identity.read();
-  if (!id || !id.token) return 'not-enrolled';
-  // Checked first: a decline made after enrolling still carries a token, and
-  // `--stop` already removed the scheduler for it - reinstalling it here
-  // would undo the one thing the owner asked for.
-  if (id.declined) return 'declined';
-  if (id.finished || id.closed) return 'finished';
-  // Fix round 5 - the enrolment principle: repair for as long as THIS
-  // laptop's own event is open, by that event's own answer (the hello the job
-  // itself sends, lib/event.js ownEvent) - never stand down because another
-  // event is the newest open one. A closed event's job is not ours to bring
-  // back, and offline there is nothing a repair could send.
-  const own = await ownEvent(id);
-  if (own.state === 'offline') return 'offline';
-  if (own.state === 'closed') return 'closed';
-  if (schedulerOff()) return 'ok';
-  const sched = require('./scheduler.js');
-  const st = sched.status();
-  if (!st.supported) return 'unsupported';
-  if (!st.registered) { const r = sched.install(); if (r.ok) sched.kick(); return r.ok ? 'repaired' : 'unsupported'; }
-  let last = 0; try { last = Date.parse(JSON.parse(fs.readFileSync(path.join(syncDir(), 'last-ok.json'), 'utf8')).at); } catch { /* never */ }
-  if (!Number.isFinite(last) || Date.now() - last > STALE) { sched.kick(); return 'kicked'; }
-  return 'ok';
-}
+// There is no background sync any more: nothing is sent unless the owner shares on the
+// last day, so there is nothing to repair here. An old two-minute job from day 1 removes
+// itself the first time the server tells it the event is closed to it.
+async function syncHealth() { return 'off'; }
 async function check({ skipSkills = false } = {}) {
   let s;
   if (skipSkills) s = { updated: [] };

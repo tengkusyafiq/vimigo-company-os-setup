@@ -5,7 +5,7 @@ says where things tend to be.
 
 - **Their Second Brain:** `~/Second Brain`. Write the document and
   `Submission/files/` there, never in Documents, Desktop or iCloud Drive.
-- **Their conversations:** `node lib/wrapup-read.js list --since "<opensAt>"`
+- **Their conversations:** `node lib/wrapup-read.js list --since "<7 days ago, YYYY-MM-DD>"`
   already finds Claude Code (`~/.claude/projects`), Codex
   (`~/.codex/sessions`) and Cowork
   (`~/Library/Application Support/Claude`). Use its list rather than looking

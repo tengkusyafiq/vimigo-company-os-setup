@@ -31,14 +31,16 @@ misunderstood. So, for the whole session:
   bullet list or a summary. The checklist, when you show it, is the only longer
   thing you may print.
 - **Do not explain what the setup does, how it works, what it installs, what is
-  copied, where files are, or what happens next.** The team already explained it
+  copied, where files are, or what happens next.** The class already explained it
   in the room. Answer such a question only if the owner asks it, in one sentence.
 - Do not mention folders, versions, scripts, settings, tests or anything
   technical, and do not describe what you checked or read.
 - Your last message is **only** the closing line this file gives you — nothing
   before it, nothing after it.
 
-You are setting up a business owner's Zo account. Read "Who you are talking
+You are setting up a business owner's Zo account. Everything stays on this
+computer and in their own Zo account — nothing is sent to anyone else. Never tell
+the owner to contact anybody: you fix things yourself. Read "Who you are talking
 to" in `MASTER.md` before you say anything to them.
 
 **First, check whether this computer is already set up.** With your own
@@ -46,11 +48,11 @@ file-reading tool (not a shell command), look for the folder
 `<home>/.vimigo/setup/lib` (`<home>` is `%USERPROFILE%` on Windows, `$HOME` on
 macOS).
 
-- **If it is there with files in it**, session 1 already ran on this computer.
+- **If it is there with files in it**, the basic setup already ran on this computer.
   Do **not** run §0–§5 below — nothing needs downloading or re-installing, and
   re-downloading only trips the computer's permission prompt for no reason. Go
   straight to **§6 (Connect Zo)** and continue from there.
-- **If it is missing**, they have not done session 1 here. Then §0–§4 below are
+- **If it is missing**, the basic setup has not been done here. Then §0–§4 below are
   `START.md`'s own §0–§4, **verbatim** — do them to set the computer up, then
   §5, then §6.
 
@@ -166,40 +168,14 @@ twice in its skill list.
 run, and every later session reads that copy rather than this file — so a stale
 one keeps its fault forever, and the owner has no way to know.
 
-## 5. Finish session 1 first, if it was skipped
+## 5. Make sure the basics are done
 
     node lib/session1.js
 
-Never decide this from the sync row's own liveness check — that only proves
-the last two-minute job ran recently, and reads a perfectly healthy but quiet
-laptop (lunch break, bad wifi) as unfinished.
-
 - **`"handoff": false`** — carry straight on to step 6.
-- **`"handoff": true`** — `runtimes` or `second-brain` isn't done, or a
-  Vimigo event is open right now and this laptop has never joined or said no
-  to any event (for instance, session 1 couldn't reach Vimigo). Fetch the
+- **`"handoff": true`** — `runtimes` or `second-brain` isn't done. Fetch the
   local `START.md` (§0 above already put it on this computer) and follow it
-  from **§5 through §7**, completely and exactly as written — its own
-  short-circuit, its "ask who they are" question, and its `sync` row
-  included.
-
-  **If `"joinedBefore": true`**, this laptop has already taken part in an
-  event, and the hand-off is only for a red setup row: follow `START.md`'s
-  §5 and §6, then its `runtimes` and `second-brain` rows only. Skip its
-  `sync` row entirely — do not open `steps/03-sync`, do not mention
-  saving to Vimigo, and never enrol it into the event open now.
-  That is the case even when `START.md` §5's own check says an event
-  is open.
-
-A laptop that has already taken part in an event — joined one, or said no to
-one — is never handed off for saving to Vimigo from here, whatever event is
-open now: `"handoff"` stays `false` for that, and you say nothing about it.
-The same when no event is open, or Vimigo can't be reached.
-
-**Only `START.md`'s own text ever enrols a laptop.** This file hands off to
-it rather than doing any of that itself. However it finishes — including its
-own §5 short-circuit, which just means session 1 turns out to already be
-done — come back here either way and carry on to step 6.
+  from **§5 through §7**, then come back here and carry on to step 6.
 
 ## 6. Connect Zo
 
@@ -219,10 +195,3 @@ Then one sentence:
 > *"All done."*
 
 Say nothing more: do not explain what was connected or how to use it.
-
-## Never
-
-- **Never enrol by this file's own instructions.** The only file that ever
-  enrols a laptop is `START.md`, through its `steps/03-sync` row, which is
-  exactly why an unfinished session 1 is handed to it rather than repeated
-  here.

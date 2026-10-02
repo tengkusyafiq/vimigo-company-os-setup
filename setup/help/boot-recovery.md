@@ -15,7 +15,7 @@ before the change.
 6. Pick the restore point called **Before Cowork fix**, then **Next**, then **Finish**.
 7. Wait. The computer restarts on its own, back to normal.
 
-## For the Vimigo team — if System Restore fails
+## If System Restore fails
 
 From the same blue screen: **Troubleshoot → Advanced options → Command Prompt**
 (needs the BitLocker key if the drive is encrypted), then:

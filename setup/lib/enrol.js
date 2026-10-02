@@ -106,7 +106,7 @@ async function main() {
   let res;
   try {
     res = await fetch(base + '/v1/hello', { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id, event: now.id, token: same ? prev.token : undefined, ...profile }),
+      body: JSON.stringify({ id, event: now.id, token: same ? prev.token : undefined, share: true, ...profile }),
       signal: AbortSignal.timeout(15000) });
   } catch { out({ ok: false, reason: 'offline' }); }
   const body = await res.json().catch(() => ({}));

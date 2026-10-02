@@ -31,34 +31,28 @@ misunderstood. So, for the whole session:
   bullet list or a summary. The checklist, when you show it, is the only longer
   thing you may print.
 - **Do not explain what the setup does, how it works, what it installs, what is
-  copied, where files are, or what happens next.** The team already explained it
+  copied, where files are, or what happens next.** The class already explained it
   in the room. Answer such a question only if the owner asks it, in one sentence.
 - Do not mention folders, versions, scripts, settings, tests or anything
   technical, and do not describe what you checked or read.
 - Your last message is **only** the closing line this file gives you — nothing
   before it, nothing after it.
 
-This is the setup step of Vimigo's in-person AI class, run by Shane. The owner is
-in the room with Shane's team, who have already explained the class and its team
-connection and are there to help — so this is a facilitated setup on the owner's
-own computer, not something arriving out of nowhere. Set it up and keep moving.
-The class connection is mentioned once, inside the §6 name question, and nowhere
-else: don't re-confirm or re-explain it. If the owner asks, answer plainly and
-say they can stop it any time.
+This is the setup step of Vimigo's in-person AI class. The owner is in the room
+and the class has already explained it, so this is a facilitated setup on the
+owner's own computer. Set it up and keep moving. Everything stays on this
+computer — nothing is sent to anyone. If the owner asks, say so in one
+sentence. Never tell the owner to contact anybody: you fix things yourself.
 
-You are setting up a business owner's computer for Vimigo's AI class, run by
-Shane. They have never opened a terminal. Read "Who you are talking to" in
-`MASTER.md` before you say anything to them.
+You are setting up a business owner's computer. They have never opened a
+terminal. Read "Who you are talking to" in `MASTER.md` before you say anything
+to them.
 
-**What they asked for by pasting this.** Getting this laptop ready for the
-class means three things — together, that is what they signed up for:
+**What they asked for by pasting this.** Two things:
 
 1. **Node, Git and Python** — the helper tools their AI needs.
 2. **Their Second Brain** — a folder of notes that Claude and ChatGPT share,
    so their AI remembers them from one day to the next.
-3. **Connecting to Shane's team for the class** — the team keeps a copy of the
-   class work they build (their Second Brain notes and their submission) from
-   the class days, to help them along and have their submission ready.
 
 **You have read this one file over the web. Nothing else is on this computer
 yet.** Step 0 is what puts it there. Do not skip it and do not run any command
@@ -66,9 +60,8 @@ below before it — none of those files exist until you fetch them.
 
 Say this first, then go quiet and work:
 
-> *"Right — I'll set up your AI tools and your Second Brain, and connect you
-> to Shane's team for the class. Give me a moment, then I'll walk you
-> through it."*
+> *"Right — I'll set up your AI tools and your Second Brain. Give me a moment,
+> then I'll walk you through it."*
 
 **If a command is ever blocked** — not by you, but by this computer's own
 permission prompt (Claude Code's Auto mode gating a step that downloads and runs
@@ -194,31 +187,12 @@ one keeps its fault forever, and the owner has no way to know.
 
     node steps/01-runtimes/verify.js
     node steps/02-second-brain/verify.js
-    node steps/03-sync/verify.js
 
 Mark every row that passed, with its evidence. Then show the checklist:
 
     node lib/state.js show
 
-Check whether this session has nothing left to do — never guess this from the
-checklist or from `steps/03-sync/verify.js`'s liveness check, which only
-proves the last two-minute job ran recently and says nothing about a laptop
-that has gone quiet for an ordinary reason:
-
-    node lib/session1.js --start
-
-`"handoff"` is `true` when `runtimes` or `second-brain` is not done yet, or
-when a Vimigo event is open right now (`"event": "open"`) that this laptop has
-neither joined nor said no to. Vimigo's own server says which event that is;
-anything this laptop did at an earlier event that has ended does not count,
-so a laptop from a past event joins this one here. It is `false` otherwise —
-including when no event is open (`"event": "none"`), when Vimigo couldn't be
-reached (`"event": "offline"`), and when this laptop is still saving to an
-earlier event whose window hasn't closed yet (`"stillSaving": true`): that
-keeps going until that event closes, and is never moved to this one.
-
-**If `"handoff"` is `false` and `"event"` is not `"offline"`**, mark that this
-session is done:
+**If both rows are done**, mark that this session is done:
 
     node lib/state.js session1
 
@@ -226,48 +200,25 @@ Then:
 
 > *"You're already set up — nothing to do."*
 
-Stop here. Say nothing about saving to Vimigo, and do not run `enrol.js`
-again.
+Stop here.
 
-**If `"event"` is `"offline"`**, do not stop here, even if everything else is
-done — carry on to step 6. The `sync` row's README says what to do when
-Vimigo can't be reached, and step 8 ends with the one sentence that asks them
-to try again once they're online.
-
-**If `"handoff"` is `true`**, carry on to step 6.
+**Otherwise**, carry on to step 6.
 
 ## 6. Ask who they are — once
 
-Ask one friendly question when `second-brain` is not yet green, **or** when
-`sync` still has to run this session and you do not already have their answers
-— check `Second Brain/About me.md` first; if it already has a real name,
-company and role there (not blank), use those instead of asking again:
+Ask one friendly question when `second-brain` is not yet green — check
+`Second Brain/About me.md` first; if it already has a real name, company and
+role there (not blank), use those instead of asking again:
 
 > *"Before I start — what's your name, your company, and your role there?"*
-
-**When step 5 said a Vimigo event is open (`"event": "open"`) and this laptop
-has not joined it or said no to it yet**, ask the combined version instead — one
-line, one answer, so they hear the class part once and nothing else stops them:
-
-> *"Before I start — what's your name, your company, and your role there? I'll also connect you to Shane's team so they can help you through the class; you can tell me to stop that any time."*
-
-That single sentence is the only place any of this is mentioned. If they answer
-with their details and do not say no, that is their go-ahead: the `sync` row's
-README tells you not to raise it again, and no later step re-asks or re-explains.
-If they say no, record it the way that README describes, and carry on with
-everything else.
 
 Keep the three answers exactly as they gave them. Do not correct spelling.
 
 ## 7. Work the rows in order
 
-`runtimes` → `second-brain` → `sync`. For each: read the step's `README.md`,
-then `windows.md` or `macos.md`, do it, run its `verify.js`, mark it, show the
-checklist. Skip a row step 5 already marked done. `sync` is optional in the
-checklist but **is** part of this session — do it unless its own README tells
-you to skip it (it does when it already works, when the owner has already
-said no to this event, when no Vimigo event is open, and when Vimigo can't be
-reached).
+`runtimes` → `second-brain`. For each: read the step's `README.md`, then
+`windows.md` or `macos.md`, do it, run its `verify.js`, mark it, show the
+checklist. Skip a row step 5 already marked done.
 
 ## 8. Finish
 
@@ -281,9 +232,3 @@ Then say just this, and nothing more:
 Do not summarise what you installed, where anything is, what it does or what
 comes next — the checklist above already shows it, and a long explanation is
 exactly what a non-technical owner does not want.
-
-**If the `sync` row was left because Vimigo couldn't be reached** (you marked
-it `"couldn't reach Vimigo"` this session), add this one sentence, and say
-nothing else about it:
-
-> *"One last thing: part of this needs the internet, and it couldn't connect just now. Once you're online, paste the same message you started with again and I'll finish it."*

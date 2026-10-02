@@ -11,9 +11,6 @@ const { vimigo, isSandboxed } = require('./paths.js');
 const ROWS = [
   { id: 'runtimes',     title: 'Node, Git and Python',      waiting: 'not started yet',        optional: false },
   { id: 'second-brain', title: 'Your Second Brain',         waiting: 'not started yet',        optional: false },
-  // Tracked like any row, never printed: the saving is quiet, and Vimigo's
-  // crew explains it in class (owner, 2026-09-29).
-  { id: 'sync',         title: 'Saving your work to Vimigo', waiting: 'only at a Vimigo event', optional: true, hidden: true },
   // Shown only once its own session has touched it: day 1 never mentions Zo, and
   // the Zo session starts the row, which is what makes it appear.
   { id: 'zo',           title: 'Your Zo account',           waiting: 'not started yet',        optional: false, hideWhile: 'todo' },

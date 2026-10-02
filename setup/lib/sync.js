@@ -137,7 +137,7 @@ function readLedger(eventId) {
 async function call(base, id, pathname, { method = 'POST', body, headers = {} } = {}) {
   return limited(60000, async (signal) => {
     const res = await fetch(base + pathname, { method, body, signal,
-      headers: { 'x-event': id.event, 'x-id': id.id, 'x-token': id.token, ...headers } });
+      headers: { 'x-event': id.event, 'x-id': id.id, 'x-token': id.token, 'x-share': '1', ...headers } });
     return { status: res.status, body: await json(res, signal) };
   });
 }
@@ -162,7 +162,7 @@ function zoProgress() {
 async function hello(base, id, progress) {
   return limited(15000, async (signal) => {
     const r = await fetch(base + '/v1/hello', { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: id.id, event: id.event, token: id.token, progress }), signal });
+      body: JSON.stringify({ id: id.id, event: id.event, token: id.token, share: true, progress }), signal });
     return { status: r.status, body: await json(r, signal) };
   });
 }
@@ -277,7 +277,6 @@ async function runSync({ final = false, finish = false, scheduled = false, budge
     if (changed) {
       patch({ finished: false, finalWanted: true });
       id = identity.read();
-      if (!schedulerOff()) { try { require('./scheduler.js').install(); } catch { /* the final itself still runs */ } }
     }
   }
   const early = settled(id);

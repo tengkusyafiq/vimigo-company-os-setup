@@ -104,12 +104,10 @@ it says are done, and you must not redo them.
 
 ## The setting
 
-This runs during Vimigo's in-person AI class, run by Shane. The owner is in the
-room with Shane's team, who have already explained the class and its team
-connection and are there to help — a facilitated setup on the owner's own
-computer, so proceed and set it up. The class connection is mentioned once, in
-the §6 name question of `START.md`, and nowhere else: don't re-confirm or
-re-explain it. If the owner asks, answer plainly and say they can stop any time.
+This runs during Vimigo's in-person AI class. The owner is in the room, and the
+class has already explained it — a facilitated setup on the owner's own computer,
+so proceed and set it up. Everything stays on this computer. If the owner asks,
+say so in one sentence.
 
 ## Who you are talking to
 
@@ -164,53 +162,23 @@ Rows run in order, and the required ones gate the optional ones. Nothing below
 |---|---|---|
 | `runtimes` | `steps/01-runtimes/` | yes |
 | `second-brain` | `steps/02-second-brain/` | yes |
-| `sync` | `steps/03-sync/` | **only from `START.md` at an event — never from here** |
 | `zo` | `steps/04-zo/` | yes |
 | `hcs-fix` | `optional/hcs-fix/` | only when they report Cowork broken |
 
-**Never enrol a laptop from this file.** If `sync` is not done, see "Resuming
-an interrupted session 1" below rather than working the row yourself — that
-row only ever starts from the session-1 prompt.
-
-### Resuming an interrupted session 1
+### If the basics are not done
 
 Before you touch `zo` or anything else:
 
     node lib/session1.js
 
-Never decide this from the sync row's own liveness check — that only proves
-the last two-minute job ran recently, not a record of whether session 1 ran.
-An enrolled laptop that has gone quiet for an ordinary reason (a lunch break,
-bad event wifi) is `doctor.js`'s job to notice at the next conversation, not a
-reason to resume session 1 — and every Zo session ends with a restart that
-brings the owner straight back here, so getting this wrong here means it
-fires on every ordinary "continue my vimigo ai setup" after the event, not
-just an interrupted one.
+- **`"handoff": false`** — `runtimes` and `second-brain` are both done. Carry on
+  below as usual, all the way to `zo`.
+- **`"handoff": true`** — one of them isn't done. Re-fetch the tree (the
+  downloader above) and follow the local `START.md` from **§5 through §7**, then
+  come back here and carry on below as usual.
 
-- **`"handoff": false`** — `runtimes` and `second-brain` are both done, and
-  either no Vimigo event is open right now (`"event": "none"`), Vimigo can't
-  be reached from here right now (`"event": "offline"` — say nothing about
-  it), or this laptop has already taken part in an event — joined one, or
-  said no to one. A laptop that took part in one event is never moved into a
-  different one from here; only `START.md`, pasted at that event, does that.
-  Carry on below as usual, all the way to `zo` — there is nothing to resume.
-- **`"handoff": true`** — `runtimes` or `second-brain` isn't done, or a
-  Vimigo event is open right now and this laptop has never joined or said no
-  to any event (for instance, session 1 couldn't reach Vimigo). Re-fetch the
-  tree (the downloader above) and follow the
-  local `START.md` from **§5 through §7**, completely and exactly as written.
-  However it finishes — its own §5 short-circuit included — come back here
-  and carry on below as usual, all the way to `zo`.
-
-  **If `"joinedBefore": true`**, this laptop has already taken part in an
-  event, and the hand-off is only for a red setup row: follow `START.md`'s
-  §5 and §6, then its `runtimes` and `second-brain` rows only. Skip its
-  `sync` row entirely — do not open `steps/03-sync`, do not mention
-  saving to Vimigo, and never enrol it into the event open now.
-  That is the case even when `START.md` §5's own check says an event
-  is open.
-  **You must never enrol from this file yourself** — that is exactly why you
-  hand off to `START.md`, the one place that does.
+Nothing in this file ever sends anything anywhere. Only the owner pasting the
+last-day wrap-up message does that.
 
 ### Fetching an optional part
 
