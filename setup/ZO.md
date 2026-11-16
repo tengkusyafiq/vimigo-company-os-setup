@@ -7,5 +7,6 @@ Please connect my Zo account to my Claude and ChatGPT (Codex) apps. Reply in one
 - Claude Code: claude mcp add --transport http --scope user zo https://api.zo.computer/mcp --header "Authorization: Bearer KEY"
 - Claude app: in its claude_desktop_config.json, add an mcpServers entry named zo with command npx and args -y, mcp-remote@latest, https://api.zo.computer/mcp, --header, "Authorization: Bearer KEY". Keep everything else in the file.
 - ChatGPT/Codex: in .codex/config.toml in my home folder, add a [mcp_servers.zo] section with the same command and args. Keep everything else in the file.
+Do all three even if an app is not installed yet: create the file and its folder if they are missing. The Claude app file is claude_desktop_config.json inside the Claude folder in my AppData Roaming folder on Windows, or in ~/Library/Application Support/Claude on a Mac. Afterwards open each of the three places and check it really contains zo, then tell me which are connected. Never say one is connected without checking.
 5. Tell me to quit and reopen Claude and ChatGPT so they pick it up (on a Mac, Command+Q).
 6. When it is done, say only: "All done."
