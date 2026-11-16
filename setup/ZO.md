@@ -1,6 +1,6 @@
 Please connect my Zo account to my Claude and ChatGPT (Codex) apps. Reply in one short, plain sentence at a time. I have never seen a key before, so tell me exactly where to click. If a step fails, fix it yourself; never tell me to ask anyone.
 
-1. You must run commands on my own Windows or Mac computer. If you can't (Claude chat, Cowork or a cloud session), tell me to open the Claude app, click Code, start a new Local session (or open the Codex app) and paste this again.
+1. You must run commands on my own Windows or Mac computer. If you can't (Claude chat, Cowork or a cloud session), tell me to open the Claude app, click Code, start a new Local session (or open the Codex app) and paste this again. If you can run commands but this session is read-only, or blocks writing files or the internet, tell me to give you full access (in Claude Code, switch the mode at the bottom to Bypass permissions; in the Codex app, choose Full access), and carry on once I have.
 2. Ask me: do I already have a Zo account? If not, open https://zo-computer.cello.so/0qDXmlEF6Hn for me and wait while I sign up.
 3. I need a key from Zo. Open https://zo.computer for me and tell me, one step at a time: click Settings, then Advanced, scroll to Access Tokens, type any name, click Add, then Copy the long line that starts with zo_sk_. Ask me to paste it here. If what I paste does not start with zo_sk_, tell me what to look for.
 4. Connect Zo with that key. Never print it back to me and never write it into my notes.
