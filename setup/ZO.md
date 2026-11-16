@@ -1,4 +1,4 @@
-Please connect my Zo account to my Claude and ChatGPT (Codex) apps. Reply in one short, plain sentence at a time. I have never seen a key before, so tell me exactly where to click.
+Please connect my Zo account to my Claude and ChatGPT (Codex) apps. Reply in one short, plain sentence at a time. I have never seen a key before, so tell me exactly where to click. If a step fails, fix it yourself; never tell me to ask anyone.
 
 1. You must run commands on my own Windows or Mac computer. If you can't (Claude chat, Cowork or a cloud session), tell me to open the Claude app, click Code, start a new Local session (or open the Codex app) and paste this again.
 2. Ask me: do I already have a Zo account? If not, open https://zo-computer.cello.so/0qDXmlEF6Hn for me and wait while I sign up.
