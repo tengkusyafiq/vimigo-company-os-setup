@@ -21,7 +21,7 @@ description: Use when this person wants to automate their business, delegate wor
 ---
 How to work with this owner
 - Do things yourself. Do not hand the owner homework or ask them to run steps. Ask only for what only they can give: a login, a code on their phone, or a click on a screen you cannot reach.
-- Some software, often Malaysian or Asian, has no official MCP or API. Look on GitHub for one first. If there is none, use desktop control or the browser (Claude for Chrome) to do the task for them. api-anything (goodnight000/api-anything on GitHub) can turn a website that only has a screen into operations you can call.
+- Some software, often Malaysian or Asian, has no official MCP or API. Look on GitHub for one first. If there is none, use computer control or the browser to do the task for them (see Control below). api-anything (https://github.com/goodnight000/api-anything) can turn a website that only has a screen into operations you can call.
 - Use a lighter, cheaper model for simple work and the stronger one only for hard thinking, when the app lets you. This saves tokens without losing quality.
 - Install a tool only when the owner needs that capability. Most of them need an account, a subscription or a key first.
 
@@ -30,18 +30,19 @@ When the owner is not sure what to automate, interview them like a consultant be
 
 The stack
 AI
-- Claude Code desktop is the builder and the runner. It is enough on its own unless they need jobs that run 24/7 (automations, AI employees), which need hosting.
-- Claude Cowork can record the owner's screen while they explain their day. Turn the recording into a markdown skill file and pass it to a Claude Code session.
+- The coding app is the builder and the runner: Claude Code (the Code tab in the Claude app) or the Codex app (ChatGPT). Either one is enough on its own unless they need jobs that run 24/7 (automations, AI employees), which need hosting. Treat both apps the same: skills go in .claude/skills and .agents/skills, and to add an MCP use claude mcp add for Claude Code, and codex mcp add (or a [mcp_servers.name] section in .codex/config.toml) for Codex.
+- Claude Cowork can record the owner's screen while they explain their day. Turn the recording into a markdown skill file and pass it to a coding session. Without Cowork (for example a ChatGPT user), have the owner record their screen with any screen recorder, or just talk through the steps in a ChatGPT voice chat, then turn the recording or transcript into a markdown skill file the same way.
 - Cheaper model APIs (DeepSeek, OpenAI luna max) lower the cost of high-volume automations.
-- Marketing: Higgsfield (video generation) and ElevenLabs (voice), each connected to Claude Code. The fastest way to a good result is a reference: the owner gives a viral video, ad or page and asks you to reverse-engineer it into a reusable marketing skill for their company. Editing raw video: just use Claude. Generating video or voice needs Higgsfield and ElevenLabs subscriptions and their MCPs.
+- Marketing: Higgsfield (video generation) and ElevenLabs (voice), each connected to Claude Code or Codex. The fastest way to a good result is a reference: the owner gives a viral video, ad or page and asks you to reverse-engineer it into a reusable marketing skill for their company. Editing raw video: just use Claude. Generating video or voice needs Higgsfield and ElevenLabs subscriptions and their MCPs.
 Tools (MCP)
-- WhatsApp: the hosted WhatsApp MCP at wamcp.vimigo.io, an unofficial MCP with more capabilities than the official ones. Never promise that a number cannot be blocked.
-- Notion (free plan): make one integration key and let every employee and AI use it through Claude. People get read-only access, unless several must edit, which needs a paid plan.
+- WhatsApp: the hosted WhatsApp MCP at https://wamcp.vimigo.io, an unofficial MCP with more capabilities than the official ones. Never promise that a number cannot be blocked.
+- Notion (free plan): make one integration key and let every employee and AI use it through their AI app. People get read-only access, unless several must edit, which needs a paid plan.
 - Google: the Calendar, Drive, Sheets and Docs MCPs.
-- Email: for a company that runs its own mail server (for example Roundcube), use the email MCP at codefuturist/email-mcp on GitHub.
-- Web and social research: agent-reach (Panniantong/agent-reach on GitHub).
+- Email: for a company that runs its own mail server (for example Roundcube), use the email MCP at https://github.com/codefuturist/email-mcp
+- Web and social research: agent-reach (https://github.com/Panniantong/agent-reach).
 Control
-- Claude desktop's computer control (the laptop) and Claude for Chrome (the browser).
+- Claude users: Claude desktop's computer control (the laptop) and Claude for Chrome (the browser).
+- ChatGPT users: the matching features of the ChatGPT and Codex apps, such as ChatGPT's agent mode for the browser. Check what the owner's app offers today before promising anything; if it has no such feature, say so plainly and use another route.
 Hosting
 - Zo Computer is the easy option.
 - Or Coolify on Hostinger, to host an AI chat agent, automations (for example Hermes), a Postgres database and files.
